@@ -132,10 +132,19 @@ jobs:
           path: ${{ matrix.paths }}
           if-no-files-found: error
 
-  # The AppImage claims to carry its own dependencies. This checks that claim on
-  # a clean container that has none of the dev libraries installed.
+  # Does the AppImage carry WebKit, or does it quietly rely on the build host
+  # having it? That is the claim worth testing, and the only one an AppImage
+  # actually makes: the format deliberately excludes the graphics stack,
+  # because libGL is driver-coupled and bundling it breaks acceleration on the
+  # host. So the container gets a minimal *desktop* runtime — X, GL, fonts,
+  # the things any real machine has — and pointedly NOT libwebkit2gtk-4.1-0,
+  # libgtk-3-0 or anything -dev. If the app starts, it started on its own
+  # WebKit.
+  #
+  # The first version of this job installed nothing but xvfb and expected the
+  # app to run, which no desktop application could have done.
   appimage-smoke:
-    name: AppImage on a clean container
+    name: AppImage on a machine without WebKit
     needs: bundle
     runs-on: ubuntu-latest
     steps:
@@ -152,17 +161,17 @@ jobs:
           echo "testing $APPIMAGE"
           docker run --rm -v "$PWD:/w" -w /w ubuntu:24.04 bash -eux -c '
             apt-get update -qq
-            # Only what is needed to unpack the image and fake a display.
-            # No FUSE package: --appimage-extract does not use FUSE, and the
-            # 24.04 name changed to libfuse2t64 anyway, which is what broke the
-            # first run of this job — apt failed, and -e killed the script
-            # before the AppImage was ever started.
-            apt-get install -y -qq --no-install-recommends xvfb ca-certificates
+            # A minimal desktop runtime. No FUSE package: --appimage-extract
+            # does not use FUSE, and 24.04 renamed it libfuse2t64 anyway, which
+            # is what broke the first version of this job.
+            apt-get install -y -qq --no-install-recommends               xvfb ca-certificates               libgl1 libegl1 libgbm1 libdrm2               libx11-6 libx11-xcb1 libxcb1 libxrandr2 libxi6               libfontconfig1 libfreetype6 libharfbuzz0b libfribidi0 fonts-dejavu-core
+            # Prove the host really has no WebKit of its own.
+            ! ldconfig -p | grep -q libwebkit2gtk || { echo "host already has WebKit; test proves nothing"; exit 1; }
             chmod +x '"$APPIMAGE"'
             '"$APPIMAGE"' --appimage-extract >/dev/null
-            # WebKitGTK will not realise its window without these in a headless
-            # container with no GPU; verified locally, where the app otherwise
-            # sits there with an unmapped 10x10 placeholder and no error.
+            # WebKitGTK will not realise its window without these where there
+            # is no GPU; verified locally, where it otherwise sits at an
+            # unmapped 10x10 placeholder and prints nothing at all.
             export WEBKIT_DISABLE_DMABUF_RENDERER=1
             export WEBKIT_DISABLE_COMPOSITING_MODE=1
             export LIBGL_ALWAYS_SOFTWARE=1
@@ -172,10 +181,10 @@ jobs:
             PID=$!
             sleep 25
             if kill -0 $PID 2>/dev/null; then
-              echo "AppImage stayed up for 25s on a clean image"
+              echo "AppImage stayed up for 25s using its own bundled WebKit"
               kill $PID
             else
-              echo "AppImage exited early on a clean image; its output was:"
+              echo "AppImage exited early; its output was:"
               cat /tmp/app.log || true
               exit 1
             fi
