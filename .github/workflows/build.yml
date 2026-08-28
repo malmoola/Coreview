@@ -148,20 +148,35 @@ jobs:
         run: |
           find dist-artifacts -name '*.AppImage' -exec chmod +x {} \;
           APPIMAGE=$(find dist-artifacts -name '*.AppImage' | head -1)
+          test -n "$APPIMAGE" || { echo "no AppImage in the artifact"; exit 1; }
           echo "testing $APPIMAGE"
           docker run --rm -v "$PWD:/w" -w /w ubuntu:24.04 bash -eux -c '
             apt-get update -qq
-            # Only what an AppImage needs to be unpacked and a GUI faked.
-            apt-get install -y -qq --no-install-recommends xvfb libfuse2 ca-certificates
+            # Only what is needed to unpack the image and fake a display.
+            # No FUSE package: --appimage-extract does not use FUSE, and the
+            # 24.04 name changed to libfuse2t64 anyway, which is what broke the
+            # first run of this job — apt failed, and -e killed the script
+            # before the AppImage was ever started.
+            apt-get install -y -qq --no-install-recommends xvfb ca-certificates
             chmod +x '"$APPIMAGE"'
-            # --appimage-extract avoids needing FUSE inside the container.
             '"$APPIMAGE"' --appimage-extract >/dev/null
-            timeout 40 xvfb-run -a ./squashfs-root/AppRun & PID=$!
+            # WebKitGTK will not realise its window without these in a headless
+            # container with no GPU; verified locally, where the app otherwise
+            # sits there with an unmapped 10x10 placeholder and no error.
+            export WEBKIT_DISABLE_DMABUF_RENDERER=1
+            export WEBKIT_DISABLE_COMPOSITING_MODE=1
+            export LIBGL_ALWAYS_SOFTWARE=1
+            # Keep the output: a smoke test that cannot say why it failed is
+            # not worth having.
+            timeout 40 xvfb-run -a ./squashfs-root/AppRun >/tmp/app.log 2>&1 &
+            PID=$!
             sleep 25
             if kill -0 $PID 2>/dev/null; then
               echo "AppImage stayed up for 25s on a clean image"
               kill $PID
             else
-              echo "AppImage exited early on a clean image"; exit 1
+              echo "AppImage exited early on a clean image; its output was:"
+              cat /tmp/app.log || true
+              exit 1
             fi
           '
