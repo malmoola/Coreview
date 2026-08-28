@@ -208,3 +208,65 @@ async fn stop_kills_the_session_and_leaves_no_children() {
         assert!(pids.is_empty(), "ping processes survived stop(): {pids:?}");
     }
 }
+
+
+/// Counts `[ping] <defunct>` children of this test process.
+fn zombie_pings() -> usize {
+    let out = std::process::Command::new("ps")
+        .args(["-eo", "stat,comm,ppid"])
+        .output();
+    let me = std::process::id().to_string();
+    match out {
+        Ok(o) => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter(|l| {
+                let mut f = l.split_whitespace();
+                let stat = f.next().unwrap_or("");
+                let comm = f.next().unwrap_or("");
+                let ppid = f.next().unwrap_or("");
+                stat.starts_with('Z') && comm == "ping" && ppid == me
+            })
+            .count(),
+        Err(_) => 0,
+    }
+}
+
+/// Invariant: dropping a probe future mid-flight leaves no zombie behind.
+///
+/// Kept as a guard, not as a regression test. During Phase 3 a
+/// `[ping] <defunct>` was observed just after Stop validation, and this test
+/// was written to reproduce it. It does not — it passes identically with and
+/// without an explicit reap, both here and when dropping the future directly
+/// rather than going through Engine::stop().
+///
+/// The conclusion is that `Command::kill_on_drop(true)` does reap, just not
+/// synchronously: the original sighting was inside the kill-to-reap window.
+/// The count had returned to zero by the end of the 5-minute Case 20 run,
+/// which agrees. An explicit ReapOnDrop guard was written and then reverted,
+/// because replacing a well-tested `cmd.output()` with hand-rolled spawn,
+/// drain and wait could not be shown to fix anything.
+#[tokio::test]
+async fn dropping_a_probe_future_leaves_no_zombie() {
+    assert_eq!(zombie_pings(), 0, "test started with pre-existing zombies");
+
+    for i in 0..6 {
+        // A target that never answers, so the child is still running when the
+        // future is dropped.
+        let cfg = probe("drop", &format!("192.0.2.{}", 20 + i), ProbeKind::Icmp);
+        let fut = run_once(&cfg);
+        tokio::pin!(fut);
+        tokio::select! {
+            _ = &mut fut => panic!("probe finished too fast to exercise cancellation"),
+            _ = tokio::time::sleep(Duration::from_millis(150)) => {}
+        }
+        // `fut` goes out of scope here, which is the cancellation path under
+        // test. (An explicit drop() would be a no-op: tokio::pin! rebinds the
+        // name to a Pin<&mut Fut>, and dropping a reference drops nothing.)
+    }
+
+    // Let any reaper task run.
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let z = zombie_pings();
+    assert_eq!(z, 0, "{z} ping zombie(s) survived a dropped probe future");
+}

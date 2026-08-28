@@ -1,0 +1,26 @@
+# Workspace root.
+#
+# Without this, `cargo build --workspace` — which README.md and the docs assume
+# — has no manifest to resolve, and each crate had to be built from its own
+# directory. Both crates keep their own [package] sections; this only groups
+# them and gives them a shared target/ and lockfile.
+#
+# The split itself is deliberate and is documented in ARCHITECTURE.md:
+# crates/livetopo-probe has no Tauri dependency, so the security-critical
+# code (target parsing, argv construction, threshold logic, cancellation)
+# builds and tests with plain `cargo test` and none of the GTK/WebKit stack.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/livetopo-probe",
+    "src-tauri",
+]
+
+# Applies to the whole workspace, so a release build of either crate is
+# optimised the same way. Mirrors what src-tauri already declared.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
