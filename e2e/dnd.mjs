@@ -16,7 +16,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 // Browser-mode storage is keyed by meta.id; openProject looks it up by that,
 // so the key and the id have to agree or the row renders and opens nothing.
 await page.addInitScript((p) => {
-  localStorage.setItem("livetopo.projects.v1", JSON.stringify({ [p.meta.id]: p }));
+  localStorage.setItem("coreview.projects.v1", JSON.stringify({ [p.meta.id]: p }));
 }, pkg);
 await page.goto("http://localhost:5173/", { waitUntil: "networkidle" });
 await page.locator(".lt-project-open").first().click();

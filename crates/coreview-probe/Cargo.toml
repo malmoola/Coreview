@@ -1,8 +1,8 @@
 [package]
-name = "livetopo-probe"
-version = "0.1.1"
+name = "coreview-probe"
+version = "0.2.0"
 edition = "2021"
-description = "Probe engine for LiveTopo: validation, ICMP/TCP/DNS checks, threshold state machine, scheduler"
+description = "Probe engine for Coreview: validation, ICMP/TCP/DNS checks, threshold state machine, scheduler"
 license = "MIT"
 
 [dependencies]

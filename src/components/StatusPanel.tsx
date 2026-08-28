@@ -113,11 +113,11 @@ export function StatusPanel() {
 
   if (!open) {
     return (
-      <div className="lt-panel is-collapsed">
-        <button type="button" className="lt-btn" onClick={() => setOpen(true)}>
+      <div className="cv-panel is-collapsed">
+        <button type="button" className="cv-btn" onClick={() => setOpen(true)}>
           Show status and events
         </button>
-        <span className="lt-panel-summary">
+        <span className="cv-panel-summary">
           {(['healthy', 'warning', 'down', 'unknown'] as HealthStatus[]).map((s) => (
             <span key={s} style={{ color: STATUS_COLOR[s] }}>
               {STATUS_GLYPH[s]} {counts[s] ?? 0}
@@ -129,9 +129,9 @@ export function StatusPanel() {
   }
 
   return (
-    <div className="lt-panel">
-      <div className="lt-panel-head">
-        <div className="lt-tabs">
+    <div className="cv-panel">
+      <div className="cv-panel-head">
+        <div className="cv-tabs">
           <button
             type="button"
             className={tab === 'objects' ? 'is-active' : ''}
@@ -149,12 +149,12 @@ export function StatusPanel() {
         </div>
 
         <input
-          className="lt-input lt-panel-search"
+          className="cv-input cv-panel-search"
           placeholder="Filter by name, IP, type, tag or status"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <label className="lt-check lt-check-inline">
+        <label className="cv-check cv-check-inline">
           <input
             type="checkbox"
             checked={problemsOnly}
@@ -162,16 +162,16 @@ export function StatusPanel() {
           />
           Warnings and down only
         </label>
-        <button type="button" className="lt-btn lt-btn-small" onClick={() => setOpen(false)}>
+        <button type="button" className="cv-btn cv-btn-small" onClick={() => setOpen(false)}>
           Hide
         </button>
       </div>
 
-      {statusMessage && <div className="lt-panel-message">{statusMessage}</div>}
+      {statusMessage && <div className="cv-panel-message">{statusMessage}</div>}
 
-      <div className="lt-panel-body">
+      <div className="cv-panel-body">
         {tab === 'objects' ? (
-          <table className="lt-table">
+          <table className="cv-table">
             <thead>
               <tr>
                 <th>Status</th>
@@ -192,21 +192,21 @@ export function StatusPanel() {
                   }
                 >
                   <td>
-                    <span className="lt-chip" style={{ background: STATUS_COLOR[r.status] }}>
+                    <span className="cv-chip" style={{ background: STATUS_COLOR[r.status] }}>
                       {STATUS_GLYPH[r.status]} {STATUS_LABEL[r.status]}
                     </span>
                   </td>
                   <td>{r.kind}</td>
                   <td>{r.name}</td>
-                  <td className="lt-mono">{r.type}</td>
-                  <td className="lt-mono">{r.target || '—'}</td>
-                  <td className="lt-mono">{r.rtt != null ? `${r.rtt.toFixed(0)} ms` : '—'}</td>
-                  <td className="lt-mono lt-ellipsis">{r.detail || '—'}</td>
+                  <td className="cv-mono">{r.type}</td>
+                  <td className="cv-mono">{r.target || '—'}</td>
+                  <td className="cv-mono">{r.rtt != null ? `${r.rtt.toFixed(0)} ms` : '—'}</td>
+                  <td className="cv-mono cv-ellipsis">{r.detail || '—'}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="lt-help">
+                  <td colSpan={7} className="cv-help">
                     Nothing matches this filter.
                   </td>
                 </tr>
@@ -214,7 +214,7 @@ export function StatusPanel() {
             </tbody>
           </table>
         ) : (
-          <table className="lt-table">
+          <table className="cv-table">
             <thead>
               <tr>
                 <th>Time</th>
@@ -240,7 +240,7 @@ export function StatusPanel() {
                   }
                   title="Double-click to copy this event"
                 >
-                  <td className="lt-mono">{new Date(e.timestampMs).toLocaleTimeString()}</td>
+                  <td className="cv-mono">{new Date(e.timestampMs).toLocaleTimeString()}</td>
                   <td>{e.objectType}</td>
                   <td>{e.objectName}</td>
                   <td>
@@ -252,15 +252,15 @@ export function StatusPanel() {
                       {STATUS_LABEL[e.currentStatus ?? 'unknown']}
                     </span>
                   </td>
-                  <td className="lt-mono">{e.probeType ?? '—'}</td>
-                  <td className="lt-mono">{e.target ?? '—'}</td>
-                  <td className="lt-mono">{e.rttMs != null ? `${e.rttMs.toFixed(0)} ms` : '—'}</td>
-                  <td className="lt-ellipsis">{e.message}</td>
+                  <td className="cv-mono">{e.probeType ?? '—'}</td>
+                  <td className="cv-mono">{e.target ?? '—'}</td>
+                  <td className="cv-mono">{e.rttMs != null ? `${e.rttMs.toFixed(0)} ms` : '—'}</td>
+                  <td className="cv-ellipsis">{e.message}</td>
                 </tr>
               ))}
               {filteredEvents.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="lt-help">
+                  <td colSpan={8} className="cv-help">
                     No events yet. Events are recorded when a status changes during a validation
                     session.
                   </td>

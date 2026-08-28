@@ -35,9 +35,9 @@ export default function App() {
 
   if (!meta) {
     return (
-      <div className={`lt-app ${highContrast ? 'is-contrast' : ''}`}>
+      <div className={`cv-app ${highContrast ? 'is-contrast' : ''}`}>
         {!isDesktop && (
-          <div className="lt-browser-banner">
+          <div className="cv-browser-banner">
             Running in a browser. Projects are kept in browser storage and no probing is possible —
             start the desktop app with <code>npm run tauri dev</code> to run checks.
           </div>
@@ -49,9 +49,9 @@ export default function App() {
 
   return (
     <ReactFlowProvider>
-      <div className={`lt-app lt-workspace ${highContrast ? 'is-contrast' : ''}`}>
+      <div className={`cv-app cv-workspace ${highContrast ? 'is-contrast' : ''}`}>
         <TopBar onExit={() => undefined} />
-        <div className="lt-main">
+        <div className="cv-main">
           <Palette />
           <Canvas />
           <Inspector />

@@ -10,8 +10,8 @@
 //!
 //! Requires a `ping` binary. Run with: cargo test --test live_linux -- --nocapture
 
-use livetopo_probe::engine::{run_once, Engine, EngineEvent, SessionState};
-use livetopo_probe::types::{HealthStatus, ObjectKind, Outcome, ProbeConfig, ProbeKind};
+use coreview_probe::engine::{run_once, Engine, EngineEvent, SessionState};
+use coreview_probe::types::{HealthStatus, ObjectKind, Outcome, ProbeConfig, ProbeKind};
 use std::time::{Duration, Instant};
 
 fn probe(id: &str, target: &str, kind: ProbeKind) -> ProbeConfig {
@@ -62,15 +62,15 @@ async fn documentation_range_icmp_really_fails() {
 /// process is spawned, and the marker file is never created.
 #[tokio::test]
 async fn injection_target_is_rejected_and_touches_nothing() {
-    let marker = std::path::Path::new("/tmp/livetopo_pwned_marker");
+    let marker = std::path::Path::new("/tmp/coreview_pwned_marker");
     let _ = std::fs::remove_file(marker);
 
     for hostile in [
-        "10.0.0.1 && touch /tmp/livetopo_pwned_marker",
-        "10.0.0.1; touch /tmp/livetopo_pwned_marker",
-        "10.0.0.1 | touch /tmp/livetopo_pwned_marker",
-        "$(touch /tmp/livetopo_pwned_marker)",
-        "`touch /tmp/livetopo_pwned_marker`",
+        "10.0.0.1 && touch /tmp/coreview_pwned_marker",
+        "10.0.0.1; touch /tmp/coreview_pwned_marker",
+        "10.0.0.1 | touch /tmp/coreview_pwned_marker",
+        "$(touch /tmp/coreview_pwned_marker)",
+        "`touch /tmp/coreview_pwned_marker`",
         "-c1 127.0.0.1",
     ] {
         let r = run_once(&probe("evil", hostile, ProbeKind::Icmp)).await;

@@ -35,7 +35,7 @@ export function ContextMenu({
   }, [onClose]);
 
   return (
-    <div className="lt-menu" style={{ left: x, top: y }} ref={ref} role="menu">
+    <div className="cv-menu" style={{ left: x, top: y }} ref={ref} role="menu">
       {items.map((item) => (
         <button
           key={item.label}

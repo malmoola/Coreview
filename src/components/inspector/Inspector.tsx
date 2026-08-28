@@ -57,10 +57,10 @@ function Field({
   hint?: string;
 }) {
   return (
-    <label className="lt-field">
-      <span className="lt-field-label">{label}</span>
+    <label className="cv-field">
+      <span className="cv-field-label">{label}</span>
       {children}
-      {hint && <span className="lt-field-hint">{hint}</span>}
+      {hint && <span className="cv-field-hint">{hint}</span>}
     </label>
   );
 }
@@ -73,7 +73,7 @@ export function Inspector() {
   if (!meta) return null;
 
   return (
-    <aside className="lt-inspector" aria-label="Inspector">
+    <aside className="cv-inspector" aria-label="Inspector">
       {selectedNodeId ? (
         <NodeInspector nodeId={selectedNodeId} />
       ) : selectedEdgeId ? (
@@ -90,51 +90,51 @@ function ProjectInspector() {
   const updateMeta = useStore((s) => s.updateMeta);
   return (
     <>
-      <h2 className="lt-inspector-title">Project</h2>
+      <h2 className="cv-inspector-title">Project</h2>
       <Field label="Project name">
         <input
-          className="lt-input"
+          className="cv-input"
           value={meta.name}
           onChange={(e) => updateMeta({ name: e.target.value })}
         />
       </Field>
       <Field label="Customer or organisation">
         <input
-          className="lt-input"
+          className="cv-input"
           value={meta.customer}
           onChange={(e) => updateMeta({ customer: e.target.value })}
         />
       </Field>
       <Field label="Site or location">
         <input
-          className="lt-input"
+          className="cv-input"
           value={meta.site}
           onChange={(e) => updateMeta({ site: e.target.value })}
         />
       </Field>
       <Field label="Change ticket">
         <input
-          className="lt-input"
+          className="cv-input"
           value={meta.ticket}
           onChange={(e) => updateMeta({ ticket: e.target.value })}
         />
       </Field>
       <Field label="Engineer">
         <input
-          className="lt-input"
+          className="cv-input"
           value={meta.engineer}
           onChange={(e) => updateMeta({ engineer: e.target.value })}
         />
       </Field>
       <Field label="Description">
         <textarea
-          className="lt-input"
+          className="cv-input"
           rows={4}
           value={meta.description}
           onChange={(e) => updateMeta({ description: e.target.value })}
         />
       </Field>
-      <p className="lt-help">
+      <p className="cv-help">
         Select a node or a link to configure targets and health rules. Checks run from this
         machine only.
       </p>
@@ -153,26 +153,26 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
     const d = node.data as NoteNodeData;
     return (
       <>
-        <h2 className="lt-inspector-title">Note</h2>
+        <h2 className="cv-inspector-title">Note</h2>
         <Field label="Title">
           <input
-            className="lt-input"
+            className="cv-input"
             value={d.title ?? ''}
             onChange={(e) => update(nodeId, { title: e.target.value })}
           />
         </Field>
         <Field label="Body" hint="Supports # headings, - bullets, - [ ] checkboxes, **bold**, `code`">
           <textarea
-            className="lt-input lt-mono"
+            className="cv-input cv-mono"
             rows={10}
             value={d.body}
             onChange={(e) => update(nodeId, { body: e.target.value })}
           />
         </Field>
-        <div className="lt-row">
+        <div className="cv-row">
           <Field label="Font size">
             <input
-              className="lt-input"
+              className="cv-input"
               type="number"
               min={9}
               max={40}
@@ -182,7 +182,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           </Field>
           <Field label="Style">
             <select
-              className="lt-input"
+              className="cv-input"
               value={d.variant}
               onChange={(e) => update(nodeId, { variant: e.target.value as NoteNodeData['variant'] })}
             >
@@ -191,10 +191,10 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
             </select>
           </Field>
         </div>
-        <div className="lt-row">
+        <div className="cv-row">
           <Field label="Text">
             <input
-              className="lt-color"
+              className="cv-color"
               type="color"
               value={d.textColor}
               onChange={(e) => update(nodeId, { textColor: e.target.value })}
@@ -202,7 +202,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           </Field>
           <Field label="Background">
             <input
-              className="lt-color"
+              className="cv-color"
               type="color"
               value={d.background}
               onChange={(e) => update(nodeId, { background: e.target.value })}
@@ -210,14 +210,14 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           </Field>
           <Field label="Border">
             <input
-              className="lt-color"
+              className="cv-color"
               type="color"
               value={d.borderColor}
               onChange={(e) => update(nodeId, { borderColor: e.target.value })}
             />
           </Field>
         </div>
-        <label className="lt-check">
+        <label className="cv-check">
           <input
             type="checkbox"
             checked={d.locked}
@@ -233,24 +233,24 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
 
   return (
     <>
-      <h2 className="lt-inspector-title">
+      <h2 className="cv-inspector-title">
         Node
-        <span className="lt-chip" style={{ background: STATUS_COLOR[status] }}>
+        <span className="cv-chip" style={{ background: STATUS_COLOR[status] }}>
           {STATUS_GLYPH[status]} {STATUS_LABEL[status]}
         </span>
       </h2>
 
       <Field label="Display name">
         <input
-          className="lt-input"
+          className="cv-input"
           value={d.label}
           onChange={(e) => update(nodeId, { label: e.target.value })}
         />
       </Field>
-      <div className="lt-row">
+      <div className="cv-row">
         <Field label="Device type">
           <select
-            className="lt-input"
+            className="cv-input"
             value={d.deviceType}
             onChange={(e) => update(nodeId, { deviceType: e.target.value as DeviceType })}
           >
@@ -263,39 +263,39 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
         </Field>
         <Field label="Role">
           <input
-            className="lt-input"
+            className="cv-input"
             value={d.role ?? ''}
             onChange={(e) => update(nodeId, { role: e.target.value })}
           />
         </Field>
       </div>
-      <div className="lt-row">
+      <div className="cv-row">
         <Field label="Vendor">
           <input
-            className="lt-input"
+            className="cv-input"
             value={d.vendor ?? ''}
             onChange={(e) => update(nodeId, { vendor: e.target.value })}
           />
         </Field>
         <Field label="Model">
           <input
-            className="lt-input"
+            className="cv-input"
             value={d.model ?? ''}
             onChange={(e) => update(nodeId, { model: e.target.value })}
           />
         </Field>
       </div>
-      <div className="lt-row">
+      <div className="cv-row">
         <Field label="Hostname">
           <input
-            className="lt-input"
+            className="cv-input"
             value={d.hostname ?? ''}
             onChange={(e) => update(nodeId, { hostname: e.target.value })}
           />
         </Field>
         <Field label="Rack / room">
           <input
-            className="lt-input"
+            className="cv-input"
             value={d.rack ?? ''}
             onChange={(e) => update(nodeId, { rack: e.target.value })}
           />
@@ -303,7 +303,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
       </div>
       <Field label="Tags" hint="Comma separated">
         <input
-          className="lt-input"
+          className="cv-input"
           value={d.tags.join(', ')}
           onChange={(e) =>
             update(nodeId, {
@@ -317,15 +317,15 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
       </Field>
       <Field label="Notes">
         <textarea
-          className="lt-input"
+          className="cv-input"
           rows={3}
           value={d.notes ?? ''}
           onChange={(e) => update(nodeId, { notes: e.target.value })}
         />
       </Field>
 
-      <div className="lt-checks">
-        <label className="lt-check">
+      <div className="cv-checks">
+        <label className="cv-check">
           <input
             type="checkbox"
             checked={d.showDetails}
@@ -333,7 +333,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           />
           Show address and status on the canvas
         </label>
-        <label className="lt-check">
+        <label className="cv-check">
           <input
             type="checkbox"
             checked={d.locked}
@@ -341,7 +341,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           />
           Lock position
         </label>
-        <label className="lt-check">
+        <label className="cv-check">
           <input
             type="checkbox"
             checked={d.maintenance}
@@ -367,12 +367,12 @@ function AddressList({ nodeId }: { nodeId: string }) {
   const set = (next: DeviceNodeData['addresses']) => update(nodeId, { addresses: next });
 
   return (
-    <section className="lt-section">
+    <section className="cv-section">
       <h3>
         Addresses
         <button
           type="button"
-          className="lt-btn lt-btn-small"
+          className="cv-btn cv-btn-small"
           onClick={() =>
             set([
               ...addresses,
@@ -384,12 +384,12 @@ function AddressList({ nodeId }: { nodeId: string }) {
         </button>
       </h3>
       {addresses.length === 0 && (
-        <p className="lt-help">No addresses yet. Add one, then create a probe that uses it.</p>
+        <p className="cv-help">No addresses yet. Add one, then create a probe that uses it.</p>
       )}
       {addresses.map((a, i) => (
-        <div className="lt-addr" key={a.id}>
+        <div className="cv-addr" key={a.id}>
           <input
-            className="lt-input lt-addr-label"
+            className="cv-input cv-addr-label"
             value={a.label}
             placeholder="Label"
             onChange={(e) => {
@@ -399,7 +399,7 @@ function AddressList({ nodeId }: { nodeId: string }) {
             }}
           />
           <input
-            className="lt-input lt-mono"
+            className="cv-input cv-mono"
             value={a.address}
             placeholder="10.10.10.1 or fw.example.net"
             onChange={(e) => {
@@ -410,7 +410,7 @@ function AddressList({ nodeId }: { nodeId: string }) {
           />
           <button
             type="button"
-            className={`lt-btn lt-btn-small ${a.isPrimary ? 'is-active' : ''}`}
+            className={`cv-btn cv-btn-small ${a.isPrimary ? 'is-active' : ''}`}
             title="Mark as the primary address"
             onClick={() => set(addresses.map((x, j) => ({ ...x, isPrimary: j === i })))}
           >
@@ -418,7 +418,7 @@ function AddressList({ nodeId }: { nodeId: string }) {
           </button>
           <button
             type="button"
-            className="lt-btn lt-btn-small is-danger"
+            className="cv-btn cv-btn-small is-danger"
             onClick={() => set(addresses.filter((_, j) => j !== i))}
           >
             Remove
@@ -453,19 +453,19 @@ function ProbeList({ objectKind, objectId }: { objectKind: 'node' | 'link'; obje
   }, [nodes, objectId, objectKind]);
 
   return (
-    <section className="lt-section">
+    <section className="cv-section">
       <h3>
         Probes
         <button
           type="button"
-          className="lt-btn lt-btn-small"
+          className="cv-btn cv-btn-small"
           onClick={() => upsert(newProbe(objectKind, objectId, meta.id, suggestedTarget))}
         >
           Add probe
         </button>
       </h3>
       {probes.length === 0 && (
-        <p className="lt-help">
+        <p className="cv-help">
           No probes configured. Nothing here is checked until you add one and start validation.
         </p>
       )}
@@ -507,32 +507,32 @@ function ProbeEditor({
   };
 
   return (
-    <div className="lt-probe">
-      <div className="lt-probe-head">
-        <button type="button" className="lt-probe-toggle" onClick={() => setOpen(!open)}>
+    <div className="cv-probe">
+      <div className="cv-probe-head">
+        <button type="button" className="cv-probe-toggle" onClick={() => setOpen(!open)}>
           {open ? '▾' : '▸'}
         </button>
         <input
-          className="lt-input lt-probe-name"
+          className="cv-input cv-probe-name"
           value={probe.name}
           onChange={(e) => patch({ name: e.target.value })}
         />
         {runtime && (
-          <span className="lt-chip" style={{ background: STATUS_COLOR[runtime.status] }}>
+          <span className="cv-chip" style={{ background: STATUS_COLOR[runtime.status] }}>
             {STATUS_GLYPH[runtime.status]} {STATUS_LABEL[runtime.status]}
           </span>
         )}
-        <button type="button" className="lt-btn lt-btn-small is-danger" onClick={onRemove}>
+        <button type="button" className="cv-btn cv-btn-small is-danger" onClick={onRemove}>
           Remove
         </button>
       </div>
 
       {open && (
-        <div className="lt-probe-body">
-          <div className="lt-row">
+        <div className="cv-probe-body">
+          <div className="cv-row">
             <Field label="Type">
               <select
-                className="lt-input"
+                className="cv-input"
                 value={probe.kind}
                 onChange={(e) => patch({ kind: e.target.value as ProbeKind })}
               >
@@ -544,7 +544,7 @@ function ProbeEditor({
             </Field>
             <Field label="Target">
               <input
-                className="lt-input lt-mono"
+                className="cv-input cv-mono"
                 value={probe.target}
                 placeholder="10.10.10.1"
                 onChange={(e) => patch({ target: e.target.value })}
@@ -553,7 +553,7 @@ function ProbeEditor({
             {probe.kind === 'tcp' && (
               <Field label="Port">
                 <input
-                  className="lt-input"
+                  className="cv-input"
                   type="number"
                   min={1}
                   max={65535}
@@ -564,10 +564,10 @@ function ProbeEditor({
             )}
           </div>
 
-          <div className="lt-row">
+          <div className="cv-row">
             <Field label="Interval (s)">
               <input
-                className="lt-input"
+                className="cv-input"
                 type="number"
                 min={1}
                 value={probe.intervalSeconds}
@@ -576,7 +576,7 @@ function ProbeEditor({
             </Field>
             <Field label="Timeout (ms)">
               <input
-                className="lt-input"
+                className="cv-input"
                 type="number"
                 min={100}
                 step={100}
@@ -586,7 +586,7 @@ function ProbeEditor({
             </Field>
             <Field label="Warn above (ms)">
               <input
-                className="lt-input"
+                className="cv-input"
                 type="number"
                 min={1}
                 value={probe.warningLatencyMs ?? ''}
@@ -597,10 +597,10 @@ function ProbeEditor({
             </Field>
           </div>
 
-          <div className="lt-row">
+          <div className="cv-row">
             <Field label="Fail after" hint="consecutive failures">
               <input
-                className="lt-input"
+                className="cv-input"
                 type="number"
                 min={1}
                 value={probe.failureThreshold}
@@ -609,7 +609,7 @@ function ProbeEditor({
             </Field>
             <Field label="Recover after" hint="consecutive successes">
               <input
-                className="lt-input"
+                className="cv-input"
                 type="number"
                 min={1}
                 value={probe.recoveryThreshold}
@@ -618,8 +618,8 @@ function ProbeEditor({
             </Field>
           </div>
 
-          <div className="lt-checks">
-            <label className="lt-check">
+          <div className="cv-checks">
+            <label className="cv-check">
               <input
                 type="checkbox"
                 checked={probe.enabled}
@@ -627,7 +627,7 @@ function ProbeEditor({
               />
               Enabled
             </label>
-            <label className="lt-check">
+            <label className="cv-check">
               <input
                 type="checkbox"
                 checked={probe.isPrimary}
@@ -635,7 +635,7 @@ function ProbeEditor({
               />
               Primary probe for this object
             </label>
-            <label className="lt-check">
+            <label className="cv-check">
               <input
                 type="checkbox"
                 checked={probe.maintenance}
@@ -645,21 +645,21 @@ function ProbeEditor({
             </label>
           </div>
 
-          <div className="lt-probe-actions">
+          <div className="cv-probe-actions">
             <button
               type="button"
-              className="lt-btn"
+              className="cv-btn"
               onClick={runTest}
               disabled={testing || !probe.target}
               title="Runs this check once. It does not start ongoing monitoring."
             >
               {testing ? 'Testing…' : 'Test now'}
             </button>
-            {result && <span className="lt-probe-result lt-mono">{result}</span>}
+            {result && <span className="cv-probe-result cv-mono">{result}</span>}
           </div>
 
           {runtime?.lastSummary && (
-            <p className="lt-help lt-mono">
+            <p className="cv-help cv-mono">
               Live: {runtime.lastSummary}
               {runtime.consecutiveFailures > 0 &&
                 ` · ${runtime.consecutiveFailures} of ${runtime.failureThreshold} failures`}
@@ -699,29 +699,29 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
 
   return (
     <>
-      <h2 className="lt-inspector-title">
+      <h2 className="cv-inspector-title">
         Link
-        <span className="lt-chip" style={{ background: STATUS_COLOR[status] }}>
+        <span className="cv-chip" style={{ background: STATUS_COLOR[status] }}>
           {STATUS_GLYPH[status]} {STATUS_LABEL[status]}
         </span>
       </h2>
-      <p className="lt-help">
+      <p className="cv-help">
         {nameOf(edge.source)} → {nameOf(edge.target)}
         <br />
         Driven by: {describeRule(rule, [...doc.probes])}
       </p>
 
-      <div className="lt-row">
+      <div className="cv-row">
         <Field label="Source port label" hint="e.g. port3">
           <input
-            className="lt-input lt-mono"
+            className="cv-input cv-mono"
             value={d.sourcePortLabel}
             onChange={(e) => update(edgeId, { sourcePortLabel: e.target.value })}
           />
         </Field>
         <Field label="Target port label" hint="e.g. Te1/0/48">
           <input
-            className="lt-input lt-mono"
+            className="cv-input cv-mono"
             value={d.targetPortLabel}
             onChange={(e) => update(edgeId, { targetPortLabel: e.target.value })}
           />
@@ -729,16 +729,16 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
       </div>
       <Field label="Centre label" hint="e.g. 10 Gb LACP — VLANs 10,20,30">
         <input
-          className="lt-input"
+          className="cv-input"
           value={d.label}
           onChange={(e) => update(edgeId, { label: e.target.value })}
         />
       </Field>
 
-      <div className="lt-row">
+      <div className="cv-row">
         <Field label="Path">
           <select
-            className="lt-input"
+            className="cv-input"
             value={d.pathType}
             onChange={(e) => update(edgeId, { pathType: e.target.value as LinkData['pathType'] })}
           >
@@ -750,7 +750,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
         </Field>
         <Field label="Flow direction">
           <select
-            className="lt-input"
+            className="cv-input"
             value={d.direction}
             onChange={(e) => update(edgeId, { direction: e.target.value as LinkData['direction'] })}
           >
@@ -762,7 +762,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
         </Field>
         <Field label="Width">
           <input
-            className="lt-input"
+            className="cv-input"
             type="number"
             min={1}
             max={10}
@@ -772,14 +772,14 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
         </Field>
       </div>
 
-      <section className="lt-section">
+      <section className="cv-section">
         <h3>Health rule</h3>
         <Field
           label="What determines this link's state"
-          hint="This is a rule you choose. LiveTopo does not trace the physical path."
+          hint="This is a rule you choose. Coreview does not trace the physical path."
         >
           <select
-            className="lt-input"
+            className="cv-input"
             value={rule.type}
             onChange={(e) =>
               update(edgeId, {
@@ -798,7 +798,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
         {rule.type === 'manual' && (
           <Field label="Manual status">
             <select
-              className="lt-input"
+              className="cv-input"
               value={rule.manualStatus ?? 'unknown'}
               onChange={(e) =>
                 update(edgeId, {
@@ -821,7 +821,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
         {rule.type === 'named-node-probe' && (
           <Field label="Probe">
             <select
-              className="lt-input"
+              className="cv-input"
               value={rule.probeId ?? ''}
               onChange={(e) =>
                 update(edgeId, { healthRule: { ...rule, probeId: e.target.value } })
@@ -838,8 +838,8 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
         )}
       </section>
 
-      <div className="lt-checks">
-        <label className="lt-check">
+      <div className="cv-checks">
+        <label className="cv-check">
           <input
             type="checkbox"
             checked={d.enabled}
@@ -847,7 +847,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
           />
           Link enabled
         </label>
-        <label className="lt-check">
+        <label className="cv-check">
           <input
             type="checkbox"
             checked={d.maintenance}
@@ -859,7 +859,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
 
       <Field label="Notes">
         <textarea
-          className="lt-input"
+          className="cv-input"
           rows={3}
           value={d.notes ?? ''}
           onChange={(e) => update(edgeId, { notes: e.target.value })}

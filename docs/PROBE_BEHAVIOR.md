@@ -1,6 +1,6 @@
 # Probe behaviour
 
-The authoritative implementation is `crates/livetopo-probe/src/state.rs` for
+The authoritative implementation is `crates/coreview-probe/src/state.rs` for
 thresholds and `icmp.rs` / `net.rs` for the checks. Both have unit tests.
 
 ## Statuses

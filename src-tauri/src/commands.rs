@@ -4,8 +4,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use livetopo_probe::engine::{run_once, EngineEvent, SessionState};
-use livetopo_probe::{Engine, ProbeConfig, ProbeResult, ProbeSnapshot};
+use coreview_probe::engine::{run_once, EngineEvent, SessionState};
+use coreview_probe::{Engine, ProbeConfig, ProbeResult, ProbeSnapshot};
 use base64::Engine as _;
 use rusqlite::Connection;
 use serde::Serialize;
@@ -75,7 +75,7 @@ pub async fn test_probe_now(config: ProbeConfig) -> CmdResult<ProbeResult> {
 /// Validate a target without probing it — used for live inspector feedback.
 #[tauri::command]
 pub fn validate_target(target: String) -> CmdResult<String> {
-    livetopo_probe::parse_target(&target)
+    coreview_probe::parse_target(&target)
         .map(|t| t.as_str())
         .map_err(|e| e.to_string())
 }
@@ -201,7 +201,7 @@ pub fn app_info() -> CmdResult<serde_json::Value> {
 pub fn pump_events(app: AppHandle, mut rx: tokio::sync::mpsc::UnboundedReceiver<EngineEvent>) {
     tauri::async_runtime::spawn(async move {
         while let Some(event) = rx.recv().await {
-            let _ = app.emit("livetopo://engine", &event);
+            let _ = app.emit("coreview://engine", &event);
         }
     });
 }
@@ -244,7 +244,7 @@ mod export_tests {
 
     #[test]
     fn writes_decoded_bytes_to_the_given_path() {
-        let dir = std::env::temp_dir().join(format!("livetopo-export-{}", Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("coreview-export-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("diagram.png");
         // PNG magic, so this also covers the binary case rather than only text.
@@ -259,7 +259,7 @@ mod export_tests {
 
     #[test]
     fn rejects_a_payload_that_is_not_base64() {
-        let path = std::env::temp_dir().join("livetopo-should-not-appear");
+        let path = std::env::temp_dir().join("coreview-should-not-appear");
         std::fs::remove_file(&path).ok();
 
         let err = save_export(path.to_string_lossy().into_owned(), "not base64!!".into())
@@ -272,7 +272,7 @@ mod export_tests {
 
     #[test]
     fn reports_the_path_when_the_directory_does_not_exist() {
-        let path = std::env::temp_dir().join("livetopo-no-such-dir").join("x.svg");
+        let path = std::env::temp_dir().join("coreview-no-such-dir").join("x.svg");
         let err = save_export(path.to_string_lossy().into_owned(), String::new()).unwrap_err();
         assert!(err.contains("Could not write"), "unexpected error: {err}");
     }

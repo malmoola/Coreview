@@ -21,7 +21,7 @@
 │                      db.rs        (rusqlite: projects, sessions, events, samples)               │
 │                      main.rs      (window lifecycle; stop-on-close, stop-on-exit)               │
 │                                                                                                │
-│  crates/livetopo-probe/   validate.rs  target parsing — the security boundary                   │
+│  crates/coreview-probe/   validate.rs  target parsing — the security boundary                   │
 │                           icmp.rs      ping argv construction + output parsing                  │
 │                           net.rs       TCP connect, DNS resolution                              │
 │                           state.rs     threshold state machine                                  │
@@ -69,7 +69,7 @@ probe_samples(id, session_id, probe_id, timestamp_ms, status, outcome, rtt_ms, s
 shape migrations. Both are checked on open.
 
 The document contains `nodes`, `edges`, `probes` and `canvas`. Node and edge
-shapes match React Flow's, with LiveTopo fields under `data`.
+shapes match React Flow's, with Coreview fields under `data`.
 
 ## Probe lifecycle
 

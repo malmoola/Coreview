@@ -38,7 +38,7 @@ legend, three sample projects, installer configuration.
    step.
 3. **Measure performance** at 50 nodes and 75 links with 30 animated edges.
    If SMIL is too expensive, drop dot count per edge before dropping frame rate.
-4. **Real `.livetopo` ZIP package** with a manifest, the SQLite slice, imported
+4. **Real `.coreview` ZIP package** with a manifest, the SQLite slice, imported
    assets and optional logs, instead of a single JSON file.
 5. **Native PDF export** rather than the print dialog.
 6. **Persist probe samples**, not only transitions, so a report can show a

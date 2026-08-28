@@ -11,7 +11,7 @@ import type {
  *
  * The primary enabled probe wins. If no probe is marked primary, the first
  * enabled probe is used. A node with no enabled probes is `unknown`, not
- * `healthy` — LiveTopo never reports health it has not observed.
+ * `healthy` — Coreview never reports health it has not observed.
  */
 export function nodeStatus(
   probes: Probe[],

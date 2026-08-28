@@ -2,7 +2,7 @@
 
 ## Create a project
 
-Open LiveTopo and choose **Create project**. Fill in the name, and — because
+Open Coreview and choose **Create project**. Fill in the name, and — because
 these end up in the exported report — the customer, site, change ticket and
 engineer. You can edit all of it later: click empty canvas and the inspector
 shows project fields.
@@ -114,7 +114,7 @@ Last updated: 19:11:22
 
 ## What this proves, and what it does not
 
-Every check runs from the Windows machine LiveTopo is on. A green node means
+Every check runs from the Windows machine Coreview is on. A green node means
 that machine reached that address with that method just now. It does not mean
 every hop drawn between them is healthy, and it does not mean application
 traffic works. Link colour follows the rule you chose. Keep that in mind before
@@ -131,10 +131,10 @@ The **Export** menu gives you:
   probe type, RTT and the failure text
 - **Validation report (Markdown)** — project metadata, object counts, status
   summary and the full transition table
-- **Project package (.livetopo)** — the whole project, importable elsewhere
+- **Project package (.coreview)** — the whole project, importable elsewhere
 
 ## Move a project to another machine
 
-Export the `.livetopo` package, copy it over, and use **Import project** on the
+Export the `.coreview` package, copy it over, and use **Import project** on the
 welcome screen. Diagram, metadata, probes and health rules come across. Event
 history does not — it stays with the machine that recorded it.

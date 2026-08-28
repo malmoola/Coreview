@@ -1,8 +1,8 @@
 [package]
-name = "livetopo"
-version = "0.1.1"
-description = "LiveTopo — local-first network diagram designer with live connectivity validation"
-authors = ["LiveTopo"]
+name = "coreview"
+version = "0.2.0"
+description = "Coreview — local-first network diagram designer with live connectivity validation"
+authors = ["Coreview"]
 edition = "2021"
 rust-version = "1.77"
 
@@ -10,7 +10,7 @@ rust-version = "1.77"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-livetopo-probe = { path = "../crates/livetopo-probe" }
+coreview-probe = { path = "../crates/coreview-probe" }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 base64 = "0.22"

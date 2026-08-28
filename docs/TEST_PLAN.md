@@ -13,17 +13,17 @@
 
 | File | Covers |
 | --- | --- |
-| `crates/livetopo-probe/src/validate.rs` | 4 tests. IPv4/IPv6/hostname acceptance, normalisation, 16 hostile inputs rejected, numeric bounds |
-| `crates/livetopo-probe/src/icmp.rs` | 8 tests. Windows and Linux reply parsing, sub-millisecond replies, timeout vs unreachable vs DNS failure, unparseable output, single-probe argv |
-| `crates/livetopo-probe/src/state.rs` | 10 tests. Initial unknown, first success, no duplicate events, warning on high RTT, hold-below-threshold, failure counter text, never-claims-unobserved-health, recovery threshold, threshold of 1, maintenance masking, disabled |
-| `crates/livetopo-probe/src/engine.rs` | 6 tests. Idempotent stop, start/stop clears session, project scoping, disabled probes not scheduled, project switch stops the prior session, invalid target fails without spawning a process |
+| `crates/coreview-probe/src/validate.rs` | 4 tests. IPv4/IPv6/hostname acceptance, normalisation, 16 hostile inputs rejected, numeric bounds |
+| `crates/coreview-probe/src/icmp.rs` | 8 tests. Windows and Linux reply parsing, sub-millisecond replies, timeout vs unreachable vs DNS failure, unparseable output, single-probe argv |
+| `crates/coreview-probe/src/state.rs` | 10 tests. Initial unknown, first success, no duplicate events, warning on high RTT, hold-below-threshold, failure counter text, never-claims-unobserved-health, recovery threshold, threshold of 1, maintenance masking, disabled |
+| `crates/coreview-probe/src/engine.rs` | 6 tests. Idempotent stop, start/stop clears session, project scoping, disabled probes not scheduled, project switch stops the prior session, invalid target fails without spawning a process |
 | `src-tauri/src/db.rs` | 4 tests. Document round-trip, independent duplication, event scoping, cascade delete |
 
 ## The 20 required cases
 
 **Run on Linux (Ubuntu 26.04) on 2026-08-27.** Status column records what was
 actually observed, not what is expected to work. "Backend" means verified in
-`crates/livetopo-probe/tests/live_linux.rs` against the real network stack;
+`crates/coreview-probe/tests/live_linux.rs` against the real network stack;
 "UI" means observed in the running app via a screenshot.
 
 | # | Case | Result | Evidence |
@@ -42,9 +42,9 @@ actually observed, not what is expected to work. "Backend" means verified in
 | 12 | Test Now starts no background monitoring | **PASS (backend)** | `live_linux::test_now_starts_no_background_work` — engine stays Stopped, snapshot empty |
 | 13 | Stop validation stops future probes | **PASS (UI + backend)** | UI returns to `Validation stopped`, all 9 → Unknown, RTT cleared; backend confirms session cleared and no live `ping`. See note on defunct children below |
 | 14 | Closing a project stops active probes | **PASS (UI)** | packaged binary under Xvfb: `ping` present in 4/14 and 6/20 one-second samples while running; after Close project, 0/25 samples and no zombies |
-| 15 | Closing the app stops active probes | **PASS (UI)** | `ping` in 4/10 samples, then WM_DELETE_WINDOW: no `livetopo` and no `ping` process anywhere on the system |
+| 15 | Closing the app stops active probes | **PASS (UI)** | `ping` in 4/10 samples, then WM_DELETE_WINDOW: no `coreview` and no `ping` process anywhere on the system |
 | 16 | Duplicate creates independent data | **PASS (unit)** | `db.rs::duplicate_is_independent` |
-| 17 | Export/import preserves objects and metadata | **PASS (UI)** | exported `.livetopo`, deleted the project (DB row gone, events cascaded), re-imported, re-exported: 10 nodes / 8 edges / 8 probes and the canvas identical after dropping generated ids. Only `id`, `name`, `createdAt`, `updatedAt` differ, by design |
+| 17 | Export/import preserves objects and metadata | **PASS (UI)** | exported `.coreview`, deleted the project (DB row gone, events cascaded), re-imported, re-exported: 10 nodes / 8 edges / 8 probes and the canvas identical after dropping generated ids. Only `id`, `name`, `createdAt`, `updatedAt` differ, by design |
 | 18 | CSV contains transitions, timestamps, target, type, RTT, messages | **PASS (unit)** | `csv.test.ts` |
 | 19 | Malicious hostname cannot cause shell injection | **PASS (backend)** | 6 payloads incl. `10.0.0.1 && touch /tmp/...` all → `InvalidTarget`; marker file asserted absent. Not re-driven through the UI, which passes the same string to the same validator |
 | 20 | 50 nodes / 75 links stays responsive | **PASS (measured)** | see below |
@@ -99,7 +99,7 @@ Run this once on a clean Windows machine after the Rust side compiles.
 9. Press **Stop validation**. Confirm everything returns to grey and still, and
    that a packet capture shows no further ICMP. (Case 13)
 10. Start again, then close the project. Confirm probes stop. (Case 14)
-11. Start again, then close the window. Confirm no `LiveTopo.exe` or `ping.exe`
+11. Start again, then close the window. Confirm no `Coreview.exe` or `ping.exe`
     remains in Task Manager. (Case 15)
 12. Name a node `10.0.0.1 && calc.exe` and give a probe that target. Confirm the
     probe fails with an invalid-target message and that no calculator opens.
@@ -109,7 +109,7 @@ Run this once on a clean Windows machine after the Rust side compiles.
     present.
 14. Export events as CSV and open in Excel. Confirm the node named above appears
     as text, not as a formula. (Case 18)
-15. Export the `.livetopo` package, delete the project, import the file, confirm
+15. Export the `.coreview` package, delete the project, import the file, confirm
     the diagram, labels, probes and health rules all return. (Case 17)
 16. Duplicate a project, edit the copy, confirm the original is untouched.
     (Case 16)

@@ -6,14 +6,14 @@
 # them and gives them a shared target/ and lockfile.
 #
 # The split itself is deliberate and is documented in ARCHITECTURE.md:
-# crates/livetopo-probe has no Tauri dependency, so the security-critical
+# crates/coreview-probe has no Tauri dependency, so the security-critical
 # code (target parsing, argv construction, threshold logic, cancellation)
 # builds and tests with plain `cargo test` and none of the GTK/WebKit stack.
 
 [workspace]
 resolver = "2"
 members = [
-    "crates/livetopo-probe",
+    "crates/coreview-probe",
     "src-tauri",
 ]
 

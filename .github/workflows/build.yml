@@ -63,16 +63,16 @@ jobs:
         run: npm run build
 
       - name: Probe crate tests
-        run: cargo test -p livetopo-probe
+        run: cargo test -p coreview-probe
 
       # Live tests run real ping processes against 127.0.0.1 and the RFC 5737
       # documentation range. Loopback is available on both runners; the
       # documentation range is expected to time out, which is the point.
       - name: Probe crate live tests
-        run: cargo test -p livetopo-probe --test live_linux -- --test-threads=1
+        run: cargo test -p coreview-probe --test live_linux -- --test-threads=1
 
       - name: Backend tests
-        run: cargo test -p livetopo
+        run: cargo test -p coreview
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -86,12 +86,12 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: livetopo-linux
+            artifact: coreview-linux
             paths: |
               target/release/bundle/deb/*.deb
               target/release/bundle/appimage/*.AppImage
           - os: windows-latest
-            artifact: livetopo-windows
+            artifact: coreview-windows
             paths: |
               target/release/bundle/nsis/*.exe
               target/release/bundle/msi/*.msi
@@ -150,7 +150,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: livetopo-linux
+          name: coreview-linux
           path: dist-artifacts
 
       - name: Launch under a bare container

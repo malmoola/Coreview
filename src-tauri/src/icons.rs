@@ -1,6 +1,6 @@
 //! Local icon library.
 //!
-//! LiveTopo ships 26 self-drawn glyphs and no vendor artwork. This module lets
+//! Coreview ships 26 self-drawn glyphs and no vendor artwork. This module lets
 //! an operator point the app at a folder of their own SVGs — a licensed vendor
 //! set, a corporate kit — which is indexed at runtime. The artwork is never
 //! bundled into the binary and never committed to the repository.

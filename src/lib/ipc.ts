@@ -20,7 +20,7 @@ export const isDesktop =
 export class BackendUnavailable extends Error {
   constructor(what: string) {
     super(
-      `${what} needs the LiveTopo desktop app. Run "npm run tauri dev" instead of opening the page in a browser.`,
+      `${what} needs the Coreview desktop app. Run "npm run tauri dev" instead of opening the page in a browser.`,
     );
     this.name = 'BackendUnavailable';
   }
@@ -62,11 +62,20 @@ export interface SessionInfo {
   probeCount: number;
 }
 
-const LS_KEY = 'livetopo.projects.v1';
+const LS_KEY = 'coreview.projects.v1';
+/** Browser-mode storage was under this name until the 0.2.0 rename. */
+const LS_KEY_LEGACY = 'livetopo.projects.v1';
 
 function lsAll(): Record<string, ProjectPackage> {
   try {
-    return JSON.parse(localStorage.getItem(LS_KEY) ?? '{}');
+    const current = localStorage.getItem(LS_KEY);
+    if (current !== null) return JSON.parse(current);
+    // Nothing under the new name: adopt anything left under the old one, so a
+    // rename does not read as every project having disappeared.
+    const legacy = localStorage.getItem(LS_KEY_LEGACY);
+    if (legacy === null) return {};
+    localStorage.setItem(LS_KEY, legacy);
+    return JSON.parse(legacy);
   } catch {
     return {};
   }
@@ -214,7 +223,7 @@ export const ipc = {
   async onEngineEvent(handler: (payload: unknown) => void): Promise<() => void> {
     if (!isDesktop) return () => {};
     const { listen } = await import('@tauri-apps/api/event');
-    const un = await listen('livetopo://engine', (e) => handler(camel(e.payload)));
+    const un = await listen('coreview://engine', (e) => handler(camel(e.payload)));
     return un;
   },
 };

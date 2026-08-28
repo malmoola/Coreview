@@ -1,5 +1,5 @@
 //! Local SQLite persistence. One database per installation, under
-//! %LOCALAPPDATA%\LiveTopo\livetopo.db. No server, no network.
+//! %LOCALAPPDATA%\Coreview\coreview.db. No server, no network.
 //!
 //! Storage strategy: project *metadata*, *sessions*, *events* and *samples* are
 //! normalized because they are queried, filtered and exported. The diagram
@@ -68,7 +68,36 @@ pub fn data_dir() -> PathBuf {
         .map(PathBuf::from)
         .or_else(dirs_next_local)
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("LiveTopo")
+    let dir = base.join("Coreview");
+    adopt_livetopo_data(&base, &dir);
+    dir
+}
+
+/// Carries a pre-rename database over to the new name.
+///
+/// The app was called LiveTopo until 0.2.0 and kept its database in a folder
+/// of that name. Renaming the product without this would leave every existing
+/// project on disk but invisible, which looks exactly like data loss.
+///
+/// Deliberately conservative: it only acts when there is a LiveTopo folder and
+/// no Coreview folder at all, so it can never overwrite newer data, and it
+/// copies rather than moves — if anything here is wrong, the original is still
+/// sitting there untouched. A failure is silent on purpose; a first run that
+/// starts empty is recoverable, one that refuses to start is not.
+fn adopt_livetopo_data(base: &Path, new_dir: &Path) {
+    let old_dir = base.join("LiveTopo");
+    if new_dir.exists() || !old_dir.is_dir() {
+        return;
+    }
+    if std::fs::create_dir_all(new_dir).is_err() {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(&old_dir) else { return };
+    for entry in entries.flatten() {
+        if entry.file_type().is_ok_and(|t| t.is_file()) {
+            let _ = std::fs::copy(entry.path(), new_dir.join(entry.file_name()));
+        }
+    }
 }
 
 fn dirs_next_local() -> Option<PathBuf> {
@@ -333,6 +362,47 @@ pub fn list_events(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn adopts_a_pre_rename_database() {
+        let base = std::env::temp_dir().join(format!("cv-adopt-{}", uuid::Uuid::new_v4()));
+        let old = base.join("LiveTopo");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(old.join("livetopo.db"), b"old-bytes").unwrap();
+
+        let new_dir = base.join("Coreview");
+        adopt_livetopo_data(&base, &new_dir);
+
+        assert_eq!(std::fs::read(new_dir.join("livetopo.db")).unwrap(), b"old-bytes");
+        // Copied, not moved: the original stays put in case this went wrong.
+        assert!(old.join("livetopo.db").exists());
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn never_overwrites_data_that_is_already_there() {
+        let base = std::env::temp_dir().join(format!("cv-adopt-{}", uuid::Uuid::new_v4()));
+        let old = base.join("LiveTopo");
+        let new_dir = base.join("Coreview");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::create_dir_all(&new_dir).unwrap();
+        std::fs::write(old.join("livetopo.db"), b"old-bytes").unwrap();
+        std::fs::write(new_dir.join("livetopo.db"), b"current-bytes").unwrap();
+
+        adopt_livetopo_data(&base, &new_dir);
+
+        assert_eq!(std::fs::read(new_dir.join("livetopo.db")).unwrap(), b"current-bytes");
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn does_nothing_when_there_is_no_old_install() {
+        let base = std::env::temp_dir().join(format!("cv-adopt-{}", uuid::Uuid::new_v4()));
+        let new_dir = base.join("Coreview");
+        adopt_livetopo_data(&base, &new_dir);
+        assert!(!new_dir.exists());
+        std::fs::remove_dir_all(&base).ok();
+    }
     use super::*;
 
     fn mem() -> Connection {

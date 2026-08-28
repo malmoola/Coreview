@@ -162,9 +162,9 @@ function LiveEdgeInner(props: EdgeProps) {
     .join('\n');
 
   const markerEnd =
-    direction === 'forward' || direction === 'both' ? `url(#lt-arrow-${status})` : undefined;
+    direction === 'forward' || direction === 'both' ? `url(#cv-arrow-${status})` : undefined;
   const markerStart =
-    direction === 'reverse' || direction === 'both' ? `url(#lt-arrow-rev-${status})` : undefined;
+    direction === 'reverse' || direction === 'both' ? `url(#cv-arrow-rev-${status})` : undefined;
 
   return (
     <>
@@ -178,7 +178,7 @@ function LiveEdgeInner(props: EdgeProps) {
           strokeWidth={width + 6}
           strokeLinecap="round"
           opacity={0.13}
-          className="lt-edge-halo"
+          className="cv-edge-halo"
         />
       )}
 
@@ -230,7 +230,7 @@ function LiveEdgeInner(props: EdgeProps) {
       <EdgeLabelRenderer>
         {data.sourcePortLabel ? (
           <div
-            className="lt-edge-label lt-edge-port"
+            className="cv-edge-label cv-edge-port"
             style={{
               transform: `translate(-50%, -50%) translate(${sourceX + (targetX - sourceX) * 0.16}px, ${
                 sourceY + (targetY - sourceY) * 0.16
@@ -243,14 +243,14 @@ function LiveEdgeInner(props: EdgeProps) {
 
         {data.label ? (
           <div
-            className="lt-edge-label lt-edge-center"
+            className="cv-edge-label cv-edge-center"
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               borderColor: color,
             }}
             title={tooltip}
           >
-            <span className="lt-edge-glyph" style={{ color }} aria-hidden>
+            <span className="cv-edge-glyph" style={{ color }} aria-hidden>
               {STATUS_GLYPH[status]}
             </span>
             {data.label}
@@ -259,7 +259,7 @@ function LiveEdgeInner(props: EdgeProps) {
 
         {data.targetPortLabel ? (
           <div
-            className="lt-edge-label lt-edge-port"
+            className="cv-edge-label cv-edge-port"
             style={{
               transform: `translate(-50%, -50%) translate(${targetX + (sourceX - targetX) * 0.16}px, ${
                 targetY + (sourceY - targetY) * 0.16
@@ -283,7 +283,7 @@ export function EdgeMarkerDefs() {
         {statuses.map((s) => (
           <marker
             key={s}
-            id={`lt-arrow-${s}`}
+            id={`cv-arrow-${s}`}
             markerWidth="12"
             markerHeight="12"
             refX="9"
@@ -296,7 +296,7 @@ export function EdgeMarkerDefs() {
         {statuses.map((s) => (
           <marker
             key={`rev-${s}`}
-            id={`lt-arrow-rev-${s}`}
+            id={`cv-arrow-rev-${s}`}
             markerWidth="12"
             markerHeight="12"
             refX="-1"

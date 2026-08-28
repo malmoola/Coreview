@@ -193,7 +193,7 @@ ${
 ---
 
 **How to read this report.** Every result above was produced by a check run from
-the machine where LiveTopo was running. A healthy result proves that
+the machine where Coreview was running. A healthy result proves that
 host could reach the configured target with the configured method at that
 moment. It does not prove that every drawn link in the path is healthy, and it
 does not prove end-to-end application traffic. Link states follow the health

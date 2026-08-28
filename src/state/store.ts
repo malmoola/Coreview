@@ -571,7 +571,7 @@ export const useStore = create<Store>((set, get) => ({
           : null,
       });
       try {
-        localStorage.setItem('livetopo.iconLibraryDir', lib.dir);
+        localStorage.setItem('coreview.iconLibraryDir', lib.dir);
       } catch {
         /* storage unavailable — the folder just is not remembered */
       }

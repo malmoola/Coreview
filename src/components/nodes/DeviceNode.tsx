@@ -34,7 +34,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
 
   return (
     <div
-      className={`lt-node ${isShape ? 'lt-node-shape' : ''} ${selected ? 'is-selected' : ''}`}
+      className={`cv-node ${isShape ? 'cv-node-shape' : ''} ${selected ? 'is-selected' : ''}`}
       data-shape={d.deviceType}
       style={{
         borderColor: selected ? '#5eb8ff' : (d.style?.border ?? color),
@@ -46,57 +46,57 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
         isVisible={Boolean(selected) && !d.locked}
         minWidth={80}
         minHeight={56}
-        lineClassName="lt-resize-line"
-        handleClassName="lt-resize-handle"
+        lineClassName="cv-resize-line"
+        handleClassName="cv-resize-handle"
       />
 
-      <Handle type="target" position={Position.Top} id="t" className="lt-handle" />
-      <Handle type="source" position={Position.Right} id="r" className="lt-handle" />
-      <Handle type="source" position={Position.Bottom} id="b" className="lt-handle" />
-      <Handle type="target" position={Position.Left} id="l" className="lt-handle" />
+      <Handle type="target" position={Position.Top} id="t" className="cv-handle" />
+      <Handle type="source" position={Position.Right} id="r" className="cv-handle" />
+      <Handle type="source" position={Position.Bottom} id="b" className="cv-handle" />
+      <Handle type="target" position={Position.Left} id="l" className="cv-handle" />
 
       {!isText && (
         <span
           // Re-keying on status remounts the badge, which retriggers the CSS
           // pulse below. A state change gets a brief, cheap acknowledgement.
           key={status}
-          className="lt-status-badge lt-status-pulse"
+          className="cv-status-badge cv-status-pulse"
           style={{ background: color }}
           title={`${STATUS_LABEL[status]}${live?.lastSummary ? ` — ${live.lastSummary}` : ''}`}
         >
           <span aria-hidden>{STATUS_GLYPH[status]}</span>
-          <span className="lt-sr">{STATUS_LABEL[status]}</span>
+          <span className="cv-sr">{STATUS_LABEL[status]}</span>
         </span>
       )}
 
       {d.locked && (
-        <span className="lt-lock" title="Locked" aria-label="Locked">
+        <span className="cv-lock" title="Locked" aria-label="Locked">
           🔒
         </span>
       )}
 
-      <div className="lt-node-body">
+      <div className="cv-node-body">
         {!isShape && (
-          <div className="lt-node-icon" style={{ color: d.style?.iconColor ?? color }}>
+          <div className="cv-node-icon" style={{ color: d.style?.iconColor ?? color }}>
             {d.imageDataUrl ? (
-              <img src={d.imageDataUrl} alt="" className="lt-node-image" />
+              <img src={d.imageDataUrl} alt="" className="cv-node-image" />
             ) : (
               <Icon />
             )}
           </div>
         )}
-        <div className="lt-node-text">
-          <div className="lt-node-label">{d.label}</div>
+        <div className="cv-node-text">
+          <div className="cv-node-label">{d.label}</div>
           {d.showDetails && !isText && (
-            <div className="lt-node-detail">
-              {primaryAddress && <div className="lt-mono">{primaryAddress}</div>}
-              <div className="lt-node-status-line" style={{ color }}>
+            <div className="cv-node-detail">
+              {primaryAddress && <div className="cv-mono">{primaryAddress}</div>}
+              <div className="cv-node-status-line" style={{ color }}>
                 {STATUS_LABEL[status]}
                 {live?.lastRttMs != null && status !== 'down'
                   ? ` · ${live.lastRttMs < 1 ? '<1' : live.lastRttMs.toFixed(0)} ms`
                   : ''}
               </div>
-              {d.maintenance && <div className="lt-node-maint">In maintenance</div>}
+              {d.maintenance && <div className="cv-node-maint">In maintenance</div>}
             </div>
           )}
         </div>

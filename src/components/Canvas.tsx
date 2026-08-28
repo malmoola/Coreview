@@ -107,7 +107,7 @@ export function Canvas() {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-      const raw = event.dataTransfer.getData('application/livetopo');
+      const raw = event.dataTransfer.getData('application/coreview');
       if (!raw) return;
       const position = rf.screenToFlowPosition({ x: event.clientX, y: event.clientY });
       const node = nodeForDrop(raw, position.x, position.y, {
@@ -259,7 +259,7 @@ export function Canvas() {
   }, [doc.nodes, rf, store]);
 
   return (
-    <div className="lt-canvas" ref={wrapper} onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+    <div className="cv-canvas" ref={wrapper} onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
       <EdgeMarkerDefs />
       <ReactFlow
         nodes={doc.nodes}
@@ -308,7 +308,7 @@ export function Canvas() {
           <MiniMap
             pannable
             zoomable
-            className="lt-minimap"
+            className="cv-minimap"
             nodeColor={(n) => (n.type === 'note' ? '#37475a' : '#48607a')}
             maskColor="rgba(8,12,17,0.75)"
           />

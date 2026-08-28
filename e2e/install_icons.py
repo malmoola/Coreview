@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Name, sanitise and install a converted icon set into the local library.
 
-Mirrors what LiveTopo's importer must do at runtime, so the rules live in one
+Mirrors what Coreview's importer must do at runtime, so the rules live in one
 readable place:
 
   - strip <script>, <foreignObject>, <image>
@@ -64,7 +64,7 @@ def main() -> int:
         return 2
     src = Path(sys.argv[1])
     manifest = json.loads(Path(sys.argv[2]).read_text())
-    dest = Path(sys.argv[3]) if len(sys.argv) > 3 else Path.home() / ".local/share/livetopo/icons"
+    dest = Path(sys.argv[3]) if len(sys.argv) > 3 else Path.home() / ".local/share/coreview/icons"
     dest.mkdir(parents=True, exist_ok=True)
 
     by_file = {m["file"]: m for m in manifest}

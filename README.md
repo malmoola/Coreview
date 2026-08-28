@@ -1,11 +1,11 @@
-# LiveTopo
+# Coreview
 
 A local-first Windows desktop app for drawing a network topology and validating
 reachable targets on it while you work — during maintenance windows, cutovers,
 upgrades and troubleshooting.
 
 You draw the diagram. You enter the addresses. You choose what each line means.
-LiveTopo checks the targets you configured and shows the result on the canvas:
+Coreview checks the targets you configured and shows the result on the canvas:
 moving packet dots on healthy links, stopped red lines on failing ones.
 
 **Nothing leaves the machine.** No account, no cloud, no telemetry, no
@@ -68,8 +68,8 @@ npm install
 npm run tauri build
 ```
 
-Output lands in `src-tauri\target\release\bundle\` — `nsis\LiveTopo_0.1.0_x64-setup.exe`
-and `msi\LiveTopo_0.1.0_x64_en-US.msi`.
+Output lands in `src-tauri\target\release\bundle\` — `nsis\Coreview_0.1.0_x64-setup.exe`
+and `msi\Coreview_0.1.0_x64_en-US.msi`.
 
 ---
 
@@ -114,7 +114,7 @@ block and legend, and a print path for PDF.
 - The Rust side has not been compiled (see build status above).
 - CSV import is implemented and tested as a library but has no UI entry point.
 - PDF export goes through the browser print dialog. Native PDF is not built.
-- `.livetopo` export is a JSON package, not the ZIP-with-assets format the spec
+- `.coreview` export is a JSON package, not the ZIP-with-assets format the spec
   describes. Custom images are embedded as data URLs inside the JSON, so
   round-tripping works, but the file is larger than a ZIP would be.
 - Dedicated link probes are configured through the link inspector only when the
@@ -126,7 +126,7 @@ block and legend, and a print path for PDF.
 
 ## Security model
 
-- Every probe target is parsed by `crates/livetopo-probe/src/validate.rs` before
+- Every probe target is parsed by `crates/coreview-probe/src/validate.rs` before
   it can reach a process argument, a socket or the resolver. Shell
   metacharacters, whitespace, quotes, control characters and leading dashes are
   rejected. Unit tests cover the injection cases directly.
@@ -145,7 +145,7 @@ block and legend, and a print path for PDF.
 
 ## Where your data lives
 
-`%LOCALAPPDATA%\LiveTopo\livetopo.db`
+`%LOCALAPPDATA%\Coreview\coreview.db`
 
 One SQLite database holding projects, diagrams, validation sessions, events and
 samples. The About dialog shows the exact path on the running machine.

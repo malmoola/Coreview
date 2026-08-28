@@ -1,6 +1,6 @@
 # Linux build notes
 
-First attempt to compile and run LiveTopo on Linux. Machine: **Ubuntu 26.04
+First attempt to compile and run Coreview on Linux. Machine: **Ubuntu 26.04
 (resolute)** — newer than the 22.04/24.04 the instructions assumed, which
 matters for package names.
 
@@ -8,9 +8,9 @@ matters for package names.
 
 | Part | Result |
 | --- | --- |
-| `crates/livetopo-probe` build | **Compiles clean.** No source changes needed. |
-| `crates/livetopo-probe` tests | **29/29 pass.** |
-| `crates/livetopo-probe` clippy `-D warnings` | Clean after one fix. |
+| `crates/coreview-probe` build | **Compiles clean.** No source changes needed. |
+| `crates/coreview-probe` tests | **29/29 pass.** |
+| `crates/coreview-probe` clippy `-D warnings` | Clean after one fix. |
 | Dependency resolution for `src-tauri` | **444 packages resolve, no conflicts.** |
 | `src-tauri` build | **Blocked** — needs pkg-config + GTK/WebKit (root). |
 | Frontend `tsc --noEmit` | Clean. |
@@ -44,7 +44,7 @@ Three things flagged as likely problems turned out not to be:
 
 - **No workspace root `Cargo.toml`.** `cargo build --workspace` cannot work as
   the instructions and README assume. Each crate builds individually
-  (`cd crates/livetopo-probe && cargo build`, `cd src-tauri && cargo build`).
+  (`cd crates/coreview-probe && cargo build`, `cd src-tauri && cargo build`).
   Worth adding a root manifest.
 - `docs/TEST_PLAN.md` says `state.rs` has 10 tests; it has 11. Probe crate
   total is 29, not 28. With `src-tauri/db.rs`'s 4 the project total is 33.
@@ -103,7 +103,7 @@ Categories: Collaboration 43, Data Center 31, 3rd-Party 28, SAFE 24, Security/
 Clouds/Connectors 20, Routing WAN 19, WiFi Indicator 18, LAN Switching 15,
 Endpoint Client & Device 11, DNA/SD-Access 7.
 
-Staged with a manifest at `~/.local/share/livetopo/icons-staging/`.
+Staged with a manifest at `~/.local/share/coreview/icons-staging/`.
 **Not committed to this repo and not bundled** — it is Cisco artwork.
 
 ## Bundles (Phase 6)
@@ -112,12 +112,12 @@ Both Linux bundles build and both were run, not just produced.
 
 | Artifact | Size | Declares / carries |
 | --- | --- | --- |
-| `LiveTopo_0.1.0_amd64.deb` | 2.6 MB | depends on `iputils-ping`, `libwebkit2gtk-4.1-0`, `libgtk-3-0` |
-| `LiveTopo_0.1.0_amd64.AppImage` | 78 MB | 161 bundled libraries, including WebKit |
+| `Coreview_0.1.0_amd64.deb` | 2.6 MB | depends on `iputils-ping`, `libwebkit2gtk-4.1-0`, `libgtk-3-0` |
+| `Coreview_0.1.0_amd64.AppImage` | 78 MB | 161 bundled libraries, including WebKit |
 
 `iputils-ping` had to be added by hand. The generated deb declared only the
 GTK and WebKit libraries, but the probe engine shells out to `ping`
-(`crates/livetopo-probe/src/icmp.rs:164`), so without it the app would install
+(`crates/coreview-probe/src/icmp.rs:164`), so without it the app would install
 cleanly and then fail every check — the worst way for a dependency to go
 missing.
 
@@ -152,6 +152,6 @@ prints nothing, and leaves an unmapped 10x10 placeholder window — there is no
 error to search for. Every headless run needs:
 
     WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 \
-    LIBGL_ALWAYS_SOFTWARE=1 ./target/release/livetopo
+    LIBGL_ALWAYS_SOFTWARE=1 ./target/release/coreview
 
 This is what made Cases 14, 15, 17 and 2 testable at all.

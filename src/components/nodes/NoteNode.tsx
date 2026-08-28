@@ -13,7 +13,7 @@ function renderBody(body: string) {
     const check = /^- \[( |x|X)\] (.*)$/.exec(line);
     if (check) {
       return (
-        <label key={key} className="lt-note-check">
+        <label key={key} className="cv-note-check">
           <input type="checkbox" checked={check[1] !== ' '} readOnly tabIndex={-1} />
           <span>{inline(check[2] ?? '')}</span>
         </label>
@@ -39,7 +39,7 @@ function NoteNodeInner({ data, selected }: NodeProps) {
   const reduceMotion = useStore((s) => s.settings.reduceMotion);
   return (
     <div
-      className={`lt-note ${d.variant === 'change' ? 'is-change' : ''} ${selected ? 'is-selected' : ''}`}
+      className={`cv-note ${d.variant === 'change' ? 'is-change' : ''} ${selected ? 'is-selected' : ''}`}
       style={{
         background: d.background,
         color: d.textColor,
@@ -52,12 +52,12 @@ function NoteNodeInner({ data, selected }: NodeProps) {
         isVisible={Boolean(selected) && !d.locked}
         minWidth={140}
         minHeight={80}
-        lineClassName="lt-resize-line"
-        handleClassName="lt-resize-handle"
+        lineClassName="cv-resize-line"
+        handleClassName="cv-resize-handle"
       />
-      {d.locked && <span className="lt-lock" title="Locked">🔒</span>}
-      {d.title && <div className="lt-note-title">{d.title}</div>}
-      <div className="lt-note-body">{renderBody(d.body)}</div>
+      {d.locked && <span className="cv-lock" title="Locked">🔒</span>}
+      {d.title && <div className="cv-note-title">{d.title}</div>}
+      <div className="cv-note-body">{renderBody(d.body)}</div>
     </div>
   );
 }

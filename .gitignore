@@ -6,4 +6,5 @@ src-tauri/gen/
 *.local
 .DS_Store
 .vscode/
+*.coreview
 *.livetopo

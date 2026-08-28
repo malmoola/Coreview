@@ -8,12 +8,12 @@ mod db;
 use std::sync::{Arc, Mutex};
 
 use commands::AppState;
-use livetopo_probe::{Engine, DEFAULT_MAX_CONCURRENCY};
+use coreview_probe::{Engine, DEFAULT_MAX_CONCURRENCY};
 use tauri::{Manager, RunEvent, WindowEvent};
 
 fn main() {
-    let db_path = db::data_dir().join("livetopo.db");
-    let conn = db::open(&db_path).expect("could not open the local LiveTopo database");
+    let db_path = db::data_dir().join("coreview.db");
+    let conn = db::open(&db_path).expect("could not open the local Coreview database");
     let (engine, rx) = Engine::new(DEFAULT_MAX_CONCURRENCY);
     let engine_for_exit = Arc::clone(&engine);
 
@@ -56,7 +56,7 @@ fn main() {
             commands::save_export,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building LiveTopo")
+        .expect("error while building Coreview")
         .run(move |_app, event| {
             if let RunEvent::Exit = event {
                 let engine = Arc::clone(&engine_for_exit);

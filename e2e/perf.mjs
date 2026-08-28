@@ -66,7 +66,7 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 
 const pkg = buildProject();
 await page.addInitScript((p) => {
-  localStorage.setItem("livetopo.projects.v1", JSON.stringify({ perf: p }));
+  localStorage.setItem("coreview.projects.v1", JSON.stringify({ perf: p }));
 }, pkg);
 
 await page.goto(URL, { waitUntil: "networkidle" });

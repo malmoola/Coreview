@@ -1,4 +1,4 @@
-//! LiveTopo probe engine.
+//! Coreview probe engine.
 //!
 //! Deliberately free of any Tauri dependency: this crate is the security- and
 //! correctness-critical core (target validation, process invocation, threshold

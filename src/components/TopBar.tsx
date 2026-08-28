@@ -99,22 +99,22 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     const pkg = await ipc.loadProject(meta.id);
     if (!pkg) return;
     await runExport(
-      `${slug(meta.name)}.livetopo`,
+      `${slug(meta.name)}.coreview`,
       () => JSON.stringify(pkg, null, 2),
       'application/json',
     );
   };
 
   return (
-    <header className="lt-topbar">
-      <div className="lt-topbar-left">
-        <span className="lt-brand">LiveTopo</span>
-        <span className="lt-project-name" title={meta.description}>
+    <header className="cv-topbar">
+      <div className="cv-topbar-left">
+        <span className="cv-brand">Coreview</span>
+        <span className="cv-project-name" title={meta.description}>
           {meta.name}
         </span>
-        {meta.customer && <span className="lt-project-sub">{meta.customer}</span>}
-        {meta.ticket && <span className="lt-ticket">{meta.ticket}</span>}
-        <span className={`lt-save-state ${dirty ? 'is-dirty' : ''}`}>
+        {meta.customer && <span className="cv-project-sub">{meta.customer}</span>}
+        {meta.ticket && <span className="cv-ticket">{meta.ticket}</span>}
+        <span className={`cv-save-state ${dirty ? 'is-dirty' : ''}`}>
           {dirty
             ? 'Unsaved changes'
             : lastSavedAt
@@ -123,26 +123,26 @@ export function TopBar({ onExit }: { onExit: () => void }) {
         </span>
       </div>
 
-      <div className="lt-topbar-actions">
-        <button type="button" className="lt-btn" onClick={() => void store.saveProject()}>
+      <div className="cv-topbar-actions">
+        <button type="button" className="cv-btn" onClick={() => void store.saveProject()}>
           Save
         </button>
-        <button type="button" className="lt-btn" onClick={store.undo} title="Ctrl+Z">
+        <button type="button" className="cv-btn" onClick={store.undo} title="Ctrl+Z">
           Undo
         </button>
-        <button type="button" className="lt-btn" onClick={store.redo} title="Ctrl+Y">
+        <button type="button" className="cv-btn" onClick={store.redo} title="Ctrl+Y">
           Redo
         </button>
-        <button type="button" className="lt-btn" onClick={() => rf.fitView({ padding: 0.2 })}>
+        <button type="button" className="cv-btn" onClick={() => rf.fitView({ padding: 0.2 })}>
           Fit view
         </button>
 
-        <div className="lt-divider" />
+        <div className="cv-divider" />
 
         {session.state === 'running' || session.state === 'stopping' ? (
           <button
             type="button"
-            className="lt-btn lt-btn-stop"
+            className="cv-btn cv-btn-stop"
             onClick={() => void store.stopValidation()}
           >
             Stop validation
@@ -150,7 +150,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
         ) : (
           <button
             type="button"
-            className="lt-btn lt-btn-start"
+            className="cv-btn cv-btn-start"
             onClick={() => void store.startValidation()}
             disabled={session.state === 'starting'}
           >
@@ -158,24 +158,24 @@ export function TopBar({ onExit }: { onExit: () => void }) {
           </button>
         )}
 
-        <span className={`lt-session-state is-${session.state}`}>
-          <span className="lt-dot" aria-hidden />
+        <span className={`cv-session-state is-${session.state}`}>
+          <span className="cv-dot" aria-hidden />
           {SESSION_LABEL[session.state]}
         </span>
 
-        <div className="lt-counts">
+        <div className="cv-counts">
           {(['healthy', 'warning', 'down', 'unknown'] as HealthStatus[]).map((s) => (
-            <span key={s} className={`lt-count is-${s}`} title={STATUS_LABEL[s]}>
+            <span key={s} className={`cv-count is-${s}`} title={STATUS_LABEL[s]}>
               {STATUS_LABEL[s]} {counts[s]}
             </span>
           ))}
         </div>
 
-        <div className="lt-divider" />
+        <div className="cv-divider" />
 
-        <details className="lt-dropdown">
-          <summary className="lt-btn">Export</summary>
-          <div className="lt-dropdown-menu">
+        <details className="cv-dropdown">
+          <summary className="cv-btn">Export</summary>
+          <div className="cv-dropdown-menu">
             <button type="button" onClick={exportPng} disabled={busy === 'png'}>
               Diagram as PNG
             </button>
@@ -192,12 +192,12 @@ export function TopBar({ onExit }: { onExit: () => void }) {
               Validation report (Markdown)
             </button>
             <button type="button" onClick={() => void exportPackage()}>
-              Project package (.livetopo)
+              Project package (.coreview)
             </button>
           </div>
         </details>
 
-        <label className="lt-check lt-check-inline" title="Stops all packet-dot animation">
+        <label className="cv-check cv-check-inline" title="Stops all packet-dot animation">
           <input
             type="checkbox"
             checked={settings.reduceMotion}
@@ -206,12 +206,12 @@ export function TopBar({ onExit }: { onExit: () => void }) {
           Reduce motion
         </label>
 
-        <button type="button" className="lt-btn" onClick={() => setAbout(true)}>
+        <button type="button" className="cv-btn" onClick={() => setAbout(true)}>
           About
         </button>
         <button
           type="button"
-          className="lt-btn"
+          className="cv-btn"
           onClick={() => {
             void store.closeProject().then(onExit);
           }}
@@ -249,15 +249,15 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <div className="lt-modal-backdrop" onClick={onClose} role="presentation">
-      <div className="lt-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="About LiveTopo">
-        <h2>About LiveTopo</h2>
-        <p className="lt-mono lt-help">Version {info?.version ?? '…'}</p>
+    <div className="cv-modal-backdrop" onClick={onClose} role="presentation">
+      <div className="cv-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="About Coreview">
+        <h2>About Coreview</h2>
+        <p className="cv-mono cv-help">Version {info?.version ?? '…'}</p>
         <h3>Where your data lives</h3>
-        <p className="lt-mono lt-help">{info?.dataDir ?? '…'}</p>
+        <p className="cv-mono cv-help">{info?.dataDir ?? '…'}</p>
         <h3>Privacy</h3>
         <p>
-          Diagrams, notes, probe configuration and results stay on this machine. LiveTopo has no
+          Diagrams, notes, probe configuration and results stay on this machine. Coreview has no
           account, no cloud sync and no telemetry. It never contacts a server of its own.
         </p>
         <h3>What a green link actually means</h3>
@@ -267,7 +267,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
           drawn line in the path is healthy, and it does not prove end-to-end application traffic.
           Each link shows status according to the health rule you selected for it.
         </p>
-        <button type="button" className="lt-btn" onClick={onClose}>
+        <button type="button" className="cv-btn" onClick={onClose}>
           Close
         </button>
       </div>

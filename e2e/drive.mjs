@@ -1,4 +1,4 @@
-// Drives the LiveTopo frontend in a real browser engine and captures evidence.
+// Drives the Coreview frontend in a real browser engine and captures evidence.
 //
 // This runs the app in *browser mode* (no Tauri backend), which the README
 // documents: projects go to browser storage and probing is unavailable. That
@@ -14,7 +14,7 @@
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 
-const OUT = process.argv[2] || "/tmp/livetopo-shots";
+const OUT = process.argv[2] || "/tmp/coreview-shots";
 mkdirSync(OUT, { recursive: true });
 
 const URL = "http://localhost:5173/";

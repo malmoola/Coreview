@@ -33,35 +33,35 @@ export function ProjectScreen() {
       );
     } catch (err) {
       setError(
-        `That file could not be read as a LiveTopo project (${
+        `That file could not be read as a Coreview project (${
           err instanceof Error ? err.message : String(err)
-        }). Choose a .livetopo file exported from LiveTopo.`,
+        }). Choose a .coreview file exported from Coreview (.livetopo files from\n        before the rename still work).`,
       );
     }
   };
 
   return (
-    <div className="lt-welcome">
-      <div className="lt-welcome-inner">
-        <header className="lt-welcome-head">
-          <h1>LiveTopo</h1>
+    <div className="cv-welcome">
+      <div className="cv-welcome-inner">
+        <header className="cv-welcome-head">
+          <h1>Coreview</h1>
           <p>
             Draw the topology you are actually working on, point it at real addresses, and watch
             the links while you work. Everything stays on this machine.
           </p>
         </header>
 
-        <div className="lt-welcome-actions">
-          <button type="button" className="lt-btn lt-btn-start" onClick={() => setCreating(true)}>
+        <div className="cv-welcome-actions">
+          <button type="button" className="cv-btn cv-btn-start" onClick={() => setCreating(true)}>
             Create project
           </button>
-          <button type="button" className="lt-btn" onClick={() => fileRef.current?.click()}>
+          <button type="button" className="cv-btn" onClick={() => fileRef.current?.click()}>
             Import project
           </button>
           <input
             ref={fileRef}
             type="file"
-            accept=".livetopo,application/json"
+            accept=".coreview,.livetopo,application/json"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -69,7 +69,7 @@ export function ProjectScreen() {
               e.target.value = '';
             }}
           />
-          <label className="lt-check lt-check-inline">
+          <label className="cv-check cv-check-inline">
             <input
               type="checkbox"
               checked={showArchived}
@@ -79,44 +79,44 @@ export function ProjectScreen() {
           </label>
         </div>
 
-        {error && <p className="lt-error">{error}</p>}
+        {error && <p className="cv-error">{error}</p>}
 
-        <section className="lt-welcome-section">
+        <section className="cv-welcome-section">
           <h2>{showArchived ? 'Archived projects' : 'Recent projects'}</h2>
           {visible.length === 0 ? (
-            <p className="lt-help">
+            <p className="cv-help">
               {showArchived
                 ? 'Nothing archived.'
                 : 'No projects yet. Create one, or open a sample below to see how validation works.'}
             </p>
           ) : (
-            <ul className="lt-project-list">
+            <ul className="cv-project-list">
               {visible.map((p) => (
                 <li key={p.id}>
                   <button
                     type="button"
-                    className="lt-project-open"
+                    className="cv-project-open"
                     onClick={() => void store.openProject(p.id)}
                   >
-                    <span className="lt-project-title">{p.name}</span>
-                    <span className="lt-project-meta">
+                    <span className="cv-project-title">{p.name}</span>
+                    <span className="cv-project-meta">
                       {[p.customer, p.site, p.ticket].filter(Boolean).join(' · ') || 'No metadata'}
                     </span>
-                    <span className="lt-project-date">
+                    <span className="cv-project-date">
                       Modified {new Date(p.updatedAt).toLocaleString()}
                     </span>
                   </button>
-                  <div className="lt-project-tools">
+                  <div className="cv-project-tools">
                     <button
                       type="button"
-                      className="lt-btn lt-btn-small"
+                      className="cv-btn cv-btn-small"
                       onClick={() => void store.duplicateProject(p.id)}
                     >
                       Duplicate
                     </button>
                     <button
                       type="button"
-                      className="lt-btn lt-btn-small"
+                      className="cv-btn cv-btn-small"
                       onClick={() =>
                         void ipc
                           .setArchived(p.id, !p.archived)
@@ -127,7 +127,7 @@ export function ProjectScreen() {
                     </button>
                     <button
                       type="button"
-                      className="lt-btn lt-btn-small is-danger"
+                      className="cv-btn cv-btn-small is-danger"
                       onClick={() => setConfirmDelete(p)}
                     >
                       Delete
@@ -139,18 +139,18 @@ export function ProjectScreen() {
           )}
         </section>
 
-        <section className="lt-welcome-section">
+        <section className="cv-welcome-section">
           <h2>Start from a sample</h2>
-          <p className="lt-help">
+          <p className="cv-help">
             Samples use documentation address ranges. Only the loopback target will answer, so you
             can see healthy and failing states side by side without touching a live network.
           </p>
-          <div className="lt-sample-grid">
+          <div className="cv-sample-grid">
             {SAMPLES.map((s) => (
               <button
                 key={s.name}
                 type="button"
-                className="lt-sample"
+                className="cv-sample"
                 onClick={() =>
                   void store.createProject(
                     { name: s.name, customer: 'Example Customer', site: 'Example site', engineer: '' },
@@ -158,35 +158,35 @@ export function ProjectScreen() {
                   )
                 }
               >
-                <span className="lt-sample-title">{s.name.replace('Sample — ', '')}</span>
-                <span className="lt-sample-desc">{s.description}</span>
+                <span className="cv-sample-title">{s.name.replace('Sample — ', '')}</span>
+                <span className="cv-sample-desc">{s.description}</span>
               </button>
             ))}
           </div>
         </section>
 
-        <footer className="lt-welcome-foot">
-          LiveTopo runs every check from this machine. It has no account, no cloud sync and no
+        <footer className="cv-welcome-foot">
+          Coreview runs every check from this machine. It has no account, no cloud sync and no
           telemetry.
         </footer>
       </div>
 
       {creating && <CreateDialog onClose={() => setCreating(false)} />}
       {confirmDelete && (
-        <div className="lt-modal-backdrop" role="presentation">
-          <div className="lt-modal" role="dialog" aria-label="Confirm delete">
+        <div className="cv-modal-backdrop" role="presentation">
+          <div className="cv-modal" role="dialog" aria-label="Confirm delete">
             <h2>Delete “{confirmDelete.name}”?</h2>
             <p>
               This removes the diagram, probe configuration and event history for this project from
               local storage. It cannot be undone.
             </p>
-            <div className="lt-modal-actions">
-              <button type="button" className="lt-btn" onClick={() => setConfirmDelete(null)}>
+            <div className="cv-modal-actions">
+              <button type="button" className="cv-btn" onClick={() => setConfirmDelete(null)}>
                 Keep project
               </button>
               <button
                 type="button"
-                className="lt-btn is-danger"
+                className="cv-btn is-danger"
                 onClick={() => {
                   void store.deleteProject(confirmDelete.id);
                   setConfirmDelete(null);
@@ -217,44 +217,44 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
     setForm({ ...form, [k]: e.target.value });
 
   return (
-    <div className="lt-modal-backdrop" onClick={onClose} role="presentation">
-      <div className="lt-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Create project">
+    <div className="cv-modal-backdrop" onClick={onClose} role="presentation">
+      <div className="cv-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Create project">
         <h2>New project</h2>
-        <label className="lt-field">
-          <span className="lt-field-label">Project name</span>
-          <input className="lt-input" autoFocus value={form.name} onChange={set('name')} />
+        <label className="cv-field">
+          <span className="cv-field-label">Project name</span>
+          <input className="cv-input" autoFocus value={form.name} onChange={set('name')} />
         </label>
-        <div className="lt-row">
-          <label className="lt-field">
-            <span className="lt-field-label">Customer</span>
-            <input className="lt-input" value={form.customer} onChange={set('customer')} />
+        <div className="cv-row">
+          <label className="cv-field">
+            <span className="cv-field-label">Customer</span>
+            <input className="cv-input" value={form.customer} onChange={set('customer')} />
           </label>
-          <label className="lt-field">
-            <span className="lt-field-label">Site</span>
-            <input className="lt-input" value={form.site} onChange={set('site')} />
+          <label className="cv-field">
+            <span className="cv-field-label">Site</span>
+            <input className="cv-input" value={form.site} onChange={set('site')} />
           </label>
         </div>
-        <div className="lt-row">
-          <label className="lt-field">
-            <span className="lt-field-label">Change ticket</span>
-            <input className="lt-input" value={form.ticket} onChange={set('ticket')} />
+        <div className="cv-row">
+          <label className="cv-field">
+            <span className="cv-field-label">Change ticket</span>
+            <input className="cv-input" value={form.ticket} onChange={set('ticket')} />
           </label>
-          <label className="lt-field">
-            <span className="lt-field-label">Engineer</span>
-            <input className="lt-input" value={form.engineer} onChange={set('engineer')} />
+          <label className="cv-field">
+            <span className="cv-field-label">Engineer</span>
+            <input className="cv-input" value={form.engineer} onChange={set('engineer')} />
           </label>
         </div>
-        <label className="lt-field">
-          <span className="lt-field-label">Description</span>
-          <textarea className="lt-input" rows={3} value={form.description} onChange={set('description')} />
+        <label className="cv-field">
+          <span className="cv-field-label">Description</span>
+          <textarea className="cv-input" rows={3} value={form.description} onChange={set('description')} />
         </label>
-        <div className="lt-modal-actions">
-          <button type="button" className="lt-btn" onClick={onClose}>
+        <div className="cv-modal-actions">
+          <button type="button" className="cv-btn" onClick={onClose}>
             Cancel
           </button>
           <button
             type="button"
-            className="lt-btn lt-btn-start"
+            className="cv-btn cv-btn-start"
             disabled={!form.name.trim()}
             onClick={() => {
               void create(form);
