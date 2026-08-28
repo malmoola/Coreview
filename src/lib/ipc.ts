@@ -101,7 +101,15 @@ function snake(value: unknown): unknown {
   return value;
 }
 
+export type IconLibEntry = { id: string; name: string; category: string; svg: string };
+export type IconLibrary = { dir: string; icons: IconLibEntry[]; skipped: string[] };
+
 export const ipc = {
+  /** Index a user-chosen folder of SVGs. Desktop only. */
+  listIconLibrary(dir: string) {
+    return invoke<IconLibrary>('list_icon_library', { dir });
+  },
+
   async listProjects(): Promise<ProjectMeta[]> {
     if (!isDesktop) {
       return Object.values(lsAll())

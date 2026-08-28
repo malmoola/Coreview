@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Edge, Node } from '@xyflow/react';
 import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } from '@xyflow/react';
 
-import { ipc, type ProbeResultDto } from '../lib/ipc';
+import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/ipc';
 import { uid } from '../lib/id';
 import { nodeStatus as computeNodeStatus } from '../health/evaluate';
 import type {
@@ -51,6 +51,11 @@ interface Store {
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   settings: AppSettings;
+  /** Runtime-indexed icon library. Never persisted with the project — the
+   *  project stores an iconRef plus an inlined copy instead. */
+  iconLibrary: IconLibEntry[];
+  iconLibraryDir: string | null;
+  iconLibraryError: string | null;
   panelOpen: boolean;
 
   // --- live
@@ -98,6 +103,7 @@ interface Store {
   loadEvents: () => Promise<void>;
 
   setSettings: (patch: Partial<AppSettings>) => void;
+  loadIconLibrary: (dir: string) => Promise<void>;
   setCanvas: (patch: Partial<ProjectDocument['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
   setStatusMessage: (msg: string | null) => void;
@@ -128,6 +134,9 @@ export const useStore = create<Store>((set, get) => ({
   lastSavedAt: null,
   selectedNodeId: null,
   selectedEdgeId: null,
+  iconLibrary: [],
+  iconLibraryDir: null,
+  iconLibraryError: null,
   settings: {
     reduceMotion:
       typeof window !== 'undefined' &&
@@ -543,6 +552,32 @@ export const useStore = create<Store>((set, get) => ({
 
   setSettings(patch) {
     set((s) => ({ settings: { ...s.settings, ...patch } }));
+  },
+
+  /** Index a folder of SVGs and expose them in the palette.
+   *  Desktop only: in browser mode there is no filesystem access. */
+  async loadIconLibrary(dir: string) {
+    if (!isDesktop) {
+      set({ iconLibraryError: 'An icon library needs the desktop app.' });
+      return;
+    }
+    try {
+      const lib = await ipc.listIconLibrary(dir);
+      set({
+        iconLibrary: lib.icons,
+        iconLibraryDir: lib.dir,
+        iconLibraryError: lib.skipped.length
+          ? `${lib.icons.length} loaded, ${lib.skipped.length} skipped: ${lib.skipped.slice(0, 3).join('; ')}`
+          : null,
+      });
+      try {
+        localStorage.setItem('livetopo.iconLibraryDir', lib.dir);
+      } catch {
+        /* storage unavailable — the folder just is not remembered */
+      }
+    } catch (e) {
+      set({ iconLibrary: [], iconLibraryError: String(e) });
+    }
   },
 
   setCanvas(patch) {

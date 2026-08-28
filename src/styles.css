@@ -407,3 +407,39 @@ textarea.lt-input { resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* ---- icon library (palette) ------------------------------------------- */
+
+.lt-palette-note {
+  display: grid;
+  gap: 6px;
+  padding: 0 2px 6px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.lt-muted {
+  color: var(--lt-text-dim, #7c8b9a);
+}
+
+.lt-warn {
+  color: var(--lt-warn, #e0a458);
+}
+
+.lt-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--lt-accent, #5eb8ff);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+/* Library icons are raster-rendered from SVG via <img>, so give them the same
+   box as the built-in glyphs and let them keep their own colours. */
+.lt-palette-item img.lt-palette-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}

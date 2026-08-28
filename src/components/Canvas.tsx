@@ -113,6 +113,24 @@ export function Canvas() {
         store.addNode(makeNote(position.x, position.y, raw === 'change-note' ? 'change' : 'plain'));
         return;
       }
+      if (raw.startsWith('icon:')) {
+        // A library icon. Store the reference AND an inlined data-URL copy, so
+        // an exported project still renders on a machine that does not have the
+        // library folder.
+        const id = raw.slice(5);
+        const icon = store.iconLibrary.find((i) => i.id === id);
+        const node = makeDeviceNode('generic', position.x, position.y);
+        const data = node.data as DeviceNodeData;
+        data.iconRef = id;
+        data.label = icon?.name ?? id;
+        if (icon) {
+          data.imageDataUrl = `data:image/svg+xml;base64,${btoa(
+            unescape(encodeURIComponent(icon.svg)),
+          )}`;
+        }
+        store.addNode(node);
+        return;
+      }
       store.addNode(makeDeviceNode(raw as DeviceType, position.x, position.y));
     },
     [rf, store],

@@ -92,6 +92,10 @@ export interface DeviceNodeData extends Record<string, unknown> {
   maintenance: boolean;
   showDetails: boolean;
   imageDataUrl?: string;
+  /** Id of an icon from the local library. imageDataUrl carries the inlined
+   *  copy so an exported project still renders on a machine without the
+   *  library folder. */
+  iconRef?: string;
   style?: {
     background?: string;
     border?: string;

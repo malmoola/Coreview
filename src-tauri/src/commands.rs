@@ -204,3 +204,16 @@ pub fn pump_events(app: AppHandle, mut rx: tokio::sync::mpsc::UnboundedReceiver<
         }
     });
 }
+
+// ------------------------------------------------------------------- icons
+
+/// Index a user-chosen folder of SVGs as an icon library.
+///
+/// The artwork stays on disk in the operator's own directory; nothing is
+/// bundled or committed. Returns sanitised SVG source plus the list of files
+/// that were skipped and why, so the palette can say what it could not read
+/// rather than quietly showing fewer icons.
+#[tauri::command]
+pub fn list_icon_library(dir: String) -> CmdResult<crate::icons::IconLibrary> {
+    crate::icons::scan(&dir).map_err(|e| e.into())
+}

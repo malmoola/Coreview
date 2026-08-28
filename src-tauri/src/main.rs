@@ -1,6 +1,7 @@
 // Windows: no console window in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod icons;
 mod commands;
 mod db;
 
@@ -53,6 +54,7 @@ fn main() {
             commands::list_events,
             commands::record_event,
             commands::app_info,
+            commands::list_icon_library,
         ])
         .build(tauri::generate_context!())
         .expect("error while building LiveTopo")
