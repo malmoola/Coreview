@@ -54,6 +54,9 @@ fn main() {
             commands::app_info,
             commands::list_icon_library,
             commands::save_export,
+            commands::get_settings,
+            commands::set_setting,
+            commands::check_folder_writable,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Coreview")

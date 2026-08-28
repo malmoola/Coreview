@@ -1,12 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimum surface Coreview needs. No shell, no HTTP, and no filesystem plugin: the webview cannot name a path of its own. Exports are written by the save_export command, and only to a path the user picked in the native save dialog. Imports come in through a plain file input, so the file handle is chosen by the user too.",
-  "windows": ["main"],
+  "description": "Minimum surface Coreview needs. No shell, no HTTP, and no filesystem plugin: the webview cannot name a path of its own. Exports and backups are written by Rust commands, and only to a path or folder the user picked in a native dialog. Imports come in through a plain file input, so that handle is chosen by the user too.",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-set-title",
     "core:event:default",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "dialog:allow-open"
   ]
 }

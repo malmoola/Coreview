@@ -277,3 +277,53 @@ mod export_tests {
         assert!(err.contains("Could not write"), "unexpected error: {err}");
     }
 }
+
+// ----------------------------------------------------------------- settings
+
+/// Every stored preference, read once on startup.
+///
+/// These are the folders the user has chosen — backups, exports, icon library
+/// — and nothing else. No secret is stored here: the table is unencrypted and
+/// sits in the same database as the projects.
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> CmdResult<std::collections::HashMap<String, String>> {
+    let conn = state.db.lock().map_err(db_err)?;
+    db::all_settings(&conn).map_err(db_err)
+}
+
+/// Stores a preference, or clears it when `value` is absent or empty.
+#[tauri::command]
+pub fn set_setting(
+    state: State<'_, AppState>,
+    key: String,
+    value: Option<String>,
+) -> CmdResult<()> {
+    // A fixed key list rather than an open map: this table is read on startup
+    // and fed straight into the UI, and an unbounded key space invites it
+    // becoming a dumping ground for things that belong in a typed column.
+    const ALLOWED: [&str; 4] = ["backupFolder", "exportFolder", "iconLibraryDir", "addressPreference"];
+    if !ALLOWED.contains(&key.as_str()) {
+        return Err(format!("{key} is not a setting Coreview stores"));
+    }
+    let conn = state.db.lock().map_err(db_err)?;
+    db::set_setting(&conn, &key, value.as_deref()).map_err(db_err)
+}
+
+/// Confirms a chosen folder is usable before it is stored.
+///
+/// The folder picker returns a path the user selected, but selecting a folder
+/// is not the same as being able to write into it — a read-only mount or a
+/// removed USB stick both pick cleanly and fail later, at which point the
+/// failure looks like the backup feature being broken.
+#[tauri::command]
+pub fn check_folder_writable(path: String) -> CmdResult<()> {
+    let dir = std::path::Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("{path} is not a folder"));
+    }
+    let probe = dir.join(".coreview-write-test");
+    std::fs::write(&probe, b"")
+        .map_err(|e| format!("Coreview cannot write into {path}: {e}"))?;
+    let _ = std::fs::remove_file(&probe);
+    Ok(())
+}

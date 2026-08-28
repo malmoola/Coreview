@@ -469,3 +469,27 @@ textarea.cv-input { resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   .cv-status-pulse { animation: none; }
 }
+
+/* ---- folder settings --------------------------------------------------- */
+.cv-folders { margin-top: 34px; }
+.cv-folders h2 {
+  font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; margin: 0 0 12px;
+}
+.cv-folder-row {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; margin-bottom: 10px; background: var(--panel);
+}
+.cv-folder-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.cv-folder-title { font-weight: 600; }
+.cv-folder-actions { display: flex; gap: 6px; }
+.cv-folder-path {
+  display: block; margin: 8px 0 6px; padding: 6px 8px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+  font-size: 12px; color: var(--text);
+  overflow-wrap: anywhere;
+}
+.cv-folder-path.is-unset { color: var(--muted); font-style: italic; }
+.cv-folders .cv-help { margin: 0; }

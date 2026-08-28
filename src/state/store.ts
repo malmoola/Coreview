@@ -31,6 +31,12 @@ export interface ProjectDocument {
 export interface AppSettings {
   reduceMotion: boolean;
   highContrast: boolean;
+  /** Where configuration backups are written. Chosen by the user, and kept
+   *  well away from exports: a running-config holds SNMP communities and
+   *  hashed passwords, and must not travel inside a project someone shares. */
+  backupFolder: string | null;
+  /** Where exports land without prompting. Null falls back to a save dialog. */
+  exportFolder: string | null;
 }
 
 interface HistoryEntry {
@@ -103,6 +109,9 @@ interface Store {
   loadEvents: () => Promise<void>;
 
   setSettings: (patch: Partial<AppSettings>) => void;
+  loadSettings: () => Promise<void>;
+  chooseFolder: (which: 'backupFolder' | 'exportFolder') => Promise<string | null>;
+  clearFolder: (which: 'backupFolder' | 'exportFolder') => Promise<void>;
   loadIconLibrary: (dir: string) => Promise<void>;
   setCanvas: (patch: Partial<ProjectDocument['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
@@ -142,6 +151,8 @@ export const useStore = create<Store>((set, get) => ({
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
     highContrast: false,
+    backupFolder: null,
+    exportFolder: null,
   },
   panelOpen: true,
   session: { id: null, state: 'stopped', startedAt: null },
@@ -552,6 +563,49 @@ export const useStore = create<Store>((set, get) => ({
 
   setSettings(patch) {
     set((s) => ({ settings: { ...s.settings, ...patch } }));
+  },
+
+  /** Reads the folders back from the database on startup. Without this they
+   *  would have to be re-picked every session, which is the whole point of
+   *  storing them. */
+  async loadSettings() {
+    const stored = await ipc.getSettings();
+    set((s) => ({
+      settings: {
+        ...s.settings,
+        backupFolder: stored.backupFolder ?? null,
+        exportFolder: stored.exportFolder ?? null,
+      },
+      iconLibraryDir: stored.iconLibraryDir ?? s.iconLibraryDir,
+    }));
+    if (stored.iconLibraryDir) {
+      // Re-index the folder rather than trusting a remembered list: the icons
+      // live outside the app and may have changed since last time.
+      void get().loadIconLibrary(stored.iconLibraryDir);
+    }
+  },
+
+  /** Opens the folder picker, checks the folder can actually be written to,
+   *  and stores it. Returns the chosen path, or null if cancelled. */
+  async chooseFolder(which) {
+    const label = which === 'backupFolder' ? 'Choose a folder for configuration backups' : 'Choose a folder for exports';
+    const current = get().settings[which] ?? undefined;
+    const picked = await ipc.pickFolder(label, current);
+    if (!picked) return null;
+    try {
+      await ipc.checkFolderWritable(picked);
+    } catch (err) {
+      set({ statusMessage: err instanceof Error ? err.message : String(err) });
+      return null;
+    }
+    await ipc.setSetting(which, picked);
+    set((s) => ({ settings: { ...s.settings, [which]: picked } }));
+    return picked;
+  },
+
+  async clearFolder(which) {
+    await ipc.setSetting(which, null);
+    set((s) => ({ settings: { ...s.settings, [which]: null } }));
   },
 
   /** Index a folder of SVGs and expose them in the palette.

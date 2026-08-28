@@ -131,6 +131,18 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         r#"
         CREATE TABLE IF NOT EXISTS schema_info (version INTEGER NOT NULL);
 
+        -- Preferences that must outlive a restart: the folders the user chose
+        -- for backups, exports and the icon library. Deliberately a plain
+        -- key/value table — these are a handful of paths and flags, and a
+        -- typed column per setting would mean a migration for each new one.
+        --
+        -- Nothing secret goes in here. It is unencrypted, and it lives in the
+        -- same database as the projects.
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -369,8 +381,79 @@ pub fn list_events(
     rows.collect()
 }
 
+// ------------------------------------------------------------------ settings
+
+/// Every stored preference. Small enough to read in one go on startup.
+pub fn all_settings(conn: &Connection) -> rusqlite::Result<std::collections::HashMap<String, String>> {
+    let mut stmt = conn.prepare("SELECT key, value FROM app_settings")?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    rows.collect()
+}
+
+/// Writes a preference, or clears it when `value` is `None`.
+///
+/// Clearing rather than storing an empty string keeps "never set" and "set to
+/// nothing" the same thing, which is what a folder that has been un-chosen
+/// should be.
+pub fn set_setting(conn: &Connection, key: &str, value: Option<&str>) -> rusqlite::Result<()> {
+    match value {
+        Some(v) if !v.is_empty() => conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, v],
+        )?,
+        _ => conn.execute("DELETE FROM app_settings WHERE key = ?1", params![key])?,
+    };
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn settings_round_trip_and_survive_being_overwritten() {
+        let conn = mem();
+        assert_eq!(all_settings(&conn).unwrap().get("backupFolder"), None);
+
+        set_setting(&conn, "backupFolder", Some("/home/me/backups")).unwrap();
+        assert_eq!(
+            all_settings(&conn).unwrap().get("backupFolder").map(String::as_str),
+            Some("/home/me/backups")
+        );
+
+        set_setting(&conn, "backupFolder", Some("/home/me/other")).unwrap();
+        assert_eq!(
+            all_settings(&conn).unwrap().get("backupFolder").map(String::as_str),
+            Some("/home/me/other")
+        );
+        assert_eq!(all_settings(&conn).unwrap().len(), 1, "an update, not a second row");
+    }
+
+    #[test]
+    fn clearing_a_setting_makes_it_unset_rather_than_empty() {
+        // A folder that has been un-chosen must read the same as one never
+        // chosen, or the UI has two states meaning the same thing.
+        let conn = mem();
+        set_setting(&conn, "exportFolder", Some("/tmp/x")).unwrap();
+        set_setting(&conn, "exportFolder", None).unwrap();
+        assert_eq!(all_settings(&conn).unwrap().get("exportFolder"), None);
+
+        set_setting(&conn, "exportFolder", Some("")).unwrap();
+        assert_eq!(all_settings(&conn).unwrap().get("exportFolder"), None);
+        assert!(all_settings(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn settings_are_independent_of_each_other() {
+        let conn = mem();
+        set_setting(&conn, "backupFolder", Some("/b")).unwrap();
+        set_setting(&conn, "exportFolder", Some("/e")).unwrap();
+        set_setting(&conn, "iconLibraryDir", Some("/i")).unwrap();
+        let all = all_settings(&conn).unwrap();
+        assert_eq!(all.get("backupFolder").map(String::as_str), Some("/b"));
+        assert_eq!(all.get("exportFolder").map(String::as_str), Some("/e"));
+        assert_eq!(all.get("iconLibraryDir").map(String::as_str), Some("/i"));
+    }
 
     #[test]
     fn adopts_a_pre_rename_database() {

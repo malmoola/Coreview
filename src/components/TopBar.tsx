@@ -49,7 +49,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     try {
       const content = build();
       if (content === null) return;
-      const path = await saveExport(filename, content, mime);
+      const path = await saveExport(filename, content, mime, store.settings.exportFolder);
       store.setStatusMessage(path ? `Saved ${path}` : null);
     } catch (err) {
       store.setStatusMessage(err instanceof Error ? err.message : String(err));

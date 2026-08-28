@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore, type ProjectDocument } from '../state/store';
 import { SAMPLES } from '../lib/samples';
 import { ipc } from '../lib/ipc';
+import { FolderSettings } from './FolderSettings';
 import type { ProjectMeta } from '../types/domain';
 
 export function ProjectScreen() {
@@ -16,6 +17,9 @@ export function ProjectScreen() {
 
   useEffect(() => {
     void store.refreshProjects();
+    // The chosen folders live in the database, so they have to be read back
+    // before anything can use them.
+    void store.loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -164,6 +168,8 @@ export function ProjectScreen() {
             ))}
           </div>
         </section>
+
+        <FolderSettings />
 
         <footer className="cv-welcome-foot">
           Coreview runs every check from this machine. It has no account, no cloud sync and no

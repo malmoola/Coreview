@@ -4,6 +4,12 @@ import { STATUS_LABEL } from '../types/domain';
 import { bytesToBase64, utf8ToBase64 } from './base64';
 import { isDesktop } from './ipc';
 
+/** Joins a folder and a filename with whichever separator the folder uses. */
+export function joinPath(folder: string, filename: string): string {
+  const sep = folder.includes('\\') && !folder.includes('/') ? '\\' : '/';
+  return folder.endsWith(sep) ? `${folder}${filename}` : `${folder}${sep}${filename}`;
+}
+
 /**
  * Writes an export where the user asks for it.
  *
@@ -23,6 +29,9 @@ export async function saveExport(
   filename: string,
   content: string | Uint8Array,
   mime: string,
+  /** When set, the file is written straight here and no dialog appears.
+   *  Backups never use this folder, and this never touches theirs. */
+  folder?: string | null,
 ): Promise<string | null> {
   if (!isDesktop) {
     const blob = new Blob([content as BlobPart], { type: mime });
@@ -39,8 +48,15 @@ export async function saveExport(
     import('@tauri-apps/plugin-dialog'),
     import('@tauri-apps/api/core'),
   ]);
-  const ext = filename.slice(filename.lastIndexOf('.') + 1);
-  const path = await save({ defaultPath: filename, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+  let path: string | null;
+  if (folder) {
+    // A chosen export folder is a standing answer to "where should this go",
+    // so asking again every time would just be a dialog to dismiss.
+    path = joinPath(folder, filename);
+  } else {
+    const ext = filename.slice(filename.lastIndexOf('.') + 1);
+    path = await save({ defaultPath: filename, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+  }
   if (!path) return null;
 
   const contentsB64 =

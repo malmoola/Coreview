@@ -17,12 +17,14 @@
 //! first step finds four hundred phones whether you want them or not, and the
 //! decision about what to draw should not be buried inside the crawl.
 
+pub mod backup;
 pub mod cdp;
 pub mod classify;
 pub mod filter;
 pub mod lldp;
 pub mod types;
 
+pub use backup::{backup_path, is_inside, safe_component, BackupKind, BackupPathError};
 pub use cdp::{parse_cdp_detail, short_name};
 pub use classify::classify;
 pub use filter::{count_by_class, DiscoveryFilter};

@@ -113,7 +113,42 @@ function snake(value: unknown): unknown {
 export type IconLibEntry = { id: string; name: string; category: string; svg: string };
 export type IconLibrary = { dir: string; icons: IconLibEntry[]; skipped: string[] };
 
+/** Preferences that outlive a restart. Paths only — nothing secret. */
+export type StoredSettings = Partial<{
+  backupFolder: string;
+  exportFolder: string;
+  iconLibraryDir: string;
+  addressPreference: string;
+}>;
+
 export const ipc = {
+  /** Every stored preference. Browser mode has no backend, so none. */
+  async getSettings(): Promise<StoredSettings> {
+    if (!isDesktop) return {};
+    return invoke<StoredSettings>('get_settings');
+  },
+
+  /** Stores a preference, or clears it when value is null. */
+  async setSetting(key: keyof StoredSettings, value: string | null): Promise<void> {
+    if (!isDesktop) return;
+    await invoke('set_setting', { key, value });
+  },
+
+  /** Picking a folder is not the same as being able to write into it: a
+   *  read-only mount picks cleanly and fails at the first backup. */
+  async checkFolderWritable(path: string): Promise<void> {
+    if (!isDesktop) return;
+    await invoke('check_folder_writable', { path });
+  },
+
+  /** Native folder picker. Returns null if the user cancelled. */
+  async pickFolder(title: string, defaultPath?: string): Promise<string | null> {
+    if (!isDesktop) throw new BackendUnavailable('Choosing a folder');
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({ directory: true, multiple: false, title, defaultPath });
+    return typeof picked === 'string' ? picked : null;
+  },
+
   /** Index a user-chosen folder of SVGs. Desktop only. */
   listIconLibrary(dir: string) {
     return invoke<IconLibrary>('list_icon_library', { dir });
