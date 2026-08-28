@@ -115,11 +115,16 @@ fn from_capabilities(caps: &[String]) -> Option<DeviceClass> {
     if has("WLAN Access Point") || has("WLAN-Access-Point") || has("W") {
         return Some(DeviceClass::AccessPoint);
     }
-    if has("Router") || has("R") {
-        return Some(DeviceClass::Router);
-    }
+    // Bridging before routing, deliberately. A device that does both is a
+    // layer-3 switch far more often than it is a router — every Nexus and
+    // every Aruba CX advertises Bridge and Router together — and drawing a
+    // rack of leaf switches as routers is misleading. A real router advertises
+    // routing without bridging.
     if has("Switch") || has("Bridge") || has("B") {
         return Some(DeviceClass::Switch);
+    }
+    if has("Router") || has("R") {
+        return Some(DeviceClass::Router);
     }
     // A device that only bridges is an access point or a media converter far
     // more often than it is a switch.
@@ -216,6 +221,20 @@ mod tests {
         assert_eq!(classify(Some("ASA5525"), &caps(""), None), DeviceClass::Firewall);
         assert_eq!(classify(Some("FPR-2110"), &caps(""), None), DeviceClass::Firewall);
         assert_eq!(classify(Some("PA-3220"), &caps("Router"), None), DeviceClass::Firewall);
+    }
+
+    #[test]
+    fn a_device_that_bridges_and_routes_is_a_switch() {
+        // Every layer-3 switch advertises both. Calling them routers turns a
+        // rack of leaves into a rack of routers on the diagram.
+        assert_eq!(classify(None, &caps("Bridge Router"), None), DeviceClass::Switch);
+        assert_eq!(classify(None, &caps("B R"), None), DeviceClass::Switch);
+        // Routing without bridging is a router.
+        assert_eq!(classify(None, &caps("Router"), None), DeviceClass::Router);
+        assert_eq!(
+            classify(None, &caps("Router Source-Route-Bridge"), None),
+            DeviceClass::Router
+        );
     }
 
     #[test]

@@ -20,15 +20,19 @@
 pub mod backup;
 pub mod cdp;
 pub mod cli;
+pub mod crawl;
 pub mod classify;
 pub mod filter;
 pub mod hostkeys;
+pub mod interfaces;
 pub mod ssh;
 pub mod lldp;
 pub mod types;
 
 pub use backup::{backup_path, is_inside, safe_component, BackupKind, BackupPathError};
 pub use cli::{extract_output, find_prompt, looks_like_config, Prompt};
+pub use crawl::{crawl, CrawlEvent, CrawlOptions, CrawlResult, CrawledDevice};
+pub use interfaces::{addresses_from, parse_ip_interface_brief, Interface};
 pub use hostkeys::{changed_key_message, HostKeyStore, HostKeyVerdict};
 pub use ssh::{Credentials, Device, Secret, SshError, SshOptions, SshProgress};
 pub use cdp::{parse_cdp_detail, short_name};
