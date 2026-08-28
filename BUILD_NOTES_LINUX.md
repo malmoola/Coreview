@@ -105,3 +105,53 @@ Endpoint Client & Device 11, DNA/SD-Access 7.
 
 Staged with a manifest at `~/.local/share/livetopo/icons-staging/`.
 **Not committed to this repo and not bundled** — it is Cisco artwork.
+
+## Bundles (Phase 6)
+
+Both Linux bundles build and both were run, not just produced.
+
+| Artifact | Size | Declares / carries |
+| --- | --- | --- |
+| `LiveTopo_0.1.0_amd64.deb` | 2.6 MB | depends on `iputils-ping`, `libwebkit2gtk-4.1-0`, `libgtk-3-0` |
+| `LiveTopo_0.1.0_amd64.AppImage` | 78 MB | 161 bundled libraries, including WebKit |
+
+`iputils-ping` had to be added by hand. The generated deb declared only the
+GTK and WebKit libraries, but the probe engine shells out to `ping`
+(`crates/livetopo-probe/src/icmp.rs:164`), so without it the app would install
+cleanly and then fail every check — the worst way for a dependency to go
+missing.
+
+### What the AppImage actually carries
+
+Worth knowing before promising anyone it is self-contained. It bundles WebKit
+in full — `libwebkit2gtk-4.1.so.0`, `libjavascriptcoregtk-4.1.so.0`,
+`WebKitWebProcess` and `WebKitNetworkProcess` — which is the part that would
+otherwise be painful, since distributions ship incompatible webkit2gtk
+versions.
+
+It does **not** carry the graphics or font stack, and is not supposed to:
+
+    libGL.so.1  libEGL.so.1  libGLX.so.0  libgbm.so.1  libdrm.so.2
+    libX11.so.6  libxcb.so.1  libfontconfig.so.1  libfreetype.so.6
+    libharfbuzz.so.0
+
+The AppImage format excludes these deliberately — `libGL` is coupled to the
+host's driver, and bundling it breaks hardware acceleration on the machine that
+runs it. So the AppImage runs on any ordinary desktop and on nothing less. It
+will not start in a bare container, and no desktop application would.
+
+CI proves the useful half of that claim: the `AppImage on a machine without
+WebKit` job installs a minimal desktop runtime, asserts via `ldconfig` that the
+host has no WebKit at all, and then starts the app. Passing means it ran on the
+WebKit it carries.
+
+### Running headless
+
+WebKitGTK will not realise its window on a machine with no GPU. The app starts,
+prints nothing, and leaves an unmapped 10x10 placeholder window — there is no
+error to search for. Every headless run needs:
+
+    WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 \
+    LIBGL_ALWAYS_SOFTWARE=1 ./target/release/livetopo
+
+This is what made Cases 14, 15, 17 and 2 testable at all.
