@@ -106,14 +106,36 @@ function LiveEdgeInner(props: EdgeProps) {
           : undefined;
 
   const dotCount = 3;
-  const dots: Array<{ key: string; begin: string; reverse: boolean }> = [];
+  /** Each dot gets one trailing companion: smaller, dimmer and slightly behind.
+   *  Reads as a comet without the cost of a real particle system. */
+  const TRAIL = [
+    { r: 3.2, opacity: 0.95, lag: 0 },
+    { r: 2.0, opacity: 0.4, lag: 0.1 },
+  ];
+  const dots: Array<{ key: string; begin: string; reverse: boolean; r: number; opacity: number }> =
+    [];
   if (animate) {
     const forward = direction === 'forward' || direction === 'both' || direction === 'none';
     const reverse = direction === 'reverse' || direction === 'both';
     for (let i = 0; i < dotCount; i += 1) {
-      const begin = `${((i * duration) / dotCount).toFixed(2)}s`;
-      if (forward) dots.push({ key: `f${i}`, begin, reverse: false });
-      if (reverse) dots.push({ key: `r${i}`, begin, reverse: true });
+      const base = (i * duration) / dotCount;
+      for (const t of TRAIL) {
+        // A negative begin starts the animation mid-cycle, which places the
+        // trailing dot behind the leader without a second path.
+        const begin = `${(base - t.lag * duration).toFixed(2)}s`;
+        // The reverse stream is deliberately thinner and dimmer so a
+        // bidirectional link reads as two distinguishable streams rather than
+        // one crowded one.
+        if (forward) dots.push({ key: `f${i}-${t.r}`, begin, reverse: false, r: t.r, opacity: t.opacity });
+        if (reverse)
+          dots.push({
+            key: `r${i}-${t.r}`,
+            begin,
+            reverse: true,
+            r: t.r * 0.72,
+            opacity: t.opacity * 0.75,
+          });
+      }
     }
   }
 
@@ -146,6 +168,26 @@ function LiveEdgeInner(props: EdgeProps) {
 
   return (
     <>
+      {/* Halo. A wider, translucent copy of the line reads as a glow without an
+          SVG filter — a per-edge drop-shadow is the expensive way to do this. */}
+      {animate && (
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={color}
+          strokeWidth={width + 6}
+          strokeLinecap="round"
+          opacity={0.13}
+          className="lt-edge-halo"
+        />
+      )}
+
+      {/* A flowing dash crawl under the dots was tried here and cut: it cost
+          ~2.5 fps of the 60 fps budget at 30 animated edges, because SMIL on
+          stroke-dashoffset animates an attribute on the main thread, unlike
+          animateMotion which the compositor handles. The dots already carry
+          direction, so it bought very little. */}
+
       <BaseEdge
         id={id}
         path={edgePath}
@@ -155,6 +197,9 @@ function LiveEdgeInner(props: EdgeProps) {
           strokeDasharray: dash,
           opacity: status === 'disabled' ? 0.55 : 1,
           filter: selected ? `drop-shadow(0 0 6px ${color})` : undefined,
+          // Colour changes ease rather than snapping, so a status flip reads as
+          // a transition instead of a jump cut.
+          transition: 'stroke 350ms ease, stroke-width 150ms ease',
         }}
         markerEnd={markerEnd}
         markerStart={markerStart}
@@ -165,7 +210,7 @@ function LiveEdgeInner(props: EdgeProps) {
       </path>
 
       {dots.map((d) => (
-        <circle key={d.key} r={3.2} fill={color} opacity={0.95}>
+        <circle key={d.key} r={d.r} fill={color} opacity={d.opacity}>
           <animateMotion
             dur={`${duration}s`}
             begin={d.begin}

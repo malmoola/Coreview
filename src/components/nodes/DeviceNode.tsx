@@ -57,7 +57,10 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
 
       {!isText && (
         <span
-          className="lt-status-badge"
+          // Re-keying on status remounts the badge, which retriggers the CSS
+          // pulse below. A state change gets a brief, cheap acknowledgement.
+          key={status}
+          className="lt-status-badge lt-status-pulse"
           style={{ background: color }}
           title={`${STATUS_LABEL[status]}${live?.lastSummary ? ` — ${live.lastSummary}` : ''}`}
         >

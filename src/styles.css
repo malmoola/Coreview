@@ -443,3 +443,21 @@ textarea.lt-input { resize: vertical; }
   height: 22px;
   object-fit: contain;
 }
+
+/* ---- status change acknowledgement ------------------------------------ */
+
+@keyframes lt-status-pop {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 currentColor; }
+  35%  { transform: scale(1.35); box-shadow: 0 0 0 4px transparent; }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 transparent; }
+}
+
+/* One short pop when a node's status changes. Not a loop — a loop would be
+   noise on a busy canvas, and would keep the compositor awake for nothing. */
+.lt-status-pulse {
+  animation: lt-status-pop 420ms ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-status-pulse { animation: none; }
+}
