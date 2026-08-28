@@ -1,0 +1,15 @@
+[package]
+name = "livetopo-probe"
+version = "0.1.0"
+edition = "2021"
+description = "Probe engine for LiveTopo: validation, ICMP/TCP/DNS checks, threshold state machine, scheduler"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+tokio = { version = "1", features = ["macros", "process", "net", "time", "sync", "rt", "rt-multi-thread"] }
+tokio-util = "0.7"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
