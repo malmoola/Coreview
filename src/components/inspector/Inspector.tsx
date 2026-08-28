@@ -21,7 +21,12 @@ import {
   STATUS_LABEL,
 } from '../../types/domain';
 
-function newProbe(objectKind: 'node' | 'link', objectId: string, projectId: string): Probe {
+function newProbe(
+  objectKind: 'node' | 'link',
+  objectId: string,
+  projectId: string,
+  target = '',
+): Probe {
   return {
     id: uid(),
     projectId,
@@ -29,7 +34,7 @@ function newProbe(objectKind: 'node' | 'link', objectId: string, projectId: stri
     objectId,
     name: objectKind === 'node' ? 'Management' : 'Link check',
     kind: 'icmp',
-    target: '',
+    target,
     tcpPort: null,
     intervalSeconds: PROBE_DEFAULTS.intervalSeconds,
     timeoutMs: PROBE_DEFAULTS.timeoutMs,
@@ -436,6 +441,17 @@ function ProbeList({ objectKind, objectId }: { objectKind: 'node' | 'link'; obje
   const upsert = useStore((s) => s.upsertProbe);
   const remove = useStore((s) => s.removeProbe);
 
+  // Start a new node probe on the address the node already carries. Leaving it
+  // blank means "Add probe" produces something that checks nothing, which
+  // reads as the app being broken rather than as a field left to fill in.
+  const nodes = useStore((s) => s.doc.nodes);
+  const suggestedTarget = useMemo(() => {
+    if (objectKind !== 'node') return '';
+    const data = nodes.find((n) => n.id === objectId)?.data as DeviceNodeData | undefined;
+    const addrs = data?.addresses ?? [];
+    return (addrs.find((a) => a.isPrimary) ?? addrs[0])?.address ?? '';
+  }, [nodes, objectId, objectKind]);
+
   return (
     <section className="lt-section">
       <h3>
@@ -443,7 +459,7 @@ function ProbeList({ objectKind, objectId }: { objectKind: 'node' | 'link'; obje
         <button
           type="button"
           className="lt-btn lt-btn-small"
-          onClick={() => upsert(newProbe(objectKind, objectId, meta.id))}
+          onClick={() => upsert(newProbe(objectKind, objectId, meta.id, suggestedTarget))}
         >
           Add probe
         </button>
