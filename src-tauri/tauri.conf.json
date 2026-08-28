@@ -52,7 +52,9 @@
     "longDescription": "LiveTopo lets network engineers draw their real topology and continuously validate configured reachable targets during maintenance windows. All data stays on the local machine.",
     "linux": {
       "deb": {
-        "depends": []
+        "depends": [
+          "iputils-ping"
+        ]
       }
     },
     "category": "Utility"
