@@ -23,12 +23,14 @@ pub mod cli;
 pub mod classify;
 pub mod filter;
 pub mod hostkeys;
+pub mod ssh;
 pub mod lldp;
 pub mod types;
 
 pub use backup::{backup_path, is_inside, safe_component, BackupKind, BackupPathError};
 pub use cli::{extract_output, find_prompt, looks_like_config, Prompt};
 pub use hostkeys::{changed_key_message, HostKeyStore, HostKeyVerdict};
+pub use ssh::{Credentials, Device, Secret, SshError, SshOptions, SshProgress};
 pub use cdp::{parse_cdp_detail, short_name};
 pub use classify::classify;
 pub use filter::{count_by_class, DiscoveryFilter};

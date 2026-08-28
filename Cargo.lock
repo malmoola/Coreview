@@ -626,6 +626,7 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "coreview-probe",
+ "rand",
  "russh",
  "serde",
  "thiserror 1.0.69",
