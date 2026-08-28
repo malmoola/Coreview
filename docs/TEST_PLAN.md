@@ -21,28 +21,62 @@
 
 ## The 20 required cases
 
-| # | Case | How it is covered | Status |
+**Run on Linux (Ubuntu 26.04) on 2026-08-27.** Status column records what was
+actually observed, not what is expected to work. "Backend" means verified in
+`crates/livetopo-probe/tests/live_linux.rs` against the real network stack;
+"UI" means observed in the running app via a screenshot.
+
+| # | Case | Result | Evidence |
 | --- | --- | --- | --- |
-| 1 | Draw firewall, router, switch, AP, server | Manual: drag each from the palette. Also exercised by all three sample projects. | Manual |
-| 2 | Resize all object categories | Manual: `NodeResizer` is attached to device, shape and note nodes alike. | Manual |
-| 3 | Label all nodes | Manual: inspector *Display name*. | Manual |
-| 4 | Source, target and centre labels on one link | Manual: three separate inspector fields. Sample 1 ships a link with all three populated. | Manual |
-| 5 | Free-form note in empty space, resize and lock | Manual: right-click canvas → Add note; inspector has a Lock checkbox. | Manual |
-| 6 | Reachable ICMP target reaches healthy | Manual: configure `127.0.0.1`, Start validation. Samples ship this node. | Manual |
-| 7 | Unreachable documentation range goes down after threshold | Automated (`state.rs::holds_prior_state_below_failure_threshold`) plus manual with `192.0.2.1`. | Automated + manual |
-| 8 | Healthy link animates green dots | Manual visual check. Gating is automated (`shouldAnimate`). | Manual |
-| 9 | Failing link turns red, dots stop | Manual visual check. Gating automated. | Manual |
-| 10 | Warning when RTT exceeds threshold | Automated (`state.rs::high_rtt_becomes_warning`) — injected, no live network needed. | Automated |
-| 11 | Both-endpoints rule is down when either endpoint is down | Automated (`evaluate.test.ts`, full truth table). | Automated |
-| 12 | Test Now starts no background monitoring | Automated by construction: `test_probe_now` calls `run_once`, which touches no scheduler. Verify manually that the session pill stays *Validation stopped*. | Automated + manual |
-| 13 | Stop validation stops future probes | Automated (`engine.rs::start_then_stop_clears_the_session`). Manual confirmation with a packet capture is worth doing once. | Automated |
-| 14 | Closing a project stops active probes | `store.closeProject` calls `stopValidation` first. Manual. | Manual |
-| 15 | Closing the app stops active probes | Three layers: `WindowEvent::CloseRequested`, `RunEvent::Exit`, and a `beforeunload` handler. Manual. | Manual |
-| 16 | Duplicate creates independent data | Automated (`db.rs::duplicate_is_independent`). | Automated |
-| 17 | Export/import preserves objects and metadata | Automated at the storage layer (`db.rs::round_trips_a_project_document`); the file round-trip is manual. | Automated + manual |
-| 18 | CSV contains transitions, timestamps, target, type, RTT, failure messages | Automated (`csv.test.ts`). | Automated |
-| 19 | Malicious hostname cannot cause shell injection | Automated (`validate.rs::rejects_injection_shaped_input`, 16 payloads) and by construction — argv, no shell. | Automated |
-| 20 | 50 nodes / 75 links stays responsive while monitoring | **Not yet measured.** Needs a real run on Windows hardware. | Outstanding |
+| 1 | Draw firewall, router, switch, AP, server | **PASS (UI)** | Branch office sample renders 9 devices of distinct types; palette shows all 26 |
+| 2 | Resize all object categories | **NOT TESTED** | `NodeResizer` is attached, but drag-resize was not exercised |
+| 3 | Label all nodes | **PASS (UI)** | every node shows its display name and address |
+| 4 | Source, target and centre labels on one link | **PASS (UI)** | `Primary ISP / port1`, `10 Gb LACP — VLANs 10,20,30 / Te1/0/48 / Po10` |
+| 5 | Free-form note, resize and lock | **PARTIAL (UI)** | change note renders with checklist; resize/lock not exercised |
+| 6 | Reachable ICMP target reaches healthy | **PASS (UI + backend)** | 127.0.0.1 → green, `Healthy · <1 ms`; backend measured rtt 0.019 ms |
+| 7 | Unreachable range goes down after threshold | **PASS (UI + backend)** | 192.0.2.x → red `Down`, `Request timed out`; backend `Unknown→Down` |
+| 8 | Healthy link animates green dots | **PARTIAL (UI)** | healthy links render green and solid, down links red and dashed; motion itself is not observable in a still capture |
+| 9 | Failing link turns red, dots stop | **PASS (UI)** | red dashed links with ✕ glyph |
+| 10 | Warning when RTT exceeds threshold | **PASS (unit)** | `state.rs::high_rtt_becomes_warning` |
+| 11 | Both-endpoints rule down when either endpoint down | **PASS (unit)** | `evaluate.test.ts` truth table |
+| 12 | Test Now starts no background monitoring | **PASS (backend)** | `live_linux::test_now_starts_no_background_work` — engine stays Stopped, snapshot empty |
+| 13 | Stop validation stops future probes | **PASS (UI + backend)** | UI returns to `Validation stopped`, all 9 → Unknown, RTT cleared; backend confirms session cleared and no live `ping`. See note on defunct children below |
+| 14 | Closing a project stops active probes | **NOT TESTED** | |
+| 15 | Closing the app stops active probes | **NOT TESTED** | |
+| 16 | Duplicate creates independent data | **PASS (unit)** | `db.rs::duplicate_is_independent` |
+| 17 | Export/import preserves objects and metadata | **PARTIAL (unit)** | `db.rs::round_trips_a_project_document`; file round-trip not exercised |
+| 18 | CSV contains transitions, timestamps, target, type, RTT, messages | **PASS (unit)** | `csv.test.ts` |
+| 19 | Malicious hostname cannot cause shell injection | **PASS (backend)** | 6 payloads incl. `10.0.0.1 && touch /tmp/...` all → `InvalidTarget`; marker file asserted absent. Not re-driven through the UI, which passes the same string to the same validator |
+| 20 | 50 nodes / 75 links stays responsive | **PASS (measured)** | see below |
+
+### Case 20 — measured, 2026-08-27
+
+Generated by `e2e/make_case20.py`: 50 nodes, 75 links, 50 ICMP probes
+(25 × 127.0.0.1, 25 × RFC 5737). Ran validation for **5 minutes** in the
+packaged debug build under Xvfb on a **2-core** box.
+
+| | Idle | Under load |
+| --- | --- | --- |
+| CPU (whole process, % of 2 cores) | 0.4 % | **6.6 – 6.9 %** |
+| RSS | 165.8 MB | **166.5 – 166.8 MB** |
+
+- Steady across all 15 samples; no drift.
+- RSS grew **0.9 MB over 5 minutes** — no leak at this duration.
+- 6.7 % of two cores ≈ 13 % of one core. **Inside the 15 % budget.**
+- Reached `Healthy 25 / Down 25 / Unknown 0`, 50 events, 125 monitored objects.
+- **Frame rate not measured.** The headless WebKitGTK webview gives no usable
+  frame counter, and a number from a different engine would not be the number
+  that matters. Outstanding.
+
+### Note on defunct child processes
+
+After Stop validation, one `[ping] <defunct>` zombie was observed persisting.
+It is **not** a running probe — the child had exited and merely was not reaped,
+so it consumes no CPU and sends no packets, and Case 13's substantive
+requirement holds. It comes from the cancellation path: `kill_on_drop` signals
+the child but the future is dropped before tokio reaps it. Over a long session
+this could accumulate PIDs. After the 5-minute Case 20 run the count was back
+to **0**, so it is transient rather than cumulative, but worth fixing.
 
 ## Manual test script
 
