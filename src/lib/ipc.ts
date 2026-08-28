@@ -110,6 +110,16 @@ function snake(value: unknown): unknown {
   return value;
 }
 
+export type SubnetInfo = { network: string; broadcast: string; prefix: number; hosts: number };
+export type SweepOptions = { timeoutMs: number; concurrency: number };
+export type SweepHit = { ip: string; rttMs: number | null };
+/** Mirrors the Rust SweepEvent enum, which is tagged with `kind`. */
+export type SweepEvent =
+  | { kind: 'started'; total: number }
+  | { kind: 'alive'; ip: string; rttMs: number | null }
+  | { kind: 'progress'; done: number; total: number }
+  | { kind: 'finished'; alive: number; scanned: number; cancelled: boolean };
+
 export type IconLibEntry = { id: string; name: string; category: string; svg: string };
 export type IconLibrary = { dir: string; icons: IconLibEntry[]; skipped: string[] };
 
@@ -252,6 +262,29 @@ export const ipc = {
       return { version: 'dev (browser)', dataDir: 'browser localStorage', documentVersion: 1 };
     }
     return camel(await invoke('app_info'));
+  },
+
+  /** Validate a subnet and say how big it is, without starting anything. */
+  describeSubnet(subnet: string) {
+    return invoke<SubnetInfo>('describe_subnet', { subnet });
+  },
+
+  /** Begin a ping sweep. Resolves with the number of addresses to be tried;
+   *  results arrive on the sweep event. */
+  startSweep(subnet: string, options: SweepOptions) {
+    return invoke<number>('start_sweep', { subnet, options });
+  },
+
+  /** Stop the running sweep. Safe to call when none is running. */
+  cancelSweep() {
+    return invoke<void>('cancel_sweep');
+  },
+
+  /** Subscribe to sweep progress and hits. */
+  async onSweepEvent(handler: (e: SweepEvent) => void): Promise<() => void> {
+    if (!isDesktop) return () => {};
+    const { listen } = await import('@tauri-apps/api/event');
+    return listen('coreview://sweep', (e) => handler(e.payload as SweepEvent));
   },
 
   /** Subscribe to engine samples and transitions. */

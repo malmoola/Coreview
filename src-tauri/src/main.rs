@@ -24,6 +24,7 @@ fn main() {
             db: Mutex::new(conn),
             session_id: Mutex::new(None),
             project_id: Mutex::new(None),
+            sweep_cancel: Mutex::new(None),
         })
         .setup(move |app| {
             commands::pump_events(app.handle().clone(), rx);
@@ -57,6 +58,9 @@ fn main() {
             commands::get_settings,
             commands::set_setting,
             commands::check_folder_writable,
+            commands::start_sweep,
+            commands::cancel_sweep,
+            commands::describe_subnet,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Coreview")

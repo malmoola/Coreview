@@ -5,9 +5,11 @@
 use std::sync::{Arc, Mutex};
 
 use coreview_probe::engine::{run_once, EngineEvent, SessionState};
+use coreview_probe::sweep::{parse_sweepable_cidr, sweep, SweepEvent, SweepOptions};
 use coreview_probe::{Engine, ProbeConfig, ProbeResult, ProbeSnapshot};
 use base64::Engine as _;
 use rusqlite::Connection;
+use tokio_util::sync::CancellationToken;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
@@ -19,6 +21,11 @@ pub struct AppState {
     pub db: Mutex<Connection>,
     pub session_id: Mutex<Option<String>>,
     pub project_id: Mutex<Option<String>>,
+    /// Cancels the sweep that is currently running, if any. A sweep is a
+    /// one-shot job rather than a session, so it needs its own handle — the
+    /// validation engine's Stop must not cancel a discovery scan, and vice
+    /// versa.
+    pub sweep_cancel: Mutex<Option<CancellationToken>>,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -326,4 +333,83 @@ pub fn check_folder_writable(path: String) -> CmdResult<()> {
         .map_err(|e| format!("Coreview cannot write into {path}: {e}"))?;
     let _ = std::fs::remove_file(&probe);
     Ok(())
+}
+
+// ---------------------------------------------------------------- discovery
+
+/// Starts a ping sweep of one subnet, streaming results as hosts answer.
+///
+/// Returns as soon as the sweep is scheduled; progress and hits arrive on the
+/// `coreview://sweep` event. A /24 takes the better part of a minute even at
+/// full concurrency, and a caller blocked on the whole thing could not draw a
+/// progress bar or offer a Stop button.
+///
+/// Starting a sweep cancels any sweep already running. Two at once would fight
+/// over the same concurrency budget and report interleaved progress that adds
+/// up to nothing sensible.
+#[tauri::command]
+pub async fn start_sweep(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    subnet: String,
+    options: SweepOptions,
+) -> CmdResult<u32> {
+    // Parsed here, before anything is spawned, so a typo comes back as an
+    // error on the button press rather than as a sweep that finds nothing.
+    let cidr = parse_sweepable_cidr(&subnet).map_err(|e| e.to_string())?;
+    let total = cidr.host_count();
+
+    let token = CancellationToken::new();
+    {
+        let mut slot = state.sweep_cancel.lock().map_err(db_err)?;
+        if let Some(previous) = slot.replace(token.clone()) {
+            previous.cancel();
+        }
+    }
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<SweepEvent>(1024);
+    let emitter = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            let _ = emitter.emit("coreview://sweep", &event);
+        }
+    });
+
+    tauri::async_runtime::spawn(async move {
+        sweep(cidr, options, tx, token).await;
+    });
+
+    Ok(total)
+}
+
+/// Stops the running sweep. Harmless when none is running, so the UI can call
+/// it without first asking whether there is anything to stop.
+#[tauri::command]
+pub fn cancel_sweep(state: State<'_, AppState>) -> CmdResult<()> {
+    if let Some(token) = state.sweep_cancel.lock().map_err(db_err)?.take() {
+        token.cancel();
+    }
+    Ok(())
+}
+
+/// Checks a subnet without starting anything, so the form can say what is
+/// wrong — and how many addresses are involved — while it is being typed.
+#[tauri::command]
+pub fn describe_subnet(subnet: String) -> CmdResult<SubnetInfo> {
+    let cidr = parse_sweepable_cidr(&subnet).map_err(|e| e.to_string())?;
+    Ok(SubnetInfo {
+        network: cidr.network().to_string(),
+        broadcast: cidr.broadcast().to_string(),
+        prefix: cidr.prefix(),
+        hosts: cidr.host_count(),
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubnetInfo {
+    pub network: String,
+    pub broadcast: String,
+    pub prefix: u8,
+    pub hosts: u32,
 }

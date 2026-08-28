@@ -493,3 +493,33 @@ textarea.cv-input { resize: vertical; }
 }
 .cv-folder-path.is-unset { color: var(--muted); font-style: italic; }
 .cv-folders .cv-help { margin: 0; }
+
+/* ---- discovery --------------------------------------------------------- */
+.cv-discover { padding: 12px 14px 16px; }
+.cv-discover-form {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;
+}
+/* The subnet field must not grow to fill the row: at 1600px it pushed the
+   Sweep button off the edge of the window entirely. */
+.cv-field { display: flex; flex-direction: column; gap: 4px; flex: 0 1 300px; min-width: 180px; }
+.cv-field-narrow { flex: 0 0 110px; min-width: 110px; }
+.cv-field > span {
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint);
+}
+.cv-discover-status { margin: 10px 0 0; font-size: 12px; color: var(--text-dim); }
+.cv-discover-problem { color: var(--down); }
+.cv-discover-empty { padding: 16px; }
+
+.cv-progress {
+  margin-top: 8px; height: 4px; border-radius: 2px;
+  background: var(--line); overflow: hidden;
+}
+.cv-progress-fill {
+  height: 100%; background: var(--accent);
+  transition: width 200ms linear;
+}
+
+.cv-discover-actions { display: inline-flex; gap: 6px; margin-left: 6px; flex-wrap: wrap; }
+.cv-discover-table { margin-top: 0; }
+.cv-discover-table td:first-child, .cv-discover-table th:first-child { width: 32px; }
+.cv-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }

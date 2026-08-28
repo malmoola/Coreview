@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { useStore } from '../state/store';
+import { DiscoverPanel } from './DiscoverPanel';
 import { STATUS_COLOR } from './edges/LiveEdge';
 import { linkStatus } from '../health/evaluate';
 import type { DeviceNodeData, HealthStatus, LinkData } from '../types/domain';
@@ -29,7 +30,7 @@ export function StatusPanel() {
   const nodeStatusOf = useStore((s) => s.nodeStatus);
   const select = useStore((s) => s.select);
 
-  const [tab, setTab] = useState<'objects' | 'events'>('objects');
+  const [tab, setTab] = useState<'objects' | 'events' | 'discover'>('objects');
   const [query, setQuery] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
 
@@ -146,22 +147,33 @@ export function StatusPanel() {
           >
             Event timeline ({events.length})
           </button>
+          <button
+            type="button"
+            className={tab === 'discover' ? 'is-active' : ''}
+            onClick={() => setTab('discover')}
+          >
+            Discover
+          </button>
         </div>
 
-        <input
-          className="cv-input cv-panel-search"
-          placeholder="Filter by name, IP, type, tag or status"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <label className="cv-check cv-check-inline">
-          <input
-            type="checkbox"
-            checked={problemsOnly}
-            onChange={(e) => setProblemsOnly(e.target.checked)}
-          />
-          Warnings and down only
-        </label>
+        {tab !== 'discover' && (
+          <>
+            <input
+              className="cv-input cv-panel-search"
+              placeholder="Filter by name, IP, type, tag or status"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <label className="cv-check cv-check-inline">
+              <input
+                type="checkbox"
+                checked={problemsOnly}
+                onChange={(e) => setProblemsOnly(e.target.checked)}
+              />
+              Warnings and down only
+            </label>
+          </>
+        )}
         <button type="button" className="cv-btn cv-btn-small" onClick={() => setOpen(false)}>
           Hide
         </button>
@@ -170,7 +182,9 @@ export function StatusPanel() {
       {statusMessage && <div className="cv-panel-message">{statusMessage}</div>}
 
       <div className="cv-panel-body">
-        {tab === 'objects' ? (
+        {tab === 'discover' ? (
+          <DiscoverPanel />
+        ) : tab === 'objects' ? (
           <table className="cv-table">
             <thead>
               <tr>

@@ -408,6 +408,40 @@ mod tests {
         assert_eq!(o.concurrency, MAX_CONCURRENCY);
     }
 
+    #[test]
+    fn the_event_wire_format_is_what_the_frontend_expects() {
+        // This is a contract with TypeScript, which cannot check it. Serde's
+        // tagging rules decide the shape, and a newtype variant flattening or
+        // not flattening changes whether the UI sees `ip` or `{ip}`.
+        let json = |e: &SweepEvent| serde_json::to_string(e).unwrap();
+
+        assert_eq!(json(&SweepEvent::Started { total: 254 }), r#"{"kind":"started","total":254}"#);
+        assert_eq!(
+            json(&SweepEvent::Alive(SweepHit {
+                ip: "10.0.0.1".into(),
+                rtt_ms: Some(1.5),
+            })),
+            r#"{"kind":"alive","ip":"10.0.0.1","rttMs":1.5}"#
+        );
+        assert_eq!(
+            json(&SweepEvent::Progress { done: 7, total: 254 }),
+            r#"{"kind":"progress","done":7,"total":254}"#
+        );
+        assert_eq!(
+            json(&SweepEvent::Finished {
+                alive: 3,
+                scanned: 254,
+                cancelled: false
+            }),
+            r#"{"kind":"finished","alive":3,"scanned":254,"cancelled":false}"#
+        );
+        // A host that answered without a parseable time still counts as alive.
+        assert_eq!(
+            json(&SweepEvent::Alive(SweepHit { ip: "10.0.0.2".into(), rtt_ms: None })),
+            r#"{"kind":"alive","ip":"10.0.0.2","rttMs":null}"#
+        );
+    }
+
     #[tokio::test]
     async fn sweeping_a_single_loopback_address_finds_it() {
         let (tx, mut rx) = mpsc::channel(64);
