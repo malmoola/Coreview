@@ -151,8 +151,6 @@ fn first_meaningful_line(text: &str) -> Option<String> {
         .map(|l| l.chars().take(200).collect())
 }
 
-/// Run a single ICMP check. Cancellation is handled by the caller dropping the
-
 /// A ping that could not be run or did not return, as opposed to one that ran
 /// and reported the host unreachable.
 #[derive(Debug, Clone)]
@@ -204,6 +202,7 @@ pub async fn ping_once(target: &Target, timeout_ms: u64) -> Result<PingParse, Pi
     ))
 }
 
+/// Run a single ICMP check. Cancellation is handled by the caller dropping the
 /// future; the child process is killed on drop.
 pub async fn probe_icmp(probe_id: &str, raw_target: &str, timeout_ms: u64, now_ms: i64) -> ProbeResult {
     let target = match parse_target(raw_target) {

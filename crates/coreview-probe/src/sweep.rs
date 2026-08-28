@@ -253,15 +253,13 @@ pub async fn sweep(
     let mut done = 0u32;
     while let Some(joined) = tasks.join_next().await {
         done += 1;
-        if let Ok((ip, result)) = joined {
-            if let Some(rtt_ms) = result {
-                let hit = SweepHit {
-                    ip: ip.to_string(),
-                    rtt_ms,
-                };
-                alive.push(hit.clone());
-                let _ = events.send(SweepEvent::Alive(hit)).await;
-            }
+        if let Ok((ip, Some(rtt_ms))) = joined {
+            let hit = SweepHit {
+                ip: ip.to_string(),
+                rtt_ms,
+            };
+            alive.push(hit.clone());
+            let _ = events.send(SweepEvent::Alive(hit)).await;
         }
         let _ = events.send(SweepEvent::Progress { done, total }).await;
     }
