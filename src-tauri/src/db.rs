@@ -94,9 +94,18 @@ fn adopt_livetopo_data(base: &Path, new_dir: &Path) {
     }
     let Ok(entries) = std::fs::read_dir(&old_dir) else { return };
     for entry in entries.flatten() {
-        if entry.file_type().is_ok_and(|t| t.is_file()) {
-            let _ = std::fs::copy(entry.path(), new_dir.join(entry.file_name()));
+        if !entry.file_type().is_ok_and(|t| t.is_file()) {
+            continue;
         }
+        // The database file was renamed along with everything else, so the
+        // copy has to be renamed too. Copying livetopo.db verbatim leaves it
+        // sitting next to a freshly created empty coreview.db, which is the
+        // data loss this whole function exists to prevent. The -wal and -shm
+        // siblings are carried across under the same mapping so SQLite sees a
+        // coherent set rather than a database with a stranded journal.
+        let name = entry.file_name();
+        let renamed = name.to_string_lossy().replace("livetopo", "coreview");
+        let _ = std::fs::copy(entry.path(), new_dir.join(renamed));
     }
 }
 
@@ -369,11 +378,16 @@ mod tests {
         let old = base.join("LiveTopo");
         std::fs::create_dir_all(&old).unwrap();
         std::fs::write(old.join("livetopo.db"), b"old-bytes").unwrap();
+        std::fs::write(old.join("livetopo.db-wal"), b"old-wal").unwrap();
 
         let new_dir = base.join("Coreview");
         adopt_livetopo_data(&base, &new_dir);
 
-        assert_eq!(std::fs::read(new_dir.join("livetopo.db")).unwrap(), b"old-bytes");
+        // Renamed, not just copied: the app opens coreview.db, so a verbatim
+        // copy would leave the projects stranded beside an empty database.
+        assert_eq!(std::fs::read(new_dir.join("coreview.db")).unwrap(), b"old-bytes");
+        assert_eq!(std::fs::read(new_dir.join("coreview.db-wal")).unwrap(), b"old-wal");
+        assert!(!new_dir.join("livetopo.db").exists());
         // Copied, not moved: the original stays put in case this went wrong.
         assert!(old.join("livetopo.db").exists());
         std::fs::remove_dir_all(&base).ok();
@@ -387,11 +401,11 @@ mod tests {
         std::fs::create_dir_all(&old).unwrap();
         std::fs::create_dir_all(&new_dir).unwrap();
         std::fs::write(old.join("livetopo.db"), b"old-bytes").unwrap();
-        std::fs::write(new_dir.join("livetopo.db"), b"current-bytes").unwrap();
+        std::fs::write(new_dir.join("coreview.db"), b"current-bytes").unwrap();
 
         adopt_livetopo_data(&base, &new_dir);
 
-        assert_eq!(std::fs::read(new_dir.join("livetopo.db")).unwrap(), b"current-bytes");
+        assert_eq!(std::fs::read(new_dir.join("coreview.db")).unwrap(), b"current-bytes");
         std::fs::remove_dir_all(&base).ok();
     }
 
