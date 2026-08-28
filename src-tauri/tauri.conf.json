@@ -29,7 +29,9 @@
     "active": true,
     "targets": [
       "nsis",
-      "msi"
+      "msi",
+      "deb",
+      "appimage"
     ],
     "icon": [
       "icons/32x32.png",
@@ -41,9 +43,18 @@
     "windows": {
       "nsis": {
         "installMode": "perMachine"
+      },
+      "webviewInstallMode": {
+        "type": "offlineInstaller"
       }
     },
     "shortDescription": "Local-first network diagram designer with live validation",
-    "longDescription": "LiveTopo lets network engineers draw their real topology and continuously validate configured reachable targets during maintenance windows. All data stays on the local machine."
+    "longDescription": "LiveTopo lets network engineers draw their real topology and continuously validate configured reachable targets during maintenance windows. All data stays on the local machine.",
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    },
+    "category": "Utility"
   }
 }
