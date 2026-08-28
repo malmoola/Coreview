@@ -28,7 +28,7 @@ pub fn ping_args(target: &Target, timeout_ms: u64) -> Vec<String> {
         args
     } else {
         // Linux/macOS ping takes -W in seconds (rounded up, minimum 1).
-        let secs = ((timeout_ms + 999) / 1000).max(1).to_string();
+        let secs = timeout_ms.div_ceil(1000).max(1).to_string();
         vec!["-c".into(), "1".into(), "-W".into(), secs, t]
     }
 }
