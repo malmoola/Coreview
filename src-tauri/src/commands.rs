@@ -215,5 +215,5 @@ pub fn pump_events(app: AppHandle, mut rx: tokio::sync::mpsc::UnboundedReceiver<
 /// rather than quietly showing fewer icons.
 #[tauri::command]
 pub fn list_icon_library(dir: String) -> CmdResult<crate::icons::IconLibrary> {
-    crate::icons::scan(&dir).map_err(|e| e.into())
+    crate::icons::scan(&dir)
 }
