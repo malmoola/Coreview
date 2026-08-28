@@ -18,6 +18,7 @@
 //! decision about what to draw should not be buried inside the crawl.
 
 pub mod backup;
+pub mod capture;
 pub mod cdp;
 pub mod cli;
 pub mod crawl;
@@ -30,6 +31,7 @@ pub mod lldp;
 pub mod types;
 
 pub use backup::{backup_path, is_inside, safe_component, BackupKind, BackupPathError};
+pub use capture::{count_changes, diff, list_captures, run_backups, BackupEvent, BackupOptions, BackupTarget, DiffLine};
 pub use cli::{extract_output, find_prompt, looks_like_config, Prompt};
 pub use crawl::{crawl, CrawlEvent, CrawlOptions, CrawlResult, CrawledDevice};
 pub use interfaces::{addresses_from, parse_ip_interface_brief, Interface};
