@@ -29,7 +29,7 @@ actually observed, not what is expected to work. "Backend" means verified in
 | # | Case | Result | Evidence |
 | --- | --- | --- | --- |
 | 1 | Draw firewall, router, switch, AP, server | **PASS (UI)** | Branch office sample renders 9 devices of distinct types; palette shows all 26 |
-| 2 | Resize all object categories | **NOT TESTED** | `NodeResizer` is attached, but drag-resize was not exercised |
+| 2 | Resize all object categories | **PARTIAL (UI)** | window resized 1600x1000 -> 1150x740 on the packaged binary: toolbar wraps to a second row, panels reflow, table stays readable, no overflow. Per-node drag-resize still not exercised — synthetic drags do not reach `NodeResizer` |
 | 3 | Label all nodes | **PASS (UI)** | every node shows its display name and address |
 | 4 | Source, target and centre labels on one link | **PASS (UI)** | `Primary ISP / port1`, `10 Gb LACP — VLANs 10,20,30 / Te1/0/48 / Po10` |
 | 5 | Free-form note, resize and lock | **PARTIAL (UI)** | change note renders with checklist; resize/lock not exercised |
@@ -41,10 +41,10 @@ actually observed, not what is expected to work. "Backend" means verified in
 | 11 | Both-endpoints rule down when either endpoint down | **PASS (unit)** | `evaluate.test.ts` truth table |
 | 12 | Test Now starts no background monitoring | **PASS (backend)** | `live_linux::test_now_starts_no_background_work` — engine stays Stopped, snapshot empty |
 | 13 | Stop validation stops future probes | **PASS (UI + backend)** | UI returns to `Validation stopped`, all 9 → Unknown, RTT cleared; backend confirms session cleared and no live `ping`. See note on defunct children below |
-| 14 | Closing a project stops active probes | **NOT TESTED** | |
-| 15 | Closing the app stops active probes | **NOT TESTED** | |
+| 14 | Closing a project stops active probes | **PASS (UI)** | packaged binary under Xvfb: `ping` present in 4/14 and 6/20 one-second samples while running; after Close project, 0/25 samples and no zombies |
+| 15 | Closing the app stops active probes | **PASS (UI)** | `ping` in 4/10 samples, then WM_DELETE_WINDOW: no `livetopo` and no `ping` process anywhere on the system |
 | 16 | Duplicate creates independent data | **PASS (unit)** | `db.rs::duplicate_is_independent` |
-| 17 | Export/import preserves objects and metadata | **PARTIAL (unit)** | `db.rs::round_trips_a_project_document`; file round-trip not exercised |
+| 17 | Export/import preserves objects and metadata | **PASS (UI)** | exported `.livetopo`, deleted the project (DB row gone, events cascaded), re-imported, re-exported: 10 nodes / 8 edges / 8 probes and the canvas identical after dropping generated ids. Only `id`, `name`, `createdAt`, `updatedAt` differ, by design |
 | 18 | CSV contains transitions, timestamps, target, type, RTT, messages | **PASS (unit)** | `csv.test.ts` |
 | 19 | Malicious hostname cannot cause shell injection | **PASS (backend)** | 6 payloads incl. `10.0.0.1 && touch /tmp/...` all → `InvalidTarget`; marker file asserted absent. Not re-driven through the UI, which passes the same string to the same validator |
 | 20 | 50 nodes / 75 links stays responsive | **PASS (measured)** | see below |
@@ -115,6 +115,32 @@ Run this once on a clean Windows machine after the Rust side compiles.
     (Case 16)
 17. Build a 50-node/75-link project, start validation, and watch CPU in Task
     Manager for five minutes. Record the number. (Case 20)
+
+## Open defect: diagram export renders no diagram
+
+Found while driving Case 17 on the packaged binary. "Diagram as PNG" and
+"Diagram as SVG" produce a file with the correct title block and legend and an
+**empty canvas area**. Confirmed a 2084x1508 PNG with nothing but the header.
+
+`canvasToSvg` serialises `.react-flow__viewport` and injects the result into an
+`<svg>` document. In @xyflow/react 12 that element and its children are HTML
+`<div>`s, not SVG — `react-flow__viewport` at `dist/esm/index.js:3090`,
+`react-flow__nodes` at 2380, `react-flow__edges` at 3057. HTML in the SVG
+namespace outside a `<foreignObject>` renders nothing, so the whole diagram
+drops out. This is not a regression; the code was written against an assumed
+DOM shape and, like the rest of the app, had never been run.
+
+The fix is to draw the export from the document model instead of from the DOM:
+`getNodesBounds` for the extent, `getSmoothStepPath` / `getBezierPath` /
+`getStraightPath` (all exported by the library) for the link geometry, and
+`renderToStaticMarkup` on the existing glyph components in
+`src/components/icons.tsx` so the exported artwork stays the same one the
+canvas draws rather than a second copy that can drift. Not attempted here —
+it is a rewrite of the exporter, not a patch.
+
+Case 13 of the manual script ("Export the diagram as PNG and SVG. Confirm the
+title block ... and that the legend is present") passes as literally written:
+both are present. The diagram between them is not.
 
 ## Known gaps
 
