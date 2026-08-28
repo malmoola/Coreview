@@ -248,6 +248,42 @@ mod tests {
         assert_eq!(p.rtt_ms, Some(0.123));
     }
 
+    // Verbatim output captured from iputils ping on Ubuntu 26.04, rather than
+    // a hand-written approximation. The multi-line form matters: the parser
+    // scans for the first '=' followed by "ms", so it has to step over
+    // icmp_seq= and ttl= before reaching time=.
+    #[test]
+    fn real_iputils_success_output_is_parsed() {
+        let out = "PING 127.0.0.1 (127.0.0.1) 56(84) bytes of data.\n\
+64 bytes from 127.0.0.1: icmp_seq=1 ttl=64 time=0.044 ms\n\
+\n\
+--- 127.0.0.1 ping statistics ---\n\
+1 packets transmitted, 1 received, 0% packet loss, time 0ms\n\
+rtt min/avg/max/mdev = 0.044/0.044/0.044/0.000 ms\n";
+        let p = parse_ping_output(out, "", Some(0));
+        assert_eq!(p.outcome, Outcome::Success);
+        assert_eq!(p.rtt_ms, Some(0.044));
+    }
+
+    #[test]
+    fn real_iputils_timeout_output_is_a_timeout() {
+        let out = "PING 192.0.2.1 (192.0.2.1) 56(84) bytes of data.\n\
+\n\
+--- 192.0.2.1 ping statistics ---\n\
+1 packets transmitted, 0 received, 100% packet loss, time 0ms\n";
+        let p = parse_ping_output(out, "", Some(1));
+        assert_eq!(p.outcome, Outcome::Timeout);
+        assert_eq!(p.rtt_ms, None);
+    }
+
+    #[test]
+    fn real_iputils_dns_failure_is_dns_failure() {
+        // iputils writes this to stderr and exits 2.
+        let err = "ping: no-such-host.invalid: Name or service not known\n";
+        let p = parse_ping_output("", err, Some(2));
+        assert_eq!(p.outcome, Outcome::DnsFailure);
+    }
+
     #[test]
     fn timeout_is_distinct_from_unreachable() {
         let t = parse_ping_output("Request timed out.\r\n", "", Some(1));
