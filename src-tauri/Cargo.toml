@@ -1,6 +1,6 @@
 [package]
 name = "livetopo"
-version = "0.1.0"
+version = "0.1.1"
 description = "LiveTopo — local-first network diagram designer with live connectivity validation"
 authors = ["LiveTopo"]
 edition = "2021"
