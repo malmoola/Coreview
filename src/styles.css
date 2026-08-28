@@ -211,6 +211,14 @@ textarea.lt-input { resize: vertical; }
 .react-flow__controls button:hover { background: #1c2836; }
 .lt-minimap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 
+/* Near the minimum window size (1100x700) the canvas viewport is only about
+   590x380, and React Flow's default 200x150 minimap covers a third of it.
+   Shrink rather than hide: the minimap has a toggle in the canvas menu, and
+   hiding it here would make that toggle look broken. */
+@media (max-width: 1320px), (max-height: 860px) {
+  .lt-minimap { width: 132px !important; height: 92px !important; }
+}
+
 .lt-node {
   position: relative; width: 100%; height: 100%;
   background: var(--panel); border: 1.5px solid var(--unknown);

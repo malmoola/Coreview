@@ -6,7 +6,7 @@ import { ipc } from '../lib/ipc';
 import {
   buildMarkdownReport,
   canvasToSvg,
-  download,
+  saveExport,
   slug,
   svgToPng,
 } from '../lib/exports';
@@ -44,10 +44,20 @@ export function TopBar({ onExit }: { onExit: () => void }) {
 
   const counts = statusCounts();
 
+  /** Runs an export and reports where it landed, or that it failed. */
+  const runExport = async (filename: string, build: () => string | Uint8Array | null, mime: string) => {
+    try {
+      const content = build();
+      if (content === null) return;
+      const path = await saveExport(filename, content, mime);
+      store.setStatusMessage(path ? `Saved ${path}` : null);
+    } catch (err) {
+      store.setStatusMessage(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const exportSvg = () => {
-    const svg = canvasToSvg(meta, true);
-    if (!svg) return;
-    download(`${slug(meta.name)}-diagram.svg`, svg, 'image/svg+xml');
+    void runExport(`${slug(meta.name)}-diagram.svg`, () => canvasToSvg(meta, true), 'image/svg+xml');
   };
 
   const exportPng = async () => {
@@ -55,11 +65,12 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     try {
       const svg = canvasToSvg(meta, true);
       if (!svg) return;
-      const png = await svgToPng(svg);
-      const a = document.createElement('a');
-      a.href = png;
-      a.download = `${slug(meta.name)}-diagram.png`;
-      a.click();
+      // svgToPng returns a data: URL; the payload after the comma is the PNG.
+      const dataUrl = await svgToPng(svg);
+      const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), (c) =>
+        c.charCodeAt(0),
+      );
+      await runExport(`${slug(meta.name)}-diagram.png`, () => bytes, 'image/png');
     } catch (err) {
       store.setStatusMessage(err instanceof Error ? err.message : String(err));
     } finally {
@@ -68,7 +79,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
   };
 
   const exportCsv = () => {
-    download(`${slug(meta.name)}-events.csv`, eventsToCsv(store.events), 'text/csv');
+    void runExport(`${slug(meta.name)}-events.csv`, () => eventsToCsv(store.events), 'text/csv');
   };
 
   const exportReport = () => {
@@ -81,13 +92,17 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       sessionStart: session.startedAt,
       sessionEnd: session.state === 'stopped' ? Date.now() : null,
     });
-    download(`${slug(meta.name)}-report.md`, md, 'text/markdown');
+    void runExport(`${slug(meta.name)}-report.md`, () => md, 'text/markdown');
   };
 
   const exportPackage = async () => {
     const pkg = await ipc.loadProject(meta.id);
     if (!pkg) return;
-    download(`${slug(meta.name)}.livetopo`, JSON.stringify(pkg, null, 2), 'application/json');
+    await runExport(
+      `${slug(meta.name)}.livetopo`,
+      () => JSON.stringify(pkg, null, 2),
+      'application/json',
+    );
   };
 
   return (
@@ -247,7 +262,7 @@ function AboutDialog({ onClose }: { onClose: () => void }) {
         </p>
         <h3>What a green link actually means</h3>
         <p>
-          Every check runs from this Windows machine. A passing check proves this host reached the
+          Every check runs from this machine. A passing check proves this host reached the
           configured target with the configured method at that moment. It does not prove that each
           drawn line in the path is healthy, and it does not prove end-to-end application traffic.
           Each link shows status according to the health rule you selected for it.

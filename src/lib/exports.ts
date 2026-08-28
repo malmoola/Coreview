@@ -1,15 +1,52 @@
 import type { ProjectMeta } from '../types/domain';
 import type { EventRow, HealthStatus } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
+import { bytesToBase64, utf8ToBase64 } from './base64';
+import { isDesktop } from './ipc';
 
-export function download(filename: string, content: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+/**
+ * Writes an export where the user asks for it.
+ *
+ * In the desktop app this opens the native save dialog and hands the chosen
+ * path to the backend. The `<a download>` trick it replaces looked like it
+ * worked, but it writes to the *process* working directory: fine when the
+ * binary is launched from a terminal, and wrong when it is launched from a
+ * desktop menu, where the working directory is `/` and the write fails with
+ * nothing shown to the user.
+ *
+ * In a plain browser there is no backend and no dialog, so the anchor stays —
+ * the browser's own download handling is the right behaviour there.
+ *
+ * Returns the path written, or null if the user cancelled.
+ */
+export async function saveExport(
+  filename: string,
+  content: string | Uint8Array,
+  mime: string,
+): Promise<string | null> {
+  if (!isDesktop) {
+    const blob = new Blob([content as BlobPart], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    return filename;
+  }
+
+  const [{ save }, { invoke }] = await Promise.all([
+    import('@tauri-apps/plugin-dialog'),
+    import('@tauri-apps/api/core'),
+  ]);
+  const ext = filename.slice(filename.lastIndexOf('.') + 1);
+  const path = await save({ defaultPath: filename, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+  if (!path) return null;
+
+  const contentsB64 =
+    typeof content === 'string' ? utf8ToBase64(content) : bytesToBase64(content);
+  await invoke('save_export', { path, contentsB64 });
+  return path;
 }
 
 export function slug(s: string): string {
@@ -156,7 +193,7 @@ ${
 ---
 
 **How to read this report.** Every result above was produced by a check run from
-the Windows machine where LiveTopo was running. A healthy result proves that
+the machine where LiveTopo was running. A healthy result proves that
 host could reach the configured target with the configured method at that
 moment. It does not prove that every drawn link in the path is healthy, and it
 does not prove end-to-end application traffic. Link states follow the health

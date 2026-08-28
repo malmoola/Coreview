@@ -34,11 +34,8 @@ jobs:
         with:
           components: clippy
 
+      # One workspace now, so one cache and one target/ at the repo root.
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            src-tauri
-            crates/livetopo-probe
 
       # The probe crate is Tauri-free, so it needs none of the GTK stack.
       # src-tauri does; on Windows nothing extra is required.
@@ -66,24 +63,19 @@ jobs:
         run: npm run build
 
       - name: Probe crate tests
-        working-directory: crates/livetopo-probe
-        run: cargo test
+        run: cargo test -p livetopo-probe
 
       # Live tests run real ping processes against 127.0.0.1 and the RFC 5737
       # documentation range. Loopback is available on both runners; the
       # documentation range is expected to time out, which is the point.
       - name: Probe crate live tests
-        working-directory: crates/livetopo-probe
-        run: cargo test --test live_linux -- --test-threads=1
+        run: cargo test -p livetopo-probe --test live_linux -- --test-threads=1
 
       - name: Backend tests
-        working-directory: src-tauri
-        run: cargo test
+        run: cargo test -p livetopo
 
       - name: Clippy
-        run: |
-          cargo clippy --manifest-path crates/livetopo-probe/Cargo.toml --all-targets -- -D warnings
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
   bundle:
     name: bundle (${{ matrix.os }})
@@ -96,13 +88,13 @@ jobs:
           - os: ubuntu-latest
             artifact: livetopo-linux
             paths: |
-              src-tauri/target/release/bundle/deb/*.deb
-              src-tauri/target/release/bundle/appimage/*.AppImage
+              target/release/bundle/deb/*.deb
+              target/release/bundle/appimage/*.AppImage
           - os: windows-latest
             artifact: livetopo-windows
             paths: |
-              src-tauri/target/release/bundle/nsis/*.exe
-              src-tauri/target/release/bundle/msi/*.msi
+              target/release/bundle/nsis/*.exe
+              target/release/bundle/msi/*.msi
     steps:
       - uses: actions/checkout@v4
 
@@ -114,8 +106,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
 
       - name: Linux build dependencies
         if: matrix.os == 'ubuntu-latest'

@@ -9,13 +9,11 @@
 import type { DeviceNodeData, DeviceType, NoteNodeData } from '../types/domain';
 import type { TopoNode } from '../state/store';
 import type { IconLibEntry } from './ipc';
+import { utf8ToBase64 } from './base64';
 
-/** Base64 of a UTF-8 string, safe for non-ASCII in an SVG. */
+/** Base64 data URL for an SVG, safe for non-ASCII glyph names. */
 export function svgToDataUrl(svg: string): string {
-  const utf8 = new TextEncoder().encode(svg);
-  let binary = '';
-  for (const byte of utf8) binary += String.fromCharCode(byte);
-  return `data:image/svg+xml;base64,${btoa(binary)}`;
+  return `data:image/svg+xml;base64,${utf8ToBase64(svg)}`;
 }
 
 export interface DropDeps {

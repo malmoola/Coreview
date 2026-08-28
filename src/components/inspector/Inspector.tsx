@@ -131,7 +131,7 @@ function ProjectInspector() {
       </Field>
       <p className="lt-help">
         Select a node or a link to configure targets and health rules. Checks run from this
-        Windows machine only.
+        machine only.
       </p>
     </>
   );

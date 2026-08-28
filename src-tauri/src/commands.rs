@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use livetopo_probe::engine::{run_once, EngineEvent, SessionState};
 use livetopo_probe::{Engine, ProbeConfig, ProbeResult, ProbeSnapshot};
+use base64::Engine as _;
 use rusqlite::Connection;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -216,4 +217,63 @@ pub fn pump_events(app: AppHandle, mut rx: tokio::sync::mpsc::UnboundedReceiver<
 #[tauri::command]
 pub fn list_icon_library(dir: String) -> CmdResult<crate::icons::IconLibrary> {
     crate::icons::scan(&dir)
+}
+
+// ------------------------------------------------------------------ exports
+
+/// Writes an export to the path the user picked in the save dialog.
+///
+/// This is the only way anything in the webview can write to disk: there is no
+/// filesystem plugin, so the frontend cannot name a path on its own — it can
+/// only pass back one the user chose in a native dialog.
+///
+/// Bytes arrive base64-encoded because one of the five exports (PNG) is binary
+/// and the other four are text. Encoding them all the same way keeps this to a
+/// single command rather than a text one and a binary one.
+#[tauri::command]
+pub fn save_export(path: String, contents_b64: String) -> CmdResult<()> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(contents_b64.as_bytes())
+        .map_err(|e| format!("Export could not be encoded: {e}"))?;
+    std::fs::write(&path, bytes).map_err(|e| format!("Could not write {path}: {e}"))
+}
+
+#[cfg(test)]
+mod export_tests {
+    use super::*;
+
+    #[test]
+    fn writes_decoded_bytes_to_the_given_path() {
+        let dir = std::env::temp_dir().join(format!("livetopo-export-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("diagram.png");
+        // PNG magic, so this also covers the binary case rather than only text.
+        let png = [0x89u8, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+        let b64 = base64::engine::general_purpose::STANDARD.encode(png);
+
+        save_export(path.to_string_lossy().into_owned(), b64).unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), png);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rejects_a_payload_that_is_not_base64() {
+        let path = std::env::temp_dir().join("livetopo-should-not-appear");
+        std::fs::remove_file(&path).ok();
+
+        let err = save_export(path.to_string_lossy().into_owned(), "not base64!!".into())
+            .unwrap_err();
+
+        assert!(err.contains("could not be encoded"), "unexpected error: {err}");
+        // Fail closed: a bad payload must not leave a truncated or empty file.
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn reports_the_path_when_the_directory_does_not_exist() {
+        let path = std::env::temp_dir().join("livetopo-no-such-dir").join("x.svg");
+        let err = save_export(path.to_string_lossy().into_owned(), String::new()).unwrap_err();
+        assert!(err.contains("Could not write"), "unexpected error: {err}");
+    }
 }

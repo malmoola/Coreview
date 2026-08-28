@@ -19,8 +19,6 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_opener::init())
         .manage(AppState {
             engine,
             db: Mutex::new(conn),
@@ -55,6 +53,7 @@ fn main() {
             commands::record_event,
             commands::app_info,
             commands::list_icon_library,
+            commands::save_export,
         ])
         .build(tauri::generate_context!())
         .expect("error while building LiveTopo")
