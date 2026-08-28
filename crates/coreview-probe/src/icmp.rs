@@ -152,18 +152,22 @@ fn first_meaningful_line(text: &str) -> Option<String> {
 }
 
 /// Run a single ICMP check. Cancellation is handled by the caller dropping the
-/// future; the child process is killed on drop.
-pub async fn probe_icmp(probe_id: &str, raw_target: &str, timeout_ms: u64, now_ms: i64) -> ProbeResult {
-    let target = match parse_target(raw_target) {
-        Ok(t) => t,
-        Err(e) => {
-            return ProbeResult::failed(probe_id, now_ms, Outcome::InvalidTarget, &e.to_string())
-        }
-    };
 
+/// A ping that could not be run or did not return, as opposed to one that ran
+/// and reported the host unreachable.
+#[derive(Debug, Clone)]
+pub struct PingFailure {
+    pub outcome: Outcome,
+    pub summary: String,
+}
+
+/// Runs one ping and parses it. The single place a `ping` process is spawned,
+/// so the sweep and the validation engine cannot drift apart on argument
+/// construction, timeout handling, or console suppression.
+pub async fn ping_once(target: &Target, timeout_ms: u64) -> Result<PingParse, PingFailure> {
     let program = if cfg!(windows) { "ping.exe" } else { "ping" };
     let mut cmd = Command::new(program);
-    cmd.args(ping_args(&target, timeout_ms))
+    cmd.args(ping_args(target, timeout_ms))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -179,29 +183,40 @@ pub async fn probe_icmp(probe_id: &str, raw_target: &str, timeout_ms: u64, now_m
     let wall = Duration::from_millis(timeout_ms + 2_000);
     let output = match timeout(wall, cmd.output()).await {
         Err(_) => {
-            return ProbeResult::failed(
-                probe_id,
-                now_ms,
-                Outcome::Timeout,
-                "Ping did not return within the timeout",
-            )
+            return Err(PingFailure {
+                outcome: Outcome::Timeout,
+                summary: "Ping did not return within the timeout".into(),
+            })
         }
         Ok(Err(e)) => {
-            return ProbeResult::failed(
-                probe_id,
-                now_ms,
-                Outcome::OsError,
-                &format!("Could not run ping: {e}"),
-            )
+            return Err(PingFailure {
+                outcome: Outcome::OsError,
+                summary: format!("Could not run ping: {e}"),
+            })
         }
         Ok(Ok(o)) => o,
     };
 
-    let parsed = parse_ping_output(
+    Ok(parse_ping_output(
         &String::from_utf8_lossy(&output.stdout),
         &String::from_utf8_lossy(&output.stderr),
         output.status.code(),
-    );
+    ))
+}
+
+/// future; the child process is killed on drop.
+pub async fn probe_icmp(probe_id: &str, raw_target: &str, timeout_ms: u64, now_ms: i64) -> ProbeResult {
+    let target = match parse_target(raw_target) {
+        Ok(t) => t,
+        Err(e) => {
+            return ProbeResult::failed(probe_id, now_ms, Outcome::InvalidTarget, &e.to_string())
+        }
+    };
+
+    let parsed = match ping_once(&target, timeout_ms).await {
+        Ok(p) => p,
+        Err(e) => return ProbeResult::failed(probe_id, now_ms, e.outcome, &e.summary),
+    };
 
     ProbeResult {
         probe_id: probe_id.to_string(),
