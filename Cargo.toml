@@ -14,6 +14,7 @@
 resolver = "2"
 members = [
     "crates/coreview-probe",
+    "crates/coreview-discover",
     "src-tauri",
 ]
 

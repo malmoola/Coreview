@@ -410,6 +410,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreview-discover"
+version = "0.2.0"
+dependencies = [
+ "coreview-probe",
+ "serde",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "coreview-probe"
 version = "0.2.0"
 dependencies = [

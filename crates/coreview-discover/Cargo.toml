@@ -1,0 +1,13 @@
+[package]
+name = "coreview-discover"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.77"
+description = "Device discovery and configuration backup. No Tauri dependency, so the credential handling and command construction are unit-testable on their own."
+
+[dependencies]
+coreview-probe = { path = "../coreview-probe" }
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+tokio = { version = "1", features = ["macros", "net", "time", "sync", "rt", "rt-multi-thread", "io-util"] }
+tokio-util = "0.7"
