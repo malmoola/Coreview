@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 
 import { ICONS } from '../icons';
@@ -12,7 +12,14 @@ const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud
 function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const d = data as DeviceNodeData;
   const status = useStore((s) => s.nodeStatus(id));
-  const probes = useStore((s) => s.doc.probes.filter((p) => p.objectId === id));
+  // s.doc.probes is a stable reference; filtering *inside* the selector would
+  // return a fresh array on every store read, and useSyncExternalStore compares
+  // with Object.is — that is an infinite render loop.
+  const allProbes = useStore((s) => s.doc.probes);
+  const probes = useMemo(
+    () => allProbes.filter((p) => p.objectId === id),
+    [allProbes, id],
+  );
   const runtime = useStore((s) => s.runtime);
 
   const Icon = ICONS[d.deviceType] ?? ICONS.generic;

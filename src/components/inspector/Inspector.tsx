@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 import { useStore } from '../../state/store';
 import { uid } from '../../lib/id';
@@ -426,7 +426,13 @@ function AddressList({ nodeId }: { nodeId: string }) {
 
 function ProbeList({ objectKind, objectId }: { objectKind: 'node' | 'link'; objectId: string }) {
   const meta = useStore((s) => s.meta)!;
-  const probes = useStore((s) => s.doc.probes.filter((p) => p.objectId === objectId));
+  // See DeviceNode: filtering inside the selector allocates a new array per
+  // read and loops forever under useSyncExternalStore.
+  const allProbes = useStore((s) => s.doc.probes);
+  const probes = useMemo(
+    () => allProbes.filter((p) => p.objectId === objectId),
+    [allProbes, objectId],
+  );
   const upsert = useStore((s) => s.upsertProbe);
   const remove = useStore((s) => s.removeProbe);
 
