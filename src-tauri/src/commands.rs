@@ -147,9 +147,15 @@ async fn stop_internal(state: &State<'_, AppState>) -> CmdResult<()> {
 pub async fn session_status(state: State<'_, AppState>) -> CmdResult<SessionInfo> {
     let engine_state = state.engine.session_state().await;
     let snapshot = state.engine.snapshot().await;
+    let project_id = state.engine.active_project().await;
+    // Every await happens above. A std::sync::MutexGuard is !Send, so taking
+    // this lock inside the struct literal below would hold it across the
+    // `active_project().await` and make the whole future !Send, which Tauri
+    // rejects. Bind it after the last await instead.
+    let session_id = state.session_id.lock().map_err(db_err)?.clone();
     Ok(SessionInfo {
-        session_id: state.session_id.lock().map_err(db_err)?.clone(),
-        project_id: state.engine.active_project().await,
+        session_id,
+        project_id,
         state: engine_state,
         probe_count: snapshot.len(),
     })

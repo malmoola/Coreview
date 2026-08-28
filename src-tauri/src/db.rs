@@ -66,7 +66,7 @@ pub fn data_dir() -> PathBuf {
     // %LOCALAPPDATA% on Windows, XDG data dir elsewhere.
     let base = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
-        .or_else(|| dirs_next_local())
+        .or_else(dirs_next_local)
         .unwrap_or_else(|| PathBuf::from("."));
     base.join("LiveTopo")
 }
