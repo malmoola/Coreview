@@ -11,6 +11,10 @@
 //! Requires a `ping` binary. Run with: cargo test --test live_linux -- --nocapture
 
 use coreview_probe::engine::{run_once, Engine, EngineEvent, SessionState};
+// Only the two zombie tests use this, and both are Linux-only — /proc is how
+// they count defunct children. Left ungated it is an unused import on Windows,
+// which `clippy -D warnings` in CI turns into a failed build.
+#[cfg(target_os = "linux")]
 use coreview_probe::icmp::probe_icmp;
 use coreview_probe::types::{HealthStatus, ObjectKind, Outcome, ProbeConfig, ProbeKind};
 use std::time::{Duration, Instant};
@@ -240,12 +244,17 @@ fn zombie_pings() -> usize {
 /// without an explicit reap, both here and when dropping the future directly
 /// rather than going through Engine::stop().
 ///
-/// The conclusion is that `Command::kill_on_drop(true)` does reap, just not
-/// synchronously: the original sighting was inside the kill-to-reap window.
-/// The count had returned to zero by the end of the 5-minute Case 20 run,
-/// which agrees. An explicit ReapOnDrop guard was written and then reverted,
-/// because replacing a well-tested `cmd.output()` with hand-rolled spawn,
-/// drain and wait could not be shown to fix anything.
+/// That conclusion — that `kill_on_drop(true)` reaps, just not synchronously,
+/// and the sighting was inside the window — was wrong, and this comment used
+/// to record it as settled. The window is unbounded when nothing else is
+/// spawning, which is exactly the state after Stop: one child survived nearly
+/// two minutes in the running app. `ping_once` now spawns and waits
+/// explicitly so a timeout can kill *and* reap.
+///
+/// This test still does not reproduce it, because a test binary always has
+/// something else spawning to drive the process driver. It stays as a floor:
+/// it would catch a regression that stopped killing children at all. What
+/// settled the question was the app, not this.
 #[tokio::test]
 async fn dropping_a_probe_future_leaves_no_zombie() {
     assert_eq!(zombie_pings(), 0, "test started with pre-existing zombies");

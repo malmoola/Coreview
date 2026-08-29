@@ -74,8 +74,21 @@ jobs:
       - name: Backend tests
         run: cargo test -p coreview
 
+      # Findings are echoed as annotations as well as logged. A failure here is
+      # otherwise only visible by downloading the job log, which needs admin
+      # rights on the repository — so a red tick said "Clippy failed" and
+      # nothing more. The one that prompted this was an import used only by
+      # Linux-only tests, invisible on the Linux runner.
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! cargo clippy --workspace --all-targets --message-format=short -- -D warnings 2>&1 | tee clippy.txt; then
+            grep -E "(warning|error)(\[|:)" clippy.txt | head -40 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            exit 1
+          fi
 
   bundle:
     name: bundle (${{ matrix.os }})
