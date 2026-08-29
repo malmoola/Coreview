@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { useStore } from '../state/store';
 import { DiscoverPanel } from './DiscoverPanel';
+import { CrawlPanel } from './CrawlPanel';
 import { STATUS_COLOR } from './edges/LiveEdge';
 import { linkStatus } from '../health/evaluate';
 import type { DeviceNodeData, HealthStatus, LinkData } from '../types/domain';
@@ -30,7 +31,7 @@ export function StatusPanel() {
   const nodeStatusOf = useStore((s) => s.nodeStatus);
   const select = useStore((s) => s.select);
 
-  const [tab, setTab] = useState<'objects' | 'events' | 'discover'>('objects');
+  const [tab, setTab] = useState<'objects' | 'events' | 'discover' | 'crawl'>('objects');
   const [query, setQuery] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
 
@@ -130,7 +131,7 @@ export function StatusPanel() {
   }
 
   return (
-    <div className="cv-panel">
+    <div className={`cv-panel${tab === "crawl" || tab === "discover" ? " is-tall" : ""}`}>
       <div className="cv-panel-head">
         <div className="cv-tabs">
           <button
@@ -152,11 +153,18 @@ export function StatusPanel() {
             className={tab === 'discover' ? 'is-active' : ''}
             onClick={() => setTab('discover')}
           >
-            Discover
+            Ping sweep
+          </button>
+          <button
+            type="button"
+            className={tab === 'crawl' ? 'is-active' : ''}
+            onClick={() => setTab('crawl')}
+          >
+            Discover devices
           </button>
         </div>
 
-        {tab !== 'discover' && (
+        {tab !== 'discover' && tab !== 'crawl' && (
           <>
             <input
               className="cv-input cv-panel-search"
@@ -184,6 +192,8 @@ export function StatusPanel() {
       <div className="cv-panel-body">
         {tab === 'discover' ? (
           <DiscoverPanel />
+        ) : tab === 'crawl' ? (
+          <CrawlPanel />
         ) : tab === 'objects' ? (
           <table className="cv-table">
             <thead>

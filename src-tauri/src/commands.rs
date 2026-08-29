@@ -26,6 +26,10 @@ pub struct AppState {
     /// validation engine's Stop must not cancel a discovery scan, and vice
     /// versa.
     pub sweep_cancel: Mutex<Option<CancellationToken>>,
+    /// Cancels the running crawl. Separate from the sweep and the backup: they
+    /// are three different jobs and stopping one must not stop the others.
+    pub crawl_cancel: Mutex<Option<CancellationToken>>,
+    pub backup_cancel: Mutex<Option<CancellationToken>>,
 }
 
 type CmdResult<T> = Result<T, String>;

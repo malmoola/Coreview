@@ -3,6 +3,7 @@
 
 mod icons;
 mod commands;
+mod discovery;
 mod db;
 
 use std::sync::{Arc, Mutex};
@@ -25,6 +26,8 @@ fn main() {
             session_id: Mutex::new(None),
             project_id: Mutex::new(None),
             sweep_cancel: Mutex::new(None),
+            crawl_cancel: Mutex::new(None),
+            backup_cancel: Mutex::new(None),
         })
         .setup(move |app| {
             commands::pump_events(app.handle().clone(), rx);
@@ -61,6 +64,13 @@ fn main() {
             commands::start_sweep,
             commands::cancel_sweep,
             commands::describe_subnet,
+            discovery::start_crawl,
+            discovery::cancel_crawl,
+            discovery::start_backup,
+            discovery::cancel_backup,
+            discovery::list_host_keys,
+            discovery::clear_host_keys,
+            discovery::forget_host_key,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Coreview")

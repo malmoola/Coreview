@@ -608,6 +608,7 @@ name = "coreview"
 version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
+ "coreview-discover",
  "coreview-probe",
  "rusqlite",
  "serde",

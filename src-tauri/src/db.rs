@@ -143,6 +143,16 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             value TEXT NOT NULL
         );
 
+        -- SSH host keys, remembered on first contact so a later change can be
+        -- refused. Fingerprints only: a public key fingerprint is not a secret,
+        -- and storing it here rather than in a project keeps it out of anything
+        -- that gets exported or shared.
+        CREATE TABLE IF NOT EXISTS host_keys (
+            host_id TEXT PRIMARY KEY,
+            fingerprint TEXT NOT NULL,
+            first_seen_ms INTEGER NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -407,8 +417,89 @@ pub fn set_setting(conn: &Connection, key: &str, value: Option<&str>) -> rusqlit
     Ok(())
 }
 
+// ---------------------------------------------------------------- host keys
+
+/// Every remembered host key, for rebuilding the in-memory store on startup.
+pub fn all_host_keys(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>> {
+    let mut stmt = conn.prepare("SELECT host_id, fingerprint FROM host_keys")?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    rows.collect()
+}
+
+/// Records a key seen for the first time. Does not overwrite: a fingerprint
+/// that differs from the stored one is the case the store exists to catch, and
+/// quietly replacing it here would defeat the whole mechanism.
+pub fn remember_host_key(
+    conn: &Connection,
+    host_id: &str,
+    fingerprint: &str,
+    now_ms: i64,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO host_keys (host_id, fingerprint, first_seen_ms) VALUES (?1, ?2, ?3)
+         ON CONFLICT(host_id) DO NOTHING",
+        params![host_id, fingerprint, now_ms],
+    )?;
+    Ok(())
+}
+
+/// Forgets everything, so every device is first contact again. The way back
+/// after a switch is genuinely replaced.
+pub fn clear_host_keys(conn: &Connection) -> rusqlite::Result<usize> {
+    conn.execute("DELETE FROM host_keys", [])
+}
+
+/// Forgets one device.
+pub fn forget_host_key(conn: &Connection, host_id: &str) -> rusqlite::Result<usize> {
+    conn.execute("DELETE FROM host_keys WHERE host_id = ?1", params![host_id])
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn host_keys_round_trip() {
+        let conn = mem();
+        remember_host_key(&conn, "10.1.1.1:22", "SHA256:aaa", 1).unwrap();
+        remember_host_key(&conn, "10.1.1.2:22", "SHA256:bbb", 2).unwrap();
+        let all = all_host_keys(&conn).unwrap();
+        assert_eq!(all.len(), 2);
+        assert!(all.contains(&("10.1.1.1:22".into(), "SHA256:aaa".into())));
+    }
+
+    #[test]
+    fn remembering_never_overwrites_a_key_that_already_exists() {
+        // The case the whole mechanism exists for. If a second sighting could
+        // silently replace the first, a changed key would never be detected.
+        let conn = mem();
+        remember_host_key(&conn, "10.1.1.1:22", "SHA256:original", 1).unwrap();
+        remember_host_key(&conn, "10.1.1.1:22", "SHA256:different", 2).unwrap();
+        let all = all_host_keys(&conn).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].1, "SHA256:original", "the stored key must not move");
+    }
+
+    #[test]
+    fn clearing_reports_how_many_were_forgotten() {
+        // The count is what the confirmation message needs.
+        let conn = mem();
+        remember_host_key(&conn, "a:22", "SHA256:a", 1).unwrap();
+        remember_host_key(&conn, "b:22", "SHA256:b", 1).unwrap();
+        assert_eq!(clear_host_keys(&conn).unwrap(), 2);
+        assert!(all_host_keys(&conn).unwrap().is_empty());
+        assert_eq!(clear_host_keys(&conn).unwrap(), 0, "clearing an empty store is not an error");
+    }
+
+    #[test]
+    fn one_device_can_be_forgotten_without_touching_the_rest() {
+        let conn = mem();
+        remember_host_key(&conn, "a:22", "SHA256:a", 1).unwrap();
+        remember_host_key(&conn, "b:22", "SHA256:b", 1).unwrap();
+        assert_eq!(forget_host_key(&conn, "a:22").unwrap(), 1);
+        let all = all_host_keys(&conn).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].0, "b:22");
+    }
 
     #[test]
     fn settings_round_trip_and_survive_being_overwritten() {

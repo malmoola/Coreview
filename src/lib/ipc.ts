@@ -120,6 +120,91 @@ export type SweepEvent =
   | { kind: 'progress'; done: number; total: number }
   | { kind: 'finished'; alive: number; scanned: number; cancelled: boolean };
 
+/** Sent for one run and never stored. The backend has no way to give these
+ *  back — nothing reads a password out of Coreview once it is in. */
+export type CredentialInput = {
+  username: string;
+  password: string;
+  enablePassword?: string;
+};
+
+export type DeviceClassName =
+  | 'router' | 'switch' | 'firewall' | 'wireless-controller' | 'access-point'
+  | 'phone' | 'camera' | 'printer' | 'server' | 'endpoint' | 'unknown';
+
+export type DeviceAddress = { ip: string; interface: string | null; isManagement: boolean };
+
+export type Neighbor = {
+  deviceId: string;
+  shortName: string;
+  addresses: DeviceAddress[];
+  localInterface: string | null;
+  remoteInterface: string | null;
+  platform: string | null;
+  capabilities: string[];
+  version: string | null;
+  class: DeviceClassName;
+  discoveredBy: 'cdp' | 'lldp';
+};
+
+export type CrawledDevice = {
+  hostname: string;
+  address: string;
+  addresses: DeviceAddress[];
+  probeTarget: string;
+  class: DeviceClassName;
+  platform: string | null;
+  version: string | null;
+  neighbors: Neighbor[];
+  hops: number;
+};
+
+export type CrawlInput = {
+  seed: string;
+  subnets: string[];
+  crawlClasses: DeviceClassName[];
+  maxHops: number;
+  maxDevices: number;
+  secondFactor: boolean;
+  addressPreference: 'loopback' | 'management' | 'first' | 'interface';
+  interfaceName?: string;
+  port: number;
+};
+
+export type SshProgress =
+  | { kind: 'connecting'; host: string }
+  | { kind: 'checkingHostKey'; host: string }
+  | { kind: 'authenticating'; host: string }
+  | { kind: 'awaitingSecondFactor'; host: string; message: string }
+  | { kind: 'ready'; host: string; hostname: string }
+  | { kind: 'running'; host: string; command: string };
+
+export type CrawlEvent =
+  | { kind: 'started'; seed: string }
+  | ({ kind: 'ssh' } & { [k: string]: unknown })
+  | { kind: 'reached'; hostname: string; address: string; probeTarget: string; class: DeviceClassName; platform: string | null; hops: number }
+  | { kind: 'skipped'; name: string; reason: string }
+  | { kind: 'failed'; address: string; reason: string }
+  | { kind: 'finished'; reached: number; failed: number; cancelled: boolean };
+
+export type CrawlResult = {
+  devices: CrawledDevice[];
+  notVisited: Neighbor[];
+  failures: { address: string; reason: string }[];
+  cancelled: boolean;
+};
+
+export type BackupTarget = { address: string; name: string };
+
+export type BackupEvent =
+  | { kind: 'started'; devices: number }
+  | ({ kind: 'ssh' } & { [k: string]: unknown })
+  | { kind: 'saved'; name: string; address: string; path: string; bytes: number; unchanged: boolean }
+  | { kind: 'failed'; name: string; address: string; reason: string }
+  | { kind: 'finished'; saved: number; failed: number; cancelled: boolean };
+
+export type HostKeyRow = { host: string; fingerprint: string };
+
 export type IconLibEntry = { id: string; name: string; category: string; svg: string };
 export type IconLibrary = { dir: string; icons: IconLibEntry[]; skipped: string[] };
 
@@ -285,6 +370,53 @@ export const ipc = {
     if (!isDesktop) return () => {};
     const { listen } = await import('@tauri-apps/api/event');
     return listen('coreview://sweep', (e) => handler(e.payload as SweepEvent));
+  },
+
+  /** Walk the network from a seed address. Credentials are used for this run
+   *  and never stored. */
+  startCrawl(input: CrawlInput, credentials: CredentialInput) {
+    return invoke<void>('start_crawl', { input, credentials });
+  },
+  cancelCrawl() {
+    return invoke<void>('cancel_crawl');
+  },
+  async onCrawlEvent(handler: (e: CrawlEvent) => void): Promise<() => void> {
+    if (!isDesktop) return () => {};
+    const { listen } = await import('@tauri-apps/api/event');
+    return listen('coreview://crawl', (e) => handler(e.payload as CrawlEvent));
+  },
+  async onCrawlResult(handler: (r: CrawlResult) => void): Promise<() => void> {
+    if (!isDesktop) return () => {};
+    const { listen } = await import('@tauri-apps/api/event');
+    return listen('coreview://crawl-result', (e) => handler(e.payload as CrawlResult));
+  },
+
+  /** Capture configurations into the chosen backup folder. */
+  startBackup(
+    input: { targets: BackupTarget[]; kinds: ('running' | 'startup')[]; secondFactor: boolean; port: number },
+    credentials: CredentialInput,
+    stamp: string,
+  ) {
+    return invoke<void>('start_backup', { input, credentials, stamp });
+  },
+  cancelBackup() {
+    return invoke<void>('cancel_backup');
+  },
+  async onBackupEvent(handler: (e: BackupEvent) => void): Promise<() => void> {
+    if (!isDesktop) return () => {};
+    const { listen } = await import('@tauri-apps/api/event');
+    return listen('coreview://backup', (e) => handler(e.payload as BackupEvent));
+  },
+
+  /** Remembered SSH host keys, and the ways to forget them. */
+  listHostKeys() {
+    return isDesktop ? invoke<HostKeyRow[]>('list_host_keys') : Promise.resolve([]);
+  },
+  clearHostKeys() {
+    return invoke<number>('clear_host_keys');
+  },
+  forgetHostKey(host: string, port: number) {
+    return invoke<boolean>('forget_host_key', { host, port });
   },
 
   /** Subscribe to engine samples and transitions. */
