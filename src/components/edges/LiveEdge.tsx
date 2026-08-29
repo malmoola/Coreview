@@ -11,7 +11,7 @@ import {
 import type { HealthStatus, LinkData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 import { useStore } from '../../state/store';
-import { describeRule, linkStatus, shouldAnimate } from '../../health/evaluate';
+import { describeRule, shouldAnimate } from '../../health/evaluate';
 
 export const STATUS_COLOR: Record<HealthStatus, string> = {
   unknown: '#5b6b7c',
@@ -55,27 +55,12 @@ function LiveEdgeInner(props: EdgeProps) {
 
   const doc = useStore((s) => s.doc);
   const runtime = useStore((s) => s.runtime);
-  const sessionRunning = useStore((s) => s.session.state === 'running');
   const reduceMotion = useStore((s) => s.settings.reduceMotion);
-  const nodeStatusOf = useStore((s) => s.nodeStatus);
+  const linkStatusOf = useStore((s) => s.linkStatus);
 
-  const edge = doc.edges.find((e) => e.id === id);
-  const sourceStatus = edge ? nodeStatusOf(edge.source) : 'unknown';
-  const targetStatus = edge ? nodeStatusOf(edge.target) : 'unknown';
-
-  const status = linkStatus({
-    link: {
-      enabled: data.enabled ?? true,
-      maintenance: data.maintenance ?? false,
-      healthRule: data.healthRule ?? { type: 'manual' },
-    },
-    sourceStatus,
-    targetStatus,
-    linkProbes: doc.probes.filter((p) => p.objectId === id),
-    allProbes: doc.probes,
-    runtime,
-    sessionRunning,
-  });
+  // Through the store rather than calling the evaluator here, so the diagram
+  // export resolves link status the same way the canvas does.
+  const status = linkStatusOf(id);
 
   const [edgePath, labelX, labelY] = useMemo(
     () =>

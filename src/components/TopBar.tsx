@@ -3,13 +3,8 @@ import { useReactFlow } from '@xyflow/react';
 
 import { useStore } from '../state/store';
 import { ipc } from '../lib/ipc';
-import {
-  buildMarkdownReport,
-  canvasToSvg,
-  saveExport,
-  slug,
-  svgToPng,
-} from '../lib/exports';
+import { buildMarkdownReport, saveExport, slug, svgToPng } from '../lib/exports';
+import { renderDiagramSvg } from '../lib/diagram';
 import { eventsToCsv } from '../lib/csv';
 import type { HealthStatus } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
@@ -56,15 +51,26 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     }
   };
 
+  /** The diagram is drawn from the document, not from what is on screen, so a
+   *  device scrolled out of view is still in the file. */
+  const diagramSvg = () =>
+    renderDiagramSvg({
+      meta,
+      nodes: store.doc.nodes,
+      edges: store.doc.edges,
+      nodeStatus: (id) => store.nodeStatus(id),
+      linkStatus: (id) => store.linkStatus(id),
+      includeTitleBlock: true,
+    });
+
   const exportSvg = () => {
-    void runExport(`${slug(meta.name)}-diagram.svg`, () => canvasToSvg(meta, true), 'image/svg+xml');
+    void runExport(`${slug(meta.name)}-diagram.svg`, diagramSvg, 'image/svg+xml');
   };
 
   const exportPng = async () => {
     setBusy('png');
     try {
-      const svg = canvasToSvg(meta, true);
-      if (!svg) return;
+      const svg = diagramSvg();
       // svgToPng returns a data: URL; the payload after the comma is the PNG.
       const dataUrl = await svgToPng(svg);
       const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1)), (c) =>

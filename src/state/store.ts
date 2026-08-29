@@ -4,7 +4,10 @@ import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } 
 
 import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/ipc';
 import { uid } from '../lib/id';
-import { nodeStatus as computeNodeStatus } from '../health/evaluate';
+import {
+  linkStatus as computeLinkStatus,
+  nodeStatus as computeNodeStatus,
+} from '../health/evaluate';
 import type {
   DeviceNodeData,
   EventRow,
@@ -97,6 +100,7 @@ interface Store {
   removeProbe: (probeId: string) => void;
   probesFor: (objectId: string) => Probe[];
   nodeStatus: (nodeId: string) => HealthStatus;
+  linkStatus: (edgeId: string) => HealthStatus;
 
   commit: (label?: string) => void;
   undo: () => void;
@@ -397,6 +401,26 @@ export const useStore = create<Store>((set, get) => ({
       return 'unknown';
     }
     return computeNodeStatus(get().probesFor(nodeId), runtime, maintenance);
+  },
+
+  linkStatus(edgeId) {
+    const { doc, runtime, session } = get();
+    const edge = doc.edges.find((e) => e.id === edgeId);
+    if (!edge) return 'unknown';
+    const data = (edge.data ?? {}) as LinkData;
+    return computeLinkStatus({
+      link: {
+        enabled: data.enabled ?? true,
+        maintenance: data.maintenance ?? false,
+        healthRule: data.healthRule ?? { type: 'manual' },
+      },
+      sourceStatus: get().nodeStatus(edge.source),
+      targetStatus: get().nodeStatus(edge.target),
+      linkProbes: doc.probes.filter((p) => p.objectId === edgeId),
+      allProbes: doc.probes,
+      runtime,
+      sessionRunning: session.state === 'running',
+    });
   },
 
   commit() {

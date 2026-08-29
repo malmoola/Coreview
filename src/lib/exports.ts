@@ -69,61 +69,6 @@ export function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'project';
 }
 
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
-  );
-}
-
-/** Serialise the live canvas SVG, inlining the title block and legend. */
-export function canvasToSvg(meta: ProjectMeta, includeTitleBlock: boolean): string | null {
-  const viewport = document.querySelector('.react-flow__viewport') as SVGElement | null;
-  const pane = document.querySelector('.react-flow__renderer') as HTMLElement | null;
-  if (!pane) return null;
-
-  const rect = pane.getBoundingClientRect();
-  const width = Math.max(800, Math.round(rect.width));
-  const height = Math.max(600, Math.round(rect.height));
-  const inner = viewport ? new XMLSerializer().serializeToString(viewport) : '';
-
-  const header = includeTitleBlock
-    ? `<g font-family="ui-sans-serif, Segoe UI, sans-serif">
-    <rect x="0" y="0" width="${width}" height="86" fill="#0e141b"/>
-    <text x="18" y="30" fill="#e6eef7" font-size="18" font-weight="600">${esc(meta.name)}</text>
-    <text x="18" y="52" fill="#8ea2b5" font-size="12">${esc(
-      [meta.customer, meta.site, meta.ticket, meta.engineer].filter(Boolean).join('  ·  '),
-    )}</text>
-    <text x="18" y="72" fill="#8ea2b5" font-size="11">Exported ${esc(
-      new Date().toLocaleString(),
-    )} · Status reflects checks run from the exporting machine</text>
-    ${legendSvg(width)}
-  </g>`
-    : '';
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height + (includeTitleBlock ? 86 : 0)}" viewBox="0 0 ${width} ${height + (includeTitleBlock ? 86 : 0)}">
-  <rect width="100%" height="100%" fill="#0a0e13"/>
-  ${header}
-  <g transform="translate(0, ${includeTitleBlock ? 86 : 0})">${inner}</g>
-</svg>`;
-}
-
-function legendSvg(width: number): string {
-  const items: Array<[HealthStatus, string]> = [
-    ['healthy', '#2fbf6b'],
-    ['warning', '#e8a33d'],
-    ['down', '#e4564a'],
-    ['unknown', '#5b6b7c'],
-    ['maintenance', '#8b7ff0'],
-  ];
-  return items
-    .map(([status, color], i) => {
-      const x = width - 520 + i * 104;
-      return `<g><circle cx="${x}" cy="46" r="5" fill="${color}"/><text x="${x + 12}" y="50" fill="#c3d2e0" font-size="11">${STATUS_LABEL[status]}</text></g>`;
-    })
-    .join('');
-}
-
 /** Rasterise the SVG in a canvas. Returns a PNG data URL. */
 export async function svgToPng(svg: string): Promise<string> {
   const img = new Image();
