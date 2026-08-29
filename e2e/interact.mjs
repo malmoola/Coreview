@@ -96,6 +96,17 @@ const boxOf = async (sel) => {
   return b ? { w: Math.round(b.width), h: Math.round(b.height), x: Math.round(b.x), y: Math.round(b.y) } : null;
 };
 
+/** Where a node sits relative to another one.
+ *
+ *  Absolute screen position is the wrong measure for "did this move": now that
+ *  left-drag pans, dragging a node the canvas refuses to move scrolls the view
+ *  instead, and every node's screen box changes while the diagram is unchanged.
+ *  The gap between two nodes only changes if one of them actually moved. */
+const gapBetween = async (a, b) => {
+  const [x, y] = await Promise.all([page.locator(a).first().boundingBox(), page.locator(b).first().boundingBox()]);
+  return { dx: Math.round(x.x - y.x), dy: Math.round(x.y - y.y) };
+};
+
 // ---------------------------------------------------------------- case 1
 // A real HTML5 drag out of the palette. `nodeForDrop` is unit-tested; what is
 // not, is that the palette actually hands over the payload the canvas reads.
@@ -110,7 +121,11 @@ const boxOf = async (sel) => {
   check("palette drag creates a node", after === before + 1, `${before} -> ${after}`);
 
   const kind = await page.evaluate(() => {
-    const labels = [...document.querySelectorAll(".cv-node-label")].map((e) => e.textContent);
+    // Either presentation: the glyph style labels with .cv-glyph-label, the
+    // card style with .cv-node-label.
+    const labels = [...document.querySelectorAll(".cv-glyph-label, .cv-node-label")].map(
+      (e) => e.textContent,
+    );
     return labels.includes("Firewall");
   });
   check("the dropped node is the one that was dragged", kind);
@@ -242,18 +257,19 @@ const boxOf = async (sel) => {
   if (found) {
     await lockLabel.locator("input[type=checkbox]").check();
     await page.waitForTimeout(300);
-    const before = await boxOf(".react-flow__node");
+    const ref = ".react-flow__node:has(.cv-note)";
+    const before = await gapBetween(".react-flow__node", ref);
     const b = await page.locator(".react-flow__node").first().boundingBox();
     await page.mouse.move(b.x + 30, b.y + b.height / 2);
     await page.mouse.down();
     await page.mouse.move(b.x + 200, b.y + 150, { steps: 10 });
     await page.mouse.up();
     await page.waitForTimeout(300);
-    const after = await boxOf(".react-flow__node");
+    const after = await gapBetween(".react-flow__node", ref);
     check(
       "a locked node refuses to move",
-      Math.abs(after.x - before.x) < 6 && Math.abs(after.y - before.y) < 6,
-      `(${before.x},${before.y}) -> (${after.x},${after.y})`,
+      Math.abs(after.dx - before.dx) < 6 && Math.abs(after.dy - before.dy) < 6,
+      `gap (${before.dx},${before.dy}) -> (${after.dx},${after.dy})`,
     );
     check(
       "a locked node offers no resize handles",
@@ -274,18 +290,19 @@ const boxOf = async (sel) => {
   if (found) {
     await label.locator("input[type=checkbox]").check();
     await page.waitForTimeout(300);
-    const before = await boxOf(".react-flow__node:has(.cv-note)");
-    const b = await page.locator(".react-flow__node:has(.cv-note)").first().boundingBox();
+    const note = ".react-flow__node:has(.cv-note)";
+    const before = await gapBetween(note, ".react-flow__node");
+    const b = await page.locator(note).first().boundingBox();
     await page.mouse.move(b.x + 30, b.y + 20);
     await page.mouse.down();
     await page.mouse.move(b.x + 200, b.y + 160, { steps: 10 });
     await page.mouse.up();
     await page.waitForTimeout(300);
-    const after = await boxOf(".react-flow__node:has(.cv-note)");
+    const after = await gapBetween(note, ".react-flow__node");
     check(
       "a locked note refuses to move",
-      Math.abs(after.x - before.x) < 6 && Math.abs(after.y - before.y) < 6,
-      `(${before.x},${before.y}) -> (${after.x},${after.y})`,
+      Math.abs(after.dx - before.dx) < 6 && Math.abs(after.dy - before.dy) < 6,
+      `gap (${before.dx},${before.dy}) -> (${after.dx},${after.dy})`,
     );
   }
 }
