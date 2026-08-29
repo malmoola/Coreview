@@ -144,8 +144,48 @@ labels; the change note with its checklist. Nothing obscured. 13 unit tests in
 off-screen and negative coordinates, XML escaping, glyph tinting, and the short-
 link label collision that the first fix did not clear.
 
+## Overnight smoke test, 2026-08-29
+
+Every feature driven on the packaged release binary under Xvfb, against the
+real network (192.168.14.0/24) wherever a real device could answer. Nine
+defects found and fixed; each is a commit of its own with its own evidence.
+
+| Area | Result |
+| --- | --- |
+| Export — package, PNG, SVG, CSV, Markdown | **PASS**. All five write real files. The diagram was blank; fixed by drawing from the model |
+| Export menu | **Was broken**: closed on neither Escape nor an outside click, and stayed open after choosing. Fixed |
+| Ping sweep, two subnets | **PASS**. 192.168.14.0/24 + 10.2.80.0/30 as one progress sequence, "20 of 256 answered", real RTTs, no ping left behind |
+| Sweep → diagram → watch | **Was broken**: added devices had no probe and stayed Unknown forever. Now Healthy with live RTT |
+| Discovery over SSH | **PASS**. Logged into the C2960CX, read CDP/LLDP, found 6 devices across Cisco, Ubiquiti, Fortinet |
+| Classification | **PASS**. FortiAP → Access point, UBNT-USL8L → Switch, FortiSwitch → Switch, workstation → Unknown |
+| Discovery filters | **PASS**. Type chips and free-text search over name, address and platform |
+| SNMP v2c / v3 | **PASS** against Cisco (both), Ubiquiti (v2c), Palo PA-220 (v2c, classified Firewall) |
+| SNMP fallback in the crawl | **PASS**. "1 device, 1 failed" became "2 devices, 0 failed"; the SSH-refusing switch listed as "SNMP only", still classified from LLDP |
+| SNMP error text | **Was poor**: "Socket receive error" for a device with SNMP off. Now names host, port and what to check |
+| Config backup | **PASS**. 22,340-byte running config off the real switch, mode 600, one folder per device |
+| Backup comparison | **Was broken**: every comparison failed on a serde tagging error. Fixed; "3 lines differ" with added and removed lines |
+| Vault | **PASS**. Create, add, reveal (eye), hide, lock, wrong passphrase rejected, unlock, discard |
+| Host keys | **PASS**. Recorded on first contact for both devices — including the one that then refused authentication, which is the correct order — forget one, clear all |
+| Export with / without credentials | **PASS**. The plain package has no vault key at all; the opt-in one carries it still encrypted. The plaintext password is in neither |
+| Import | **Was broken**: unusable on Linux, the dialog listed no files. Now native, and credentials can come back |
+| Projects | **PASS**. Create, duplicate, archive, restore, delete, each with the confirmation it should have |
+| Layout, 8 screen sizes | **PASS**. 3440x1440 down to 900x600, no horizontal overflow, inspector drops below 1080px as designed |
+| Process hygiene | **PASS**. No `ping` left after Stop, after Close project, or after killing the app. No zombies |
+
+Not exercised, and honestly so:
+
+- **Duo / push MFA.** No device on this network requires it. The code path
+  exists and is unit-tested against a fake server; it has never met a real Duo
+  prompt.
+- **Print / save as PDF.** Hands off to the webview's print dialog, which does
+  not render under Xvfb.
+- **Icon library.** Needs a folder of SVGs to point at.
+- **Per-node drag-resize** (case 2) and **note resize/lock** (case 5), as
+  before: synthetic drags do not reach `NodeResizer`.
+
 ## Known gaps
 
-- No end-to-end UI test harness. Playwright against the Tauri build would cover
-  cases 1–5 and 8–9 properly and is the obvious next investment.
+- No end-to-end UI test harness. The smoke test above was driven by hand
+  through xdotool, which found nine real defects but is not repeatable.
+  Playwright against the Tauri build is the obvious next investment.
 - CSV import has unit tests but no UI, so it has no manual case yet.
