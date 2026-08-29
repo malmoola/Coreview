@@ -648,10 +648,14 @@ export const useStore = create<Store>((set, get) => ({
           ? `${lib.icons.length} loaded, ${lib.skipped.length} skipped: ${lib.skipped.slice(0, 3).join('; ')}`
           : null,
       });
+      // Into the database, which is where loadSettings reads it back from on
+      // startup. This wrote to localStorage, which nothing has ever read, so
+      // the folder had to be typed in again every session even though the
+      // backend has stored the key and re-indexed on startup all along.
       try {
-        localStorage.setItem('coreview.iconLibraryDir', lib.dir);
+        await ipc.setSetting('iconLibraryDir', lib.dir);
       } catch {
-        /* storage unavailable — the folder just is not remembered */
+        /* the icons still loaded; only remembering the folder failed */
       }
     } catch (e) {
       set({ iconLibrary: [], iconLibraryError: String(e) });

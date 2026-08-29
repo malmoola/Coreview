@@ -56,8 +56,14 @@ pub fn sanitise(input: &str) -> String {
 }
 
 fn strip_elements(input: &str, tag: &str) -> String {
-    let open = format!("<{tag}");
-    let close = format!("</{tag}>");
+    // Both needles are lowercased because the haystack is. Without this only
+    // all-lowercase tag names ever matched, which quietly excused the one tag
+    // in the list that has a capital in it: `foreignObject` was searched for
+    // as "<foreignObject" inside text that had already been lowercased, so it
+    // was never found and everything it wrapped — an <iframe>, in the test
+    // that caught this — was kept.
+    let open = format!("<{}", tag.to_lowercase());
+    let close = format!("</{}>", tag.to_lowercase());
     let lower = input.to_lowercase();
     let mut out = String::with_capacity(input.len());
     let mut i = 0usize;
@@ -279,6 +285,21 @@ mod tests {
         assert!(s.contains("#local"), "internal references must survive: {s}");
     }
 
+    /// The tag whose name is not all lowercase. There was no test for it, and
+    /// it was the one the stripper silently ignored.
+    #[test]
+    fn strips_foreign_objects_whatever_their_casing() {
+        for tag in ["foreignObject", "foreignobject", "FOREIGNOBJECT", "ForeignObject"] {
+            let svg = format!(
+                r#"<svg><{tag}><iframe src="http://evil.example"></iframe></{tag}><circle r="8"/></svg>"#
+            );
+            let s = sanitise(&svg).to_lowercase();
+            assert!(!s.contains("foreignobject"), "{tag} survived: {s}");
+            assert!(!s.contains("<iframe"), "an iframe survived inside {tag}: {s}");
+            assert!(s.contains("<circle"), "the drawing must survive: {s}");
+        }
+    }
+
     #[test]
     fn strips_embedded_images() {
         let s = sanitise(r#"<svg><image href="http://x/y.png" x="0"/><path d="M1 1"/></svg>"#);
@@ -304,5 +325,62 @@ mod tests {
     #[test]
     fn scan_rejects_a_non_directory() {
         assert!(scan("/definitely/not/here").is_err());
+    }
+
+    /// `sanitise` being correct is worth nothing if `scan` forgets to call it.
+    /// This walks a real folder, which is the path the app actually takes.
+    #[test]
+    fn a_scanned_folder_comes_back_sanitised_and_honest_about_what_it_skipped() {
+        let dir = std::env::temp_dir().join(format!("coreview-icons-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        std::fs::write(
+            dir.join("hostile.svg"),
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" onload="steal()">
+                 <script>fetch('http://evil.example')</script>
+                 <image href="http://evil.example/t.png"/>
+                 <foreignObject><iframe src="http://evil.example"></iframe></foreignObject>
+                 <circle cx="12" cy="12" r="8"/>
+               </svg>"#,
+        )
+        .unwrap();
+        std::fs::write(dir.join("clean.svg"), r#"<svg viewBox="0 0 24 24"><path d="M0 0h24"/></svg>"#).unwrap();
+        // Over MAX_SVG_BYTES, so it must be reported rather than silently dropped.
+        std::fs::write(dir.join("huge.svg"), "x".repeat((MAX_SVG_BYTES + 1) as usize)).unwrap();
+        // Not a candidate at all.
+        std::fs::write(dir.join("notes.txt"), "not an icon").unwrap();
+        std::fs::write(
+            dir.join("index.json"),
+            r#"{"icons":[{"file":"clean.svg","name":"Load balancer","category":"Data centre"}]}"#,
+        )
+        .unwrap();
+
+        let lib = scan(dir.to_str().unwrap()).expect("the folder should scan");
+
+        assert_eq!(lib.icons.len(), 2, "clean.svg and hostile.svg: {:?}", lib.icons);
+        let hostile = lib.icons.iter().find(|i| i.id.contains("hostile")).expect("hostile.svg");
+        let lower = hostile.svg.to_lowercase();
+        for bad in ["<script", "onload", "<foreignobject", "<iframe", "evil.example", "<image"] {
+            assert!(!lower.contains(bad), "{bad} survived scan: {}", hostile.svg);
+        }
+        assert!(hostile.svg.contains("<circle"), "the drawing must survive: {}", hostile.svg);
+
+        // Names and categories come from index.json where it has an entry.
+        let clean = lib.icons.iter().find(|i| i.id.contains("clean")).unwrap();
+        assert_eq!(clean.name, "Load balancer");
+        assert_eq!(clean.category, "Data centre");
+
+        assert!(
+            lib.skipped.iter().any(|s| s.contains("huge.svg")),
+            "an oversized file must be reported, not silently dropped: {:?}",
+            lib.skipped
+        );
+        assert!(
+            !lib.skipped.iter().any(|s| s.contains("notes.txt")),
+            "a non-SVG is not a skipped icon: {:?}",
+            lib.skipped
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
