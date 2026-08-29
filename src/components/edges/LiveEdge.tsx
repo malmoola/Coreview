@@ -22,6 +22,17 @@ export const STATUS_COLOR: Record<HealthStatus, string> = {
   maintenance: '#8b7ff0',
 };
 
+/**
+ * How far along a link its port labels sit, as a fraction from each end.
+ *
+ * It was 0.16, which is fine for a single link and unreadable for a switch
+ * with five: every link leaves the same handle, so at a sixth of the way along
+ * they had not diverged yet and all five labels landed on the same spot. A
+ * third of the way along is past the fan-out, where the links have separated
+ * by roughly the spacing between the devices they run to.
+ */
+const PORT_LABEL_AT = 0.32;
+
 /** Dot travel time in seconds. Deliberately not derived from RTT: a constant
  *  speed keeps the animation a status indicator rather than a fake throughput
  *  gauge. Warning is slower purely as a second, non-color cue. */
@@ -217,9 +228,9 @@ function LiveEdgeInner(props: EdgeProps) {
           <div
             className="cv-edge-label cv-edge-port"
             style={{
-              transform: `translate(-50%, -50%) translate(${sourceX + (targetX - sourceX) * 0.16}px, ${
-                sourceY + (targetY - sourceY) * 0.16
-              }px)`,
+              transform: `translate(-50%, -50%) translate(${
+                sourceX + (targetX - sourceX) * PORT_LABEL_AT
+              }px, ${sourceY + (targetY - sourceY) * PORT_LABEL_AT}px)`,
             }}
           >
             {data.sourcePortLabel}
@@ -246,9 +257,9 @@ function LiveEdgeInner(props: EdgeProps) {
           <div
             className="cv-edge-label cv-edge-port"
             style={{
-              transform: `translate(-50%, -50%) translate(${targetX + (sourceX - targetX) * 0.16}px, ${
-                targetY + (sourceY - targetY) * 0.16
-              }px)`,
+              transform: `translate(-50%, -50%) translate(${
+                targetX + (sourceX - targetX) * PORT_LABEL_AT
+              }px, ${targetY + (sourceY - targetY) * PORT_LABEL_AT}px)`,
             }}
           >
             {data.targetPortLabel}

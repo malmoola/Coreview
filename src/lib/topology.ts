@@ -34,6 +34,37 @@ export const CLASS_GLYPH: Record<DeviceClassName, DeviceType> = {
   unknown: 'generic',
 };
 
+
+/**
+ * The short form of an interface name, as a diagram writes it.
+ *
+ * CDP reports `GigabitEthernet0/1` and LLDP reports `Gi0/1` for the same port,
+ * so a diagram built from both is inconsistent as well as cramped — five long
+ * names leaving one switch overlap each other whatever else is done about
+ * spacing. The full name is kept on the link's notes, not thrown away.
+ */
+export function shortInterface(name: string): string {
+  const trimmed = name.trim();
+  // Longest first: TenGigabitEthernet must not match the Ethernet rule.
+  const forms: [RegExp, string][] = [
+    [/^TwentyFiveGigE/i, 'Twe'],
+    [/^TenGigabitEthernet/i, 'Te'],
+    [/^HundredGigE/i, 'Hu'],
+    [/^FortyGigabitEthernet/i, 'Fo'],
+    [/^GigabitEthernet/i, 'Gi'],
+    [/^FastEthernet/i, 'Fa'],
+    [/^Port-channel/i, 'Po'],
+    [/^TenGigE/i, 'Te'],
+    [/^Ethernet/i, 'Et'],
+    [/^Vlan/i, 'Vl'],
+    [/^Loopback/i, 'Lo'],
+  ];
+  for (const [pattern, prefix] of forms) {
+    if (pattern.test(trimmed)) return trimmed.replace(pattern, prefix);
+  }
+  return trimmed;
+}
+
 export interface TopologySource {
   /** Devices that were logged into. These carry the adjacencies. */
   devices: CrawledDevice[];
@@ -219,10 +250,12 @@ export function buildTopology(
       if (!placedKeys.has(a.key) || !placedKeys.has(b.key)) danglingLinks += 1;
       continue;
     }
+    const full = [a.iface, b.iface].filter(Boolean).join(' \u2194 ');
     const data: LinkData = {
-      sourcePortLabel: a.iface,
-      targetPortLabel: b.iface,
+      sourcePortLabel: shortInterface(a.iface),
+      targetPortLabel: shortInterface(b.iface),
       label: '',
+      notes: full ? `Discovered: ${full}` : undefined,
       pathType: 'smoothstep',
       direction: 'none',
       width: 2,

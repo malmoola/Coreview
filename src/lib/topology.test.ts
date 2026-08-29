@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTopology, identity, CLASS_GLYPH } from './topology';
+import { buildTopology, identity, shortInterface, CLASS_GLYPH } from './topology';
 import type { CrawledDevice, DeviceClassName, Neighbor } from './ipc';
 import type { DeviceNodeData, LinkData } from '../types/domain';
 
@@ -66,6 +66,8 @@ describe('buildTopology', () => {
     expect(labels(t)).toEqual(['ACC-SW1', 'CORE-SW']);
     expect(t.edges).toHaveLength(1);
     expect(ports(t)).toEqual(['Gi1/0/1<->Gi0/1']);
+    // The name as reported survives on the link, not only its short form.
+    expect((t.edges[0]!.data as LinkData).notes).toContain('Gi1/0/1');
   });
 
   it('collapses a cable reported from both ends into one link', () => {
@@ -210,6 +212,29 @@ describe('buildTopology', () => {
     const t = buildTopology({ devices: [], notVisited: [] }, 'p');
     expect(t.nodes).toEqual([]);
     expect(t.edges).toEqual([]);
+  });
+});
+
+describe('shortInterface', () => {
+  it('writes interfaces the way a diagram does', () => {
+    expect(shortInterface('GigabitEthernet0/1')).toBe('Gi0/1');
+    expect(shortInterface('TenGigabitEthernet1/0/48')).toBe('Te1/0/48');
+    expect(shortInterface('FastEthernet0/24')).toBe('Fa0/24');
+    expect(shortInterface('Port-channel10')).toBe('Po10');
+    expect(shortInterface('Vlan100')).toBe('Vl100');
+  });
+
+  it('does not shorten TenGigabitEthernet to Etn', () => {
+    // The Ethernet rule matches inside the longer name if tried first.
+    expect(shortInterface('TenGigabitEthernet1/1')).toBe('Te1/1');
+  });
+
+  it('leaves alone what it does not recognise', () => {
+    // Non-Cisco ports, and forms that are already short.
+    expect(shortInterface('Gi0/1')).toBe('Gi0/1');
+    expect(shortInterface('Port 4')).toBe('Port 4');
+    expect(shortInterface('eth1')).toBe('eth1');
+    expect(shortInterface('7456.3c75.fcae')).toBe('7456.3c75.fcae');
   });
 });
 
