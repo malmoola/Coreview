@@ -163,6 +163,12 @@ pub enum SnmpError {
         #[source]
         source: snmp2::Error,
     },
+    /// The socket itself could not exchange packets. On UDP this is what an
+    /// ICMP port-unreachable looks like: the host is up, nothing is bound to
+    /// the SNMP port. The library reports it as "Socket receive error", which
+    /// says nothing a person can act on.
+    #[error("Could not exchange SNMP packets with {host}:{port}. The host is reachable, so most likely nothing is listening on that port — SNMP is off by default on most devices — or a firewall rejected it. Check SNMP is enabled and that this machine is in the device's allowed hosts.")]
+    NoListener { host: String, port: u16 },
     /// Authentication was refused, which SNMPv3 reports identically whether the
     /// password is wrong or the algorithms are. Kept separate so the message
     /// can say so, because a user staring at "not authenticated" has no way to
@@ -270,7 +276,7 @@ pub async fn identify(
                     })?;
                 match retried {
                     Ok(Some(_)) => {}
-                    _ => return Err(describe_v3_failure(host, auth, original)),
+                    _ => return Err(describe_v3_failure(host, port, auth, original)),
                 }
             }
             s
@@ -298,7 +304,7 @@ pub async fn identify(
             host: host.into(),
             timeout,
         })?
-        .map_err(|e| describe_v3_failure(host, auth, e))?;
+        .map_err(|e| describe_v3_failure(host, port, auth, e))?;
 
     let mut identity = SnmpIdentity {
         address: host.to_string(),
@@ -344,11 +350,26 @@ pub async fn identify(
     Ok(identity)
 }
 
+/// Maps a library error to ours, separating "the socket could not talk to
+/// anything" from a genuine protocol problem.
+fn protocol_error(host: &str, port: u16, source: snmp2::Error) -> SnmpError {
+    match source {
+        snmp2::Error::Send | snmp2::Error::Receive => SnmpError::NoListener {
+            host: host.into(),
+            port,
+        },
+        other => SnmpError::Protocol {
+            host: host.into(),
+            source: other,
+        },
+    }
+}
+
 /// Turns a v3 authentication failure into something actionable.
 ///
 /// Anything else is passed through unchanged: a timeout or a socket problem is
 /// already clear, and rewording it would only hide the cause.
-fn describe_v3_failure(host: &str, auth: &SnmpAuth, source: snmp2::Error) -> SnmpError {
+fn describe_v3_failure(host: &str, port: u16, auth: &SnmpAuth, source: snmp2::Error) -> SnmpError {
     let SnmpAuth::V3 {
         username,
         auth_protocol,
@@ -356,10 +377,7 @@ fn describe_v3_failure(host: &str, auth: &SnmpAuth, source: snmp2::Error) -> Snm
         ..
     } = auth
     else {
-        return SnmpError::Protocol {
-            host: host.into(),
-            source,
-        };
+        return protocol_error(host, port, source);
     };
 
     match source {
@@ -380,12 +398,7 @@ fn describe_v3_failure(host: &str, auth: &SnmpAuth, source: snmp2::Error) -> Snm
                 .map(|p| format!("{p:?}").to_lowercase())
                 .unwrap_or_else(|| "none".into()),
         },
-        // A timeout or a socket problem is already clear; rewording it would
-        // only hide the cause.
-        other => SnmpError::Protocol {
-            host: host.into(),
-            source: other,
-        },
+        other => protocol_error(host, port, other),
     }
 }
 
@@ -564,6 +577,7 @@ mod tests {
         };
         let err = describe_v3_failure(
             "10.1.1.1",
+            161,
             &auth,
             snmp2::Error::AuthFailure(snmp2::v3::AuthErrorKind::NotAuthenticated),
         );
@@ -587,6 +601,7 @@ mod tests {
         };
         let err = describe_v3_failure(
             "10.1.1.1",
+            161,
             &auth,
             snmp2::Error::AuthFailure(snmp2::v3::AuthErrorKind::UsernameMismatch),
         );
@@ -594,12 +609,28 @@ mod tests {
         assert!(err.to_string().contains("nobody"));
     }
 
+    /// "Socket receive error" is what the library says when an ICMP
+    /// port-unreachable comes back, which is the ordinary case of SNMP simply
+    /// being switched off. It was reaching the operator verbatim.
+    #[test]
+    fn nothing_listening_says_so_instead_of_socket_receive_error() {
+        let auth = SnmpAuth::V2c { community: "public".into() };
+        for source in [snmp2::Error::Receive, snmp2::Error::Send] {
+            let err = describe_v3_failure("192.168.14.195", 161, &auth, source);
+            assert!(matches!(err, SnmpError::NoListener { .. }), "{err}");
+            let msg = err.to_string();
+            assert!(msg.contains("192.168.14.195:161"), "{msg}");
+            assert!(msg.contains("nothing is listening"), "{msg}");
+            assert!(!msg.contains("Socket receive error"), "{msg}");
+        }
+    }
+
     #[test]
     fn a_non_authentication_error_is_passed_through_unchanged() {
         // A timeout or socket problem is already clear; rewording it hides the
         // cause.
         let auth = SnmpAuth::V2c { community: "public".into() };
-        let err = describe_v3_failure("10.1.1.1", &auth, snmp2::Error::AsnParse);
+        let err = describe_v3_failure("10.1.1.1", 161, &auth, snmp2::Error::AsnParse);
         assert!(matches!(err, SnmpError::Protocol { .. }));
 
         // And a v3 user hitting something that is not an auth problem.
@@ -611,7 +642,7 @@ mod tests {
             privacy_password: String::new(),
         };
         assert!(matches!(
-            describe_v3_failure("10.1.1.1", &v3, snmp2::Error::AsnParse),
+            describe_v3_failure("10.1.1.1", 161, &v3, snmp2::Error::AsnParse),
             SnmpError::Protocol { .. }
         ));
     }
