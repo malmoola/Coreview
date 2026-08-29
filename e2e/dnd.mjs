@@ -19,14 +19,14 @@ await page.addInitScript((p) => {
   localStorage.setItem("coreview.projects.v1", JSON.stringify({ [p.meta.id]: p }));
 }, pkg);
 await page.goto("http://localhost:5173/", { waitUntil: "networkidle" });
-await page.locator(".lt-project-open").first().click();
+await page.locator(".cv-project-open").first().click();
 await page.waitForSelector(".react-flow__node", { timeout: 15000 });
 await page.waitForTimeout(1200);
 
 const before = await page.locator(".react-flow__node").count();
 
 // Drag the Firewall palette button onto an empty part of the canvas.
-const source = page.locator(".lt-palette-item", { hasText: "Firewall" }).first();
+const source = page.locator(".cv-palette-item", { hasText: "Firewall" }).first();
 const target = page.locator(".react-flow__pane");
 const box = await target.boundingBox();
 

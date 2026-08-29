@@ -14,6 +14,10 @@ export default function App() {
   const meta = useStore((s) => s.meta);
   const highContrast = useStore((s) => s.settings.highContrast);
   const applyEngineEvent = useStore((s) => s.applyEngineEvent);
+  // Read above the early return: a hook after one is called conditionally,
+  // which React rejects and which broke the move from the launcher into a
+  // project entirely.
+  const selection = useStore((s) => s.selectedNodeId ?? s.selectedEdgeId);
 
   // Engine events arrive on one channel for the life of the window.
   useEffect(() => {
@@ -51,7 +55,9 @@ export default function App() {
     <ReactFlowProvider>
       <div className={`cv-app cv-workspace ${highContrast ? 'is-contrast' : ''}`}>
         <TopBar onExit={() => undefined} />
-        <div className="cv-main">
+        {/* The narrow layouts show the palette or the inspector, not both,
+            and which one depends on whether there is something to inspect. */}
+        <div className={`cv-main${selection ? ' has-selection' : ''}`}>
           <Palette />
           <Canvas />
           <Inspector />

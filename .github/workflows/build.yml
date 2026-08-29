@@ -119,10 +119,15 @@ jobs:
 
       - run: npm ci
 
-      # WebView2 is bundled into the installer rather than downloaded at install
-      # time — see bundle.windows.webviewInstallMode in tauri.conf.json. rusqlite
-      # is built with `bundled`, so there is no external SQLite either. The
-      # result should install on a machine with no runtime prerequisites.
+      # The Windows installer carries a WebView2 *bootstrapper* rather than the
+      # runtime itself: embedding the runtime put it in both the NSIS exe and
+      # the MSI and took the artifact past 500 MB, for a 7.8 MB application.
+      # WebView2 ships with Windows 11 and with Edge on Windows 10, so the
+      # bootstrapper almost never has anything to fetch. A machine with no
+      # internet *and* no WebView2 needs
+      # bundle.windows.webviewInstallMode = offlineInstaller instead.
+      #
+      # rusqlite is built with `bundled`, so there is no external SQLite.
       - name: Build bundles
         run: npm run tauri build
 

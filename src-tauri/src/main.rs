@@ -13,6 +13,41 @@ use commands::AppState;
 use coreview_probe::{Engine, DEFAULT_MAX_CONCURRENCY};
 use tauri::{Manager, RunEvent, WindowEvent};
 
+/// Sizes the window to the screen it opens on.
+///
+/// A fixed default cannot fit every display: 1600x1000 is comfortable on a
+/// desktop and larger than the whole screen on a 1366x768 laptop, where the
+/// window opens with its edges off the display and its buttons unreachable.
+/// Scaled displays make it worse — 1920x1080 at 150% is 1280x720 of usable
+/// space, and nothing about the reported resolution says so.
+///
+/// So the window is asked for a proportion of whatever it actually opens on,
+/// capped at a size beyond which more pixels stop helping, and floored at the
+/// smallest layout that still works. Failure is silent and harmless: the
+/// window keeps the size from the config, which is what happened before.
+fn fit_to_screen(app: &tauri::App) {
+    use tauri::{LogicalSize, Manager};
+
+    const MAX_W: f64 = 1600.0;
+    const MAX_H: f64 = 1000.0;
+    const MIN_W: f64 = 900.0;
+    const MIN_H: f64 = 600.0;
+    // Leaves room for a taskbar, dock or panel, which no API reliably reports.
+    const OF_SCREEN: f64 = 0.9;
+
+    let Some(window) = app.get_webview_window("main") else { return };
+    let Ok(Some(monitor)) = window.current_monitor() else { return };
+
+    let scale = monitor.scale_factor();
+    let size = monitor.size().to_logical::<f64>(scale);
+
+    let width = (size.width * OF_SCREEN).clamp(MIN_W, MAX_W);
+    let height = (size.height * OF_SCREEN).clamp(MIN_H, MAX_H);
+
+    let _ = window.set_size(LogicalSize::new(width, height));
+    let _ = window.center();
+}
+
 fn main() {
     let db_path = db::data_dir().join("coreview.db");
     let conn = db::open(&db_path).expect("could not open the local Coreview database");
@@ -33,6 +68,7 @@ fn main() {
         })
         .setup(move |app| {
             commands::pump_events(app.handle().clone(), rx);
+            fit_to_screen(app);
             Ok(())
         })
         .on_window_event(|window, event| {
