@@ -13,6 +13,7 @@ import {
 import { makeDeviceNode } from './Canvas';
 import { CredentialPicker } from './CredentialPicker';
 import { SubnetList } from './SubnetList';
+import { reasonWithoutAddress } from '../lib/failures';
 import { uid } from '../lib/id';
 import type { DeviceNodeData } from '../types/domain';
 
@@ -145,7 +146,9 @@ export function CrawlPanel({
             break;
           case 'failed':
             setLiveFailed((n) => n + 1);
-            setStatus(`${e.address} could not be reached — ${e.reason}`);
+            setStatus(
+              `${e.address} could not be reached — ${reasonWithoutAddress(e.address, e.reason)}`,
+            );
             break;
           case 'finished':
             setRunning(false);
@@ -569,7 +572,7 @@ export function CrawlPanel({
           <ul>
             {failures.map((f) => (
               <li key={f.address}>
-                <code>{f.address}</code> — {f.reason}
+                <code>{f.address}</code> — {reasonWithoutAddress(f.address, f.reason)}
               </li>
             ))}
           </ul>

@@ -55,7 +55,7 @@ pub struct BackupFailed {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum BackupEvent {
     Started { devices: usize },
     Ssh(SshProgress),
@@ -339,8 +339,13 @@ async fn back_up_one(
 /// pair of timestamped configurations exists to answer. Not a general diff:
 /// configuration files are line-oriented and short, so a straightforward
 /// longest-common-subsequence is both correct and fast enough.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+/// Serialised adjacently — `{"kind": "same", "value": "..."}` — because an
+/// internally tagged enum (`tag = "kind"` alone) cannot represent a newtype
+/// variant holding a string. serde accepts that attribute at compile time and
+/// fails at *runtime*, so `diff_captures` returned an error for every
+/// comparison ever made. `content` is what the interface already expects.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum DiffLine {
     Same(String),
     Added(String),
@@ -401,6 +406,30 @@ pub fn count_changes(lines: &[DiffLine]) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
+
+    /// The diff is only useful if it survives the trip to the interface.
+    ///
+    /// `#[serde(tag = "kind")]` on a newtype variant holding a String compiles
+    /// and then fails at runtime, so every comparison came back as
+    /// "cannot serialize tagged newtype variant DiffLine::Same containing a
+    /// string". Testing the values alone did not notice, because the values
+    /// were right.
+    #[test]
+    fn diff_lines_serialise_the_way_the_interface_reads_them() {
+        let lines = diff("a\nb\n", "a\nc\n");
+        let json = serde_json::to_string(&lines).expect("a diff must be serialisable");
+        assert_eq!(
+            json,
+            r#"[{"kind":"same","value":"a"},{"kind":"removed","value":"b"},{"kind":"added","value":"c"}]"#
+        );
+    }
+
+    #[test]
+    fn a_diff_of_identical_input_is_all_same() {
+        let lines = diff("hostname sw1\n!\n", "hostname sw1\n!\n");
+        assert!(lines.iter().all(|l| matches!(l, DiffLine::Same(_))));
+        assert_eq!(count_changes(&lines), (0, 0));
+    }
     use super::*;
 
     fn temp_root(label: &str) -> PathBuf {
