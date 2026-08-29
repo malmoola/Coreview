@@ -92,6 +92,10 @@ export interface DeviceNodeData extends Record<string, unknown> {
   maintenance: boolean;
   showDetails: boolean;
   imageDataUrl?: string;
+  /** Objects sharing a groupId move together. Nothing is drawn for a group:
+   *  it exists in behaviour only, so a device and the notes explaining it stay
+   *  a unit without a box around them. */
+  groupId?: string;
   /** Id of an icon from the local library. imageDataUrl carries the inlined
    *  copy so an exported project still renders on a machine without the
    *  library folder. */
@@ -113,6 +117,8 @@ export interface NoteNodeData extends Record<string, unknown> {
   background: string;
   borderColor: string;
   locked: boolean;
+  /** See DeviceNodeData.groupId. */
+  groupId?: string;
 }
 
 export type LinkPathType = 'straight' | 'step' | 'smoothstep' | 'bezier';

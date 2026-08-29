@@ -98,6 +98,12 @@ interface Store {
   updateMeta: (patch: Partial<ProjectMeta>) => void;
 
   onNodesChange: (changes: NodeChange<TopoNode>[]) => void;
+  /** Bind the current selection together so it moves as one. */
+  groupSelected: () => void;
+  /** Release the group a node belongs to. */
+  ungroup: (nodeId: string) => void;
+  /** Every node in this node's group, itself included. Empty if ungrouped. */
+  groupMembers: (nodeId: string) => string[];
   onEdgesChange: (changes: EdgeChange<TopoEdge>[]) => void;
   addNode: (node: TopoNode) => void;
   addEdge: (edge: TopoEdge) => void;
@@ -166,6 +172,51 @@ function rememberView(key: string, open: boolean): void {
   } catch {
     /* private mode, or storage disabled — the panel just reopens next time */
   }
+}
+
+/** The group a node belongs to, if any. */
+function groupOf(node: TopoNode | undefined): string | undefined {
+  return (node?.data as { groupId?: string } | undefined)?.groupId;
+}
+
+/**
+ * Applies React Flow's changes, then carries the rest of a group along.
+ *
+ * A group is drawn as nothing at all — it is a device and the notes that
+ * explain it staying together, not a box around them. So the only place it
+ * exists is here: when one member is dragged, its companions move by the same
+ * delta.
+ *
+ * Members React Flow already moved are skipped. Dragging a multi-selection
+ * emits a position change per node, and moving those again would send anything
+ * both selected and grouped twice as far.
+ */
+function moveGroups(changes: NodeChange<TopoNode>[], before: TopoNode[]): TopoNode[] {
+  const after = applyNodeChanges(changes, before) as TopoNode[];
+
+  const deltas = new Map<string, { dx: number; dy: number }>();
+  const movedItself = new Set<string>();
+  for (const c of changes) {
+    if (c.type !== 'position' || !c.position) continue;
+    movedItself.add(c.id);
+    const was = before.find((n) => n.id === c.id);
+    const groupId = groupOf(was);
+    if (!was || !groupId || deltas.has(groupId)) continue;
+    deltas.set(groupId, {
+      dx: c.position.x - was.position.x,
+      dy: c.position.y - was.position.y,
+    });
+  }
+  if (deltas.size === 0) return after;
+
+  return after.map((n) => {
+    if (movedItself.has(n.id)) return n;
+    const groupId = groupOf(n);
+    const d = groupId ? deltas.get(groupId) : undefined;
+    // A locked companion stays put, the same as it would under its own drag.
+    if (!d || (n.data as { locked?: boolean }).locked) return n;
+    return { ...n, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } };
+  });
 }
 
 function snapshot(doc: ProjectDocument): HistoryEntry {
@@ -318,9 +369,51 @@ export const useStore = create<Store>((set, get) => ({
     const structural = changes.some((c) => c.type === 'remove' || c.type === 'add');
     if (structural) get().commit();
     set((s) => ({
-      doc: { ...s.doc, nodes: applyNodeChanges(changes, s.doc.nodes) as TopoNode[] },
+      doc: { ...s.doc, nodes: moveGroups(changes, s.doc.nodes) },
       dirty: true,
     }));
+  },
+
+  groupSelected() {
+    const selected = get().doc.nodes.filter((n) => n.selected);
+    // One object is not a group, and grouping is only meaningful across two.
+    if (selected.length < 2) return;
+    get().commit('Group');
+    const groupId = uid();
+    const ids = new Set(selected.map((n) => n.id));
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        nodes: s.doc.nodes.map((n) =>
+          ids.has(n.id) ? ({ ...n, data: { ...n.data, groupId } } as TopoNode) : n,
+        ),
+      },
+      dirty: true,
+    }));
+  },
+
+  ungroup(nodeId) {
+    const groupId = groupOf(get().doc.nodes.find((n) => n.id === nodeId));
+    if (!groupId) return;
+    get().commit('Ungroup');
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        nodes: s.doc.nodes.map((n) => {
+          if (groupOf(n) !== groupId) return n;
+          const data = { ...n.data };
+          delete (data as { groupId?: string }).groupId;
+          return { ...n, data } as TopoNode;
+        }),
+      },
+      dirty: true,
+    }));
+  },
+
+  groupMembers(nodeId) {
+    const nodes = get().doc.nodes;
+    const groupId = groupOf(nodes.find((n) => n.id === nodeId));
+    return groupId ? nodes.filter((n) => groupOf(n) === groupId).map((n) => n.id) : [];
   },
 
   onEdgesChange(changes) {

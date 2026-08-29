@@ -124,6 +124,8 @@ export function Canvas() {
     const node = doc.nodes.find((n) => n.id === nodeId);
     const locked = Boolean((node?.data as { locked?: boolean } | undefined)?.locked);
     const maintenance = Boolean((node?.data as DeviceNodeData | undefined)?.maintenance);
+    const members = store.groupMembers(nodeId);
+    const selectedCount = doc.nodes.filter((n) => n.selected).length;
     return [
       { label: 'Edit properties', onSelect: () => store.select(nodeId, null) },
       {
@@ -146,6 +148,16 @@ export function Canvas() {
         label: locked ? 'Unlock' : 'Lock',
         onSelect: () => store.updateNodeData(nodeId, { locked: !locked }),
       },
+      ...(members.length > 1
+        ? [
+            {
+              label: `Ungroup (${members.length} objects)`,
+              onSelect: () => store.ungroup(nodeId),
+            },
+          ]
+        : selectedCount > 1
+          ? [{ label: `Group ${selectedCount} objects`, onSelect: () => store.groupSelected() }]
+          : []),
       { label: 'Bring forward', onSelect: () => reorder(nodeId, 1) },
       { label: 'Send backward', onSelect: () => reorder(nodeId, -1) },
       {
