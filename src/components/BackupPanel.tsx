@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useStore } from '../state/store';
 import { ipc, isDesktop, type BackupDevice, type BackupEvent, type DiffLine } from '../lib/ipc';
+import { CredentialPicker } from './CredentialPicker';
 
 /** `20260828-101530-running-config.txt` reads as a date and a kind. */
 function describeCapture(filename: string): string {
@@ -26,6 +27,7 @@ export function BackupPanel() {
   const [enablePassword, setEnablePassword] = useState('');
   const [secondFactor, setSecondFactor] = useState(false);
   const [port, setPort] = useState(22);
+  const [credentialId, setCredentialId] = useState<string | null>(null);
   const [kinds, setKinds] = useState<('running' | 'startup')[]>(['running']);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
@@ -123,6 +125,7 @@ export function BackupPanel() {
           kinds,
           secondFactor,
           port,
+          credentialId: credentialId ?? undefined,
         },
         { username, password, enablePassword: enablePassword || undefined },
         stamp,
@@ -173,21 +176,23 @@ export function BackupPanel() {
   return (
     <div className="cv-discover">
       <div className="cv-discover-form">
-        <label className="cv-field cv-field-narrow">
-          <span>Username</span>
-          <input className="cv-input" value={username} autoComplete="off" disabled={running}
-            onChange={(e) => setUsername(e.target.value)} />
-        </label>
-        <label className="cv-field cv-field-narrow">
-          <span>Password</span>
-          <input className="cv-input" type="password" value={password} autoComplete="off"
-            disabled={running} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <label className="cv-field cv-field-narrow">
-          <span>Enable</span>
-          <input className="cv-input" type="password" value={enablePassword} autoComplete="off"
-            disabled={running} onChange={(e) => setEnablePassword(e.target.value)} />
-        </label>
+        <CredentialPicker kind="ssh" disabled={running} chosen={credentialId} onChoose={setCredentialId}>
+          <label className="cv-field cv-field-narrow">
+            <span>Username</span>
+            <input className="cv-input" value={username} autoComplete="off" disabled={running}
+              onChange={(e) => setUsername(e.target.value)} />
+          </label>
+          <label className="cv-field cv-field-narrow">
+            <span>Password</span>
+            <input className="cv-input" type="password" value={password} autoComplete="off"
+              disabled={running} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label className="cv-field cv-field-narrow">
+            <span>Enable</span>
+            <input className="cv-input" type="password" value={enablePassword} autoComplete="off"
+              disabled={running} onChange={(e) => setEnablePassword(e.target.value)} />
+          </label>
+        </CredentialPicker>
         <label className="cv-field cv-field-narrow">
           <span>Port</span>
           <input className="cv-input" type="number" value={port} disabled={running}
@@ -202,7 +207,7 @@ export function BackupPanel() {
           </button>
         ) : (
           <button type="button" className="cv-btn cv-btn-start" onClick={() => void start()}
-            disabled={!picked.size || !username || !password || !kinds.length}>
+            disabled={!picked.size || (!credentialId && (!username || !password)) || !kinds.length}>
             Back up {picked.size || 'selected'}
           </button>
         )}

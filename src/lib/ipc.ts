@@ -186,6 +186,9 @@ export type CrawlInput = {
   interfaceName?: string;
   port: number;
   snmp?: SnmpInput;
+  /** A saved credential to use instead of typed ones. Only the id travels. */
+  credentialId?: string;
+  snmpCredentialId?: string;
 };
 
 export type SshProgress =
@@ -441,7 +444,13 @@ export const ipc = {
 
   /** Capture configurations into the chosen backup folder. */
   startBackup(
-    input: { targets: BackupTarget[]; kinds: ('running' | 'startup')[]; secondFactor: boolean; port: number },
+    input: {
+      targets: BackupTarget[];
+      kinds: ('running' | 'startup')[];
+      secondFactor: boolean;
+      port: number;
+      credentialId?: string;
+    },
     credentials: CredentialInput,
     stamp: string,
   ) {

@@ -11,6 +11,7 @@ import {
   type Neighbor,
 } from '../lib/ipc';
 import { makeDeviceNode } from './Canvas';
+import { CredentialPicker } from './CredentialPicker';
 import { uid } from '../lib/id';
 import type { DeviceNodeData } from '../types/domain';
 
@@ -77,6 +78,7 @@ export function CrawlPanel() {
   const [enablePassword, setEnablePassword] = useState('');
   const [secondFactor, setSecondFactor] = useState(false);
   const [port, setPort] = useState(22);
+  const [credentialId, setCredentialId] = useState<string | null>(null);
   const [maxHops, setMaxHops] = useState(4);
   const [preference, setPreference] = useState<'loopback' | 'management' | 'first'>('loopback');
   // SNMP is optional and only used where SSH is refused, so it lives behind a
@@ -238,6 +240,7 @@ export function CrawlPanel() {
           addressPreference: preference,
           port,
           snmp: snmpForRun(),
+          credentialId: credentialId ?? undefined,
         },
         { username, password, enablePassword: enablePassword || undefined },
       );
@@ -323,21 +326,23 @@ export function CrawlPanel() {
           <input className="cv-input" value={subnets} spellCheck={false} disabled={running}
             placeholder="10.1.0.0/16, 10.2.0.0/16" onChange={(e) => setSubnets(e.target.value)} />
         </label>
-        <label className="cv-field cv-field-narrow">
-          <span>Username</span>
-          <input className="cv-input" value={username} autoComplete="off" disabled={running}
-            onChange={(e) => setUsername(e.target.value)} />
-        </label>
-        <label className="cv-field cv-field-narrow">
-          <span>Password</span>
-          <input className="cv-input" type="password" value={password} autoComplete="off"
-            disabled={running} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <label className="cv-field cv-field-narrow">
-          <span>Enable</span>
-          <input className="cv-input" type="password" value={enablePassword} autoComplete="off"
-            disabled={running} onChange={(e) => setEnablePassword(e.target.value)} />
-        </label>
+        <CredentialPicker kind="ssh" disabled={running} chosen={credentialId} onChoose={setCredentialId}>
+          <label className="cv-field cv-field-narrow">
+            <span>Username</span>
+            <input className="cv-input" value={username} autoComplete="off" disabled={running}
+              onChange={(e) => setUsername(e.target.value)} />
+          </label>
+          <label className="cv-field cv-field-narrow">
+            <span>Password</span>
+            <input className="cv-input" type="password" value={password} autoComplete="off"
+              disabled={running} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label className="cv-field cv-field-narrow">
+            <span>Enable</span>
+            <input className="cv-input" type="password" value={enablePassword} autoComplete="off"
+              disabled={running} onChange={(e) => setEnablePassword(e.target.value)} />
+          </label>
+        </CredentialPicker>
         <label className="cv-field cv-field-narrow">
           <span>Hops</span>
           <select className="cv-input" value={maxHops} disabled={running}
@@ -369,7 +374,7 @@ export function CrawlPanel() {
           </button>
         ) : (
           <button type="button" className="cv-btn cv-btn-start" onClick={() => void start()}
-            disabled={!seed.trim() || !username || !password}>
+            disabled={!seed.trim() || (!credentialId && (!username || !password))}>
             Discover
           </button>
         )}
