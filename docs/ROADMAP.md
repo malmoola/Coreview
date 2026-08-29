@@ -63,8 +63,13 @@ Ordered by what makes the app more useful, not by what is easiest.
 
 ## Then — the diagram itself
 
-- [ ] Manual re-layout that survives a re-crawl: re-running discovery should
-      update a diagram, not replace it
+- [x] **A re-crawl updates the diagram rather than drawing another copy of the
+      network beside it.** A device found again keeps its node and the position
+      someone put it in; a cable found again is not drawn twice; only what a
+      crawl can newly establish is written, so a name corrected by hand
+      survives. Verified by crawling the real network twice: the second run
+      reported "Added 0 devices and 0 links. Updated 5 already on the diagram,
+      keeping their positions" 
 - [ ] Group by site or subnet, using the grouping that already exists
 - [ ] Link aggregation: draw a port-channel as one link that says how many
       members it has

@@ -85,13 +85,44 @@ export interface TopologyOptions {
    *  network can see hundreds of endpoints, and monitoring all of them is a
    *  decision rather than a side effect of drawing them. */
   probeReachedOnly?: boolean;
+  /** What is already drawn. A device found again is the same device: it keeps
+   *  its node, and with it the position someone put it in. Without this a
+   *  second crawl draws the whole network again beside the first, which makes
+   *  discovery a thing you do once. */
+  existingNodes?: TopoNode[];
+  /** Links already drawn, so a cable found again is not drawn twice. */
+  existingEdges?: TopoEdge[];
 }
 
 export interface BuiltTopology {
+  /** Devices not already on the diagram. */
   nodes: TopoNode[];
+  /** Links not already on the diagram. */
   edges: TopoEdge[];
+  /** Devices already drawn, with what the crawl now knows about them. Their
+   *  positions are deliberately absent: the operator arranged those. */
+  updated: { id: string; data: Partial<DeviceNodeData> }[];
   /** Adjacencies dropped because one end was filtered out. */
   danglingLinks: number;
+}
+
+/** How an already-drawn node is recognised as a device found again. */
+function identityOfNode(n: TopoNode): string | null {
+  if (n.type !== 'device') return null;
+  const d = n.data as DeviceNodeData;
+  const address = d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';
+  return identity(d.label ?? '', address);
+}
+
+/** Two links are the same cable if they join the same pair on the same ports. */
+function edgeSignature(e: TopoEdge, idOf: (nodeId: string) => string): string {
+  const d = (e.data ?? {}) as LinkData;
+  return [
+    `${idOf(e.source)}/${shortInterface(d.sourcePortLabel ?? '')}`,
+    `${idOf(e.target)}/${shortInterface(d.targetPortLabel ?? '')}`,
+  ]
+    .sort()
+    .join('::');
 }
 
 /**
@@ -198,6 +229,14 @@ export function buildTopology(
   const placed = [...entries.values()].filter((e) => !include || include.has(e.klass));
   const placedKeys = new Set(placed.map((e) => e.key));
 
+  // A device already on the diagram is the same device found again. It keeps
+  // its node and its position; only what the crawl newly knows is written.
+  const alreadyDrawn = new Map<string, string>();
+  for (const n of opts.existingNodes ?? []) {
+    const key = identityOfNode(n);
+    if (key) alreadyDrawn.set(key, n.id);
+  }
+
   // Layered by how far each device is from the seed, which is the shape a
   // network actually has. The old grid said nothing about the topology.
   const byDepth = new Map<number, Entry[]>();
@@ -212,12 +251,29 @@ export function buildTopology(
 
   const nodeFor = new Map<string, string>();
   const nodes: TopoNode[] = [];
+  const updated: { id: string; data: Partial<DeviceNodeData> }[] = [];
   for (const [depth, row] of [...byDepth.entries()].sort((a, b) => a[0] - b[0])) {
     row.sort((a, b) => a.name.localeCompare(b.name));
     // Each row centred against the widest, so the diagram reads as a tree
     // rather than everything crammed to the left.
     const indent = ((widest - row.length) * COL) / 2;
     row.forEach((e, i) => {
+      const seen = alreadyDrawn.get(e.key);
+      if (seen) {
+        nodeFor.set(e.key, seen);
+        // Only what a crawl can newly establish. The label is left alone: a
+        // name someone corrected by hand should not be overwritten by the one
+        // a neighbour advertises.
+        const patch: Partial<DeviceNodeData> = {};
+        if (e.address) {
+          patch.addresses = [
+            { id: uid(), label: 'Discovered', address: e.address, isPrimary: true },
+          ];
+        }
+        if (e.platform) patch.model = e.platform;
+        if (Object.keys(patch).length > 0) updated.push({ id: seen, data: patch });
+        return;
+      }
       const id = uid();
       nodeFor.set(e.key, id);
       const data: DeviceNodeData = {
@@ -245,6 +301,11 @@ export function buildTopology(
 
   const edges: TopoEdge[] = [];
   let danglingLinks = 0;
+  // Cables already drawn, keyed the same way the new ones are, so a second
+  // crawl does not draw every link a second time on top of the first.
+  const drawnLinks = new Set(
+    (opts.existingEdges ?? []).map((e) => edgeSignature(e, (id) => id)),
+  );
   for (const { a, b } of links.values()) {
     const source = nodeFor.get(a.key);
     const target = nodeFor.get(b.key);
@@ -254,6 +315,14 @@ export function buildTopology(
       if (!placedKeys.has(a.key) || !placedKeys.has(b.key)) danglingLinks += 1;
       continue;
     }
+    const already = [
+      `${source}/${shortInterface(a.iface)}`,
+      `${target}/${shortInterface(b.iface)}`,
+    ]
+      .sort()
+      .join('::');
+    if (drawnLinks.has(already)) continue;
+
     const full = [a.iface, b.iface].filter(Boolean).join(' \u2194 ');
     const data: LinkData = {
       sourcePortLabel: shortInterface(a.iface),
@@ -280,5 +349,5 @@ export function buildTopology(
   }
 
   void projectId;
-  return { nodes, edges, danglingLinks };
+  return { nodes, edges, updated, danglingLinks };
 }

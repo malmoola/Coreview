@@ -215,6 +215,78 @@ describe('buildTopology', () => {
   });
 });
 
+describe('re-crawling a diagram that already exists', () => {
+  const source = {
+    devices: [
+      device('CORE-SW', '10.0.0.1', [neighbor('ACC-SW1', 'Gi1/0/1', 'Gi0/1')]),
+      device('ACC-SW1', '10.0.0.2', [], { hops: 1 }),
+    ],
+    notVisited: [],
+  };
+
+  it('keeps a device that is already drawn, and the position it was put in', () => {
+    // Without this a second crawl draws the whole network again beside the
+    // first, which makes discovery something you do once.
+    const first = buildTopology(source, 'p');
+    const arranged = first.nodes.map((n) => ({ ...n, position: { x: 999, y: 777 } }));
+
+    const second = buildTopology(source, 'p', {
+      existingNodes: arranged,
+      existingEdges: first.edges,
+    });
+
+    expect(second.nodes).toHaveLength(0);
+    expect(second.edges).toHaveLength(0);
+    expect(second.updated).toHaveLength(2);
+    // The ids are the ones already on the diagram, so nothing is replaced.
+    expect(second.updated.map((u) => u.id).sort()).toEqual(arranged.map((n) => n.id).sort());
+  });
+
+  it('adds only what is new', () => {
+    const first = buildTopology(source, 'p');
+    const grown = {
+      devices: [
+        device('CORE-SW', '10.0.0.1', [
+          neighbor('ACC-SW1', 'Gi1/0/1', 'Gi0/1'),
+          neighbor('ACC-SW2', 'Gi1/0/2', 'Gi0/1'),
+        ]),
+        device('ACC-SW1', '10.0.0.2', [], { hops: 1 }),
+        device('ACC-SW2', '10.0.0.3', [], { hops: 1 }),
+      ],
+      notVisited: [],
+    };
+
+    const second = buildTopology(grown, 'p', {
+      existingNodes: first.nodes,
+      existingEdges: first.edges,
+    });
+
+    expect(labels(second)).toEqual(['ACC-SW2']);
+    expect(second.edges).toHaveLength(1);
+  });
+
+  it('does not redraw a cable it already drew', () => {
+    const first = buildTopology(source, 'p');
+    const second = buildTopology(source, 'p', {
+      existingNodes: first.nodes,
+      existingEdges: first.edges,
+    });
+    expect(second.edges).toHaveLength(0);
+  });
+
+  it('never writes over the label', () => {
+    // The crawl writes what it can newly establish. A name somebody corrected
+    // by hand is not that.
+    const first = buildTopology(source, 'p');
+    const second = buildTopology(source, 'p', {
+      existingNodes: first.nodes,
+      existingEdges: first.edges,
+    });
+    expect(second.updated.length).toBeGreaterThan(0);
+    for (const u of second.updated) expect(u.data.label).toBeUndefined();
+  });
+});
+
 describe('shortInterface', () => {
   it('writes interfaces the way a diagram does', () => {
     expect(shortInterface('GigabitEthernet0/1')).toBe('Gi0/1');

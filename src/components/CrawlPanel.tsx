@@ -349,6 +349,11 @@ export function CrawlPanel({
 
     const topo = buildTopology(result, store.meta.id, {
       origin: { x: 80, y: bottom + 80 },
+      // A second crawl updates the diagram rather than drawing another copy
+      // of the network beside it, so re-running discovery is something you can
+      // do weekly instead of once.
+      existingNodes: store.doc.nodes,
+      existingEdges: store.doc.edges,
     });
 
     // The ticks in the table decide what is placed. Matching on the drawn
@@ -376,11 +381,22 @@ export function CrawlPanel({
       links += 1;
     }
 
-    store.setStatusMessage(
+    for (const u of topo.updated) store.updateNodeData(u.id, u.data);
+
+    const parts = [
       `Added ${placed.length} device${placed.length === 1 ? '' : 's'} and ${links} link${
         links === 1 ? '' : 's'
-      }.` + (topo.danglingLinks ? ` ${topo.danglingLinks} link ends were not on the diagram.` : ''),
-    );
+      }.`,
+    ];
+    if (topo.updated.length) {
+      parts.push(
+        `Updated ${topo.updated.length} already on the diagram, keeping ${
+          topo.updated.length === 1 ? 'its position' : 'their positions'
+        }.`,
+      );
+    }
+    if (topo.danglingLinks) parts.push(`${topo.danglingLinks} link ends were not on the diagram.`);
+    store.setStatusMessage(parts.join(' '));
     setAllVisible(false);
   };
 
