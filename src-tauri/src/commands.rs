@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use coreview_probe::engine::{run_once, EngineEvent, SessionState};
-use coreview_probe::sweep::{parse_sweepable_cidr, sweep, SweepEvent, SweepOptions};
+use coreview_probe::sweep::{parse_sweepable_cidr, sweep_many, SweepEvent, SweepOptions, MAX_SWEEP_HOSTS};
 use coreview_probe::{Engine, ProbeConfig, ProbeResult, ProbeSnapshot};
 use base64::Engine as _;
 use rusqlite::Connection;
@@ -358,13 +358,29 @@ pub fn check_folder_writable(path: String) -> CmdResult<()> {
 pub async fn start_sweep(
     app: AppHandle,
     state: State<'_, AppState>,
-    subnet: String,
+    subnets: Vec<String>,
     options: SweepOptions,
 ) -> CmdResult<u32> {
     // Parsed here, before anything is spawned, so a typo comes back as an
     // error on the button press rather than as a sweep that finds nothing.
-    let cidr = parse_sweepable_cidr(&subnet).map_err(|e| e.to_string())?;
-    let total = cidr.host_count();
+    // Named in the message, because with several subnets "invalid subnet" does
+    // not say which one.
+    let mut cidrs = Vec::new();
+    for subnet in subnets.iter().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        cidrs.push(parse_sweepable_cidr(subnet).map_err(|e| format!("{subnet}: {e}"))?);
+    }
+    if cidrs.is_empty() {
+        return Err("Enter at least one subnet to sweep.".into());
+    }
+
+    let total: u32 = cidrs.iter().map(|c| c.host_count()).sum();
+    // The per-subnet limit is checked above; this catches a set of subnets
+    // that are each reasonable and absurd together.
+    if total > MAX_SWEEP_HOSTS {
+        return Err(format!(
+            "Those subnets hold {total} addresses between them; the most that can be swept at once is {MAX_SWEEP_HOSTS}."
+        ));
+    }
 
     let token = CancellationToken::new();
     {
@@ -383,7 +399,7 @@ pub async fn start_sweep(
     });
 
     tauri::async_runtime::spawn(async move {
-        sweep(cidr, options, tx, token).await;
+        sweep_many(cidrs, options, tx, token).await;
     });
 
     Ok(total)

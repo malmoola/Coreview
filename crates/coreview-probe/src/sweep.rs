@@ -200,6 +200,46 @@ pub enum SweepEvent {
     Finished { alive: u32, scanned: u32, cancelled: bool },
 }
 
+/// Sweeps several subnets as one run.
+///
+/// A single combined total and one progress sequence, rather than a run per
+/// subnet: a progress bar that restarts three times reads as three failures,
+/// and "142 of 762" is the number someone actually wants while waiting.
+///
+/// Subnets are scanned in the order given, so results arrive in an order that
+/// matches what was typed.
+pub async fn sweep_many(
+    cidrs: Vec<Cidr>,
+    options: SweepOptions,
+    events: mpsc::Sender<SweepEvent>,
+    cancel: CancellationToken,
+) -> Vec<SweepHit> {
+    let options = options.clamped();
+    let total: u32 = cidrs.iter().map(|c| c.host_count()).sum();
+    let _ = events.send(SweepEvent::Started { total }).await;
+
+    let mut alive = Vec::new();
+    let mut done = 0u32;
+    for cidr in cidrs {
+        if cancel.is_cancelled() {
+            break;
+        }
+        let (found, scanned) =
+            scan_one(cidr, &options, &events, &cancel, done, total).await;
+        alive.extend(found);
+        done += scanned;
+    }
+
+    let _ = events
+        .send(SweepEvent::Finished {
+            alive: alive.len() as u32,
+            scanned: done,
+            cancelled: cancel.is_cancelled(),
+        })
+        .await;
+    alive
+}
+
 /// Sweeps a subnet, sending events as they happen.
 ///
 /// Returns the addresses that answered, in the order they answered. Cancelling
@@ -216,6 +256,33 @@ pub async fn sweep(
     let total = cidr.host_count();
     let _ = events.send(SweepEvent::Started { total }).await;
 
+    let (alive, scanned) = scan_one(cidr, &options, &events, &cancel, 0, total).await;
+
+    let _ = events
+        .send(SweepEvent::Finished {
+            alive: alive.len() as u32,
+            scanned,
+            cancelled: cancel.is_cancelled(),
+        })
+        .await;
+    alive
+}
+
+/// One subnet's worth of scanning, without the Started and Finished events.
+///
+/// Split out so a multi-subnet run reports one continuous sequence:
+/// `already_done` is how many addresses earlier subnets contributed, and
+/// `total` is the whole run rather than this subnet.
+///
+/// Returns what answered and how many addresses were tried.
+async fn scan_one(
+    cidr: Cidr,
+    options: &SweepOptions,
+    events: &mpsc::Sender<SweepEvent>,
+    cancel: &CancellationToken,
+    already_done: u32,
+    total: u32,
+) -> (Vec<SweepHit>, u32) {
     let permits = Arc::new(Semaphore::new(options.concurrency));
     let mut tasks = tokio::task::JoinSet::new();
 
@@ -261,17 +328,15 @@ pub async fn sweep(
             alive.push(hit.clone());
             let _ = events.send(SweepEvent::Alive(hit)).await;
         }
-        let _ = events.send(SweepEvent::Progress { done, total }).await;
+        let _ = events
+            .send(SweepEvent::Progress {
+                done: already_done + done,
+                total,
+            })
+            .await;
     }
 
-    let _ = events
-        .send(SweepEvent::Finished {
-            alive: alive.len() as u32,
-            scanned: done,
-            cancelled: cancel.is_cancelled(),
-        })
-        .await;
-    alive
+    (alive, done)
 }
 
 /// Convenience for the "filtered by subnet" rule applied to a list of
@@ -464,6 +529,66 @@ mod tests {
                 cancelled: false
             })
         ));
+    }
+
+    #[tokio::test]
+    async fn several_subnets_report_one_continuous_progress_sequence() {
+        // A progress bar that restarts per subnet reads as several failures.
+        let (tx, mut rx) = mpsc::channel(4096);
+        let cidrs = vec![
+            parse_cidr("127.0.0.1/32").unwrap(),
+            parse_cidr("127.0.0.2/32").unwrap(),
+            parse_cidr("127.0.0.3/32").unwrap(),
+        ];
+        let hits = sweep_many(cidrs, SweepOptions::default(), tx, CancellationToken::new()).await;
+        assert_eq!(hits.len(), 3, "the whole of 127/8 is loopback and answers");
+
+        let mut events = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            events.push(e);
+        }
+
+        // One Started and one Finished for the run, not one per subnet.
+        let started: Vec<_> = events
+            .iter()
+            .filter_map(|e| match e {
+                SweepEvent::Started { total } => Some(*total),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(started, vec![3], "one Started, carrying the combined total");
+
+        let finished = events
+            .iter()
+            .filter(|e| matches!(e, SweepEvent::Finished { .. }))
+            .count();
+        assert_eq!(finished, 1, "one Finished for the run");
+
+        // Progress climbs to the combined total and never restarts.
+        let progress: Vec<u32> = events
+            .iter()
+            .filter_map(|e| match e {
+                SweepEvent::Progress { done, total } => {
+                    assert_eq!(*total, 3, "every Progress carries the run total");
+                    Some(*done)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(progress, vec![1, 2, 3], "got {progress:?}");
+    }
+
+    #[tokio::test]
+    async fn sweeping_no_subnets_at_all_still_finishes() {
+        // A UI that clears its spinner on Finished must always get one.
+        let (tx, mut rx) = mpsc::channel(16);
+        let hits = sweep_many(vec![], SweepOptions::default(), tx, CancellationToken::new()).await;
+        assert!(hits.is_empty());
+        let mut last = None;
+        while let Ok(e) = rx.try_recv() {
+            last = Some(e);
+        }
+        assert!(matches!(last, Some(SweepEvent::Finished { scanned: 0, .. })), "got {last:?}");
     }
 
     #[tokio::test]

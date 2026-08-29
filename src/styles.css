@@ -649,3 +649,15 @@ textarea.cv-input { resize: vertical; }
 }
 .cv-eye:hover { color: var(--accent); }
 .cv-menu-danger { color: var(--warning) !important; }
+
+/* ---- subnet list ------------------------------------------------------- */
+.cv-subnets { margin-top: 12px; }
+.cv-subnets-label {
+  display: block; font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px;
+}
+.cv-subnet-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.cv-subnet-row .cv-input { flex: 0 1 260px; }
+.cv-subnet-row .cv-input.is-bad { border-color: var(--down); }
+.cv-subnet-problem { font-size: 12px; color: var(--down); }
+.cv-subnet-actions { display: flex; align-items: center; gap: 10px; margin-top: 2px; }

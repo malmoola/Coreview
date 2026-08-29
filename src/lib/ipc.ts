@@ -407,8 +407,8 @@ export const ipc = {
 
   /** Begin a ping sweep. Resolves with the number of addresses to be tried;
    *  results arrive on the sweep event. */
-  startSweep(subnet: string, options: SweepOptions) {
-    return invoke<number>('start_sweep', { subnet, options });
+  startSweep(subnets: string[], options: SweepOptions) {
+    return invoke<number>('start_sweep', { subnets, options });
   },
 
   /** Stop the running sweep. Safe to call when none is running. */

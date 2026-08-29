@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useStore } from '../state/store';
-import { ipc, isDesktop, type SubnetInfo, type SweepEvent } from '../lib/ipc';
+import { ipc, isDesktop, type SweepEvent } from '../lib/ipc';
 import { makeDeviceNode } from './Canvas';
+import { SubnetList } from './SubnetList';
 import type { DeviceNodeData } from '../types/domain';
 import { uid } from '../lib/id';
 
@@ -18,10 +19,9 @@ type Hit = { ip: string; rttMs: number | null; picked: boolean };
  */
 export function DiscoverPanel() {
   const store = useStore();
-  const [subnet, setSubnet] = useState('192.168.1.0/24');
+  const [subnets, setSubnets] = useState<string[]>(['192.168.1.0/24']);
   const [timeoutMs, setTimeoutMs] = useState(1000);
   const [concurrency, setConcurrency] = useState(64);
-  const [info, setInfo] = useState<SubnetInfo | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [hits, setHits] = useState<Hit[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -30,33 +30,6 @@ export function DiscoverPanel() {
   // Results arrive on an event, so the handler needs the latest setter without
   // being torn down and rebuilt on every hit.
   const seen = useRef<Set<string>>(new Set());
-
-  // Validate as it is typed, so a bad prefix is caught before a long run.
-  useEffect(() => {
-    let cancelled = false;
-    if (!isDesktop || !subnet.trim()) {
-      setInfo(null);
-      setProblem(null);
-      return;
-    }
-    void ipc
-      .describeSubnet(subnet)
-      .then((i) => {
-        if (!cancelled) {
-          setInfo(i);
-          setProblem(null);
-        }
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          setInfo(null);
-          setProblem(e instanceof Error ? e.message : String(e));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [subnet]);
 
   useEffect(() => {
     let un: (() => void) | undefined;
@@ -93,7 +66,7 @@ export function DiscoverPanel() {
     seen.current = new Set();
     setRunning(true);
     try {
-      await ipc.startSweep(subnet, { timeoutMs, concurrency });
+      await ipc.startSweep(subnets, { timeoutMs, concurrency });
     } catch (err) {
       setRunning(false);
       setProblem(err instanceof Error ? err.message : String(err));
@@ -122,7 +95,7 @@ export function DiscoverPanel() {
       store.addNode(node);
     });
     store.setStatusMessage(
-      `Added ${picked.length} ${picked.length === 1 ? 'device' : 'devices'} from ${subnet}`,
+      `Added ${picked.length} ${picked.length === 1 ? 'device' : 'devices'}`,
     );
     setHits((prev) => prev.map((h) => ({ ...h, picked: false })));
   };
@@ -144,18 +117,10 @@ export function DiscoverPanel() {
 
   return (
     <div className="cv-discover">
+      <SubnetList label="Subnets" subnets={subnets} onChange={setSubnets}
+        disabled={running} showCounts />
+
       <div className="cv-discover-form">
-        <label className="cv-field">
-          <span>Subnet</span>
-          <input
-            className="cv-input"
-            value={subnet}
-            spellCheck={false}
-            onChange={(e) => setSubnet(e.target.value)}
-            placeholder="192.168.1.0/24"
-            disabled={running}
-          />
-        </label>
         <label className="cv-field cv-field-narrow">
           <span>Timeout</span>
           <select
@@ -189,7 +154,8 @@ export function DiscoverPanel() {
             Stop
           </button>
         ) : (
-          <button type="button" className="cv-btn cv-btn-start" onClick={() => void start()} disabled={!info}>
+          <button type="button" className="cv-btn cv-btn-start" onClick={() => void start()}
+            disabled={!subnets.length}>
             Sweep
           </button>
         )}
@@ -223,11 +189,8 @@ export function DiscoverPanel() {
           </>
         ) : summary ? (
           summary
-        ) : info ? (
-          <>
-            {info.hosts.toLocaleString()} addresses, {info.network} to {info.broadcast}. Only
-            addresses that answer ICMP appear — a device with ping disabled stays invisible.
-          </>
+        ) : subnets.length ? (
+          'Only addresses that answer ICMP appear — a device with ping disabled stays invisible.'
         ) : (
           'Enter a subnet in CIDR notation.'
         )}

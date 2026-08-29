@@ -12,6 +12,7 @@ import {
 } from '../lib/ipc';
 import { makeDeviceNode } from './Canvas';
 import { CredentialPicker } from './CredentialPicker';
+import { SubnetList } from './SubnetList';
 import { uid } from '../lib/id';
 import type { DeviceNodeData } from '../types/domain';
 
@@ -72,7 +73,7 @@ type Row = {
 export function CrawlPanel() {
   const store = useStore();
   const [seed, setSeed] = useState('');
-  const [subnets, setSubnets] = useState('');
+  const [subnets, setSubnets] = useState<string[]>([]);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [enablePassword, setEnablePassword] = useState('');
@@ -232,7 +233,7 @@ export function CrawlPanel() {
       await ipc.startCrawl(
         {
           seed: seed.trim(),
-          subnets: subnets.split(',').map((s) => s.trim()).filter(Boolean),
+          subnets,
           crawlClasses: INFRASTRUCTURE,
           maxHops,
           maxDevices: 500,
@@ -321,11 +322,6 @@ export function CrawlPanel() {
           <input className="cv-input" value={seed} spellCheck={false} disabled={running}
             placeholder="10.1.1.1" onChange={(e) => setSeed(e.target.value)} />
         </label>
-        <label className="cv-field">
-          <span>Stay inside these subnets</span>
-          <input className="cv-input" value={subnets} spellCheck={false} disabled={running}
-            placeholder="10.1.0.0/16, 10.2.0.0/16" onChange={(e) => setSubnets(e.target.value)} />
-        </label>
         <CredentialPicker kind="ssh" disabled={running} chosen={credentialId} onChoose={setCredentialId}>
           <label className="cv-field cv-field-narrow">
             <span>Username</span>
@@ -366,6 +362,9 @@ export function CrawlPanel() {
         </label>
 
       </div>
+
+      <SubnetList label="Stay inside these subnets" subnets={subnets} onChange={setSubnets}
+        disabled={running} placeholder="10.1.0.0/16" />
 
       <div className="cv-discover-run">
         {running ? (
