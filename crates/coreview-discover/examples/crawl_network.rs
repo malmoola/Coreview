@@ -12,9 +12,24 @@ use coreview_discover::capture::{run_backups, BackupOptions, BackupTarget};
 use coreview_discover::crawl::{crawl, CrawlEvent, CrawlOptions};
 use coreview_discover::filter::DiscoveryFilter;
 use coreview_discover::hostkeys::HostKeyStore;
+use coreview_discover::snmp::{AuthKind, PrivKind, SnmpAuth};
 use coreview_discover::ssh::{Credentials, Secret, SshOptions};
 use coreview_probe::sweep::parse_cidr;
 use tokio_util::sync::CancellationToken;
+
+/// SNMP credentials, if the environment supplies any.
+fn snmp_from_env() -> Option<SnmpAuth> {
+    if let Ok(username) = std::env::var("CV_V3_USER") {
+        return Some(SnmpAuth::V3 {
+            username,
+            auth_protocol: AuthKind::parse(&std::env::var("CV_V3_AUTH").unwrap_or_default())?,
+            auth_password: std::env::var("CV_V3_AUTH_PASS").ok()?,
+            privacy: std::env::var("CV_V3_PRIV").ok().and_then(|p| PrivKind::parse(&p)),
+            privacy_password: std::env::var("CV_V3_PRIV_PASS").unwrap_or_default(),
+        });
+    }
+    std::env::var("CV_COMMUNITY").ok().map(|community| SnmpAuth::V2c { community })
+}
 
 #[tokio::main]
 async fn main() {
@@ -64,6 +79,7 @@ async fn main() {
             filter: DiscoveryFilter { subnets, ..Default::default() },
             max_hops: 3,
             ssh: ssh.clone(),
+            snmp: snmp_from_env(),
             ..Default::default()
         },
         Arc::clone(&store),
@@ -75,12 +91,12 @@ async fn main() {
     println!("\n--- reached ---");
     for d in &result.devices {
         println!(
-            "  {:<20} {:<16} probe={:<16} {:?} {}",
+            "  {:<22} {:<16} via {:<5} {:?} {}",
             d.hostname,
             d.address,
-            d.probe_target,
+            format!("{:?}", d.reached_by),
             d.class,
-            d.platform.as_deref().unwrap_or("")
+            d.platform.as_deref().unwrap_or("").chars().take(46).collect::<String>()
         );
         for n in &d.neighbors {
             println!(

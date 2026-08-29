@@ -55,6 +55,8 @@ type Row = {
   klass: DeviceClassName;
   platform: string | null;
   reached: boolean;
+  /** How the device answered, so the table never overstates what is known. */
+  via: 'ssh' | 'snmp' | null;
   picked: boolean;
 };
 
@@ -77,6 +79,16 @@ export function CrawlPanel() {
   const [port, setPort] = useState(22);
   const [maxHops, setMaxHops] = useState(4);
   const [preference, setPreference] = useState<'loopback' | 'management' | 'first'>('loopback');
+  // SNMP is optional and only used where SSH is refused, so it lives behind a
+  // disclosure rather than adding six more fields to the main row.
+  const [snmpOpen, setSnmpOpen] = useState(false);
+  const [snmpVersion, setSnmpVersion] = useState<'v2c' | 'v3'>('v2c');
+  const [community, setCommunity] = useState('');
+  const [snmpUser, setSnmpUser] = useState('');
+  const [snmpAuth, setSnmpAuth] = useState('sha');
+  const [snmpAuthPass, setSnmpAuthPass] = useState('');
+  const [snmpPriv, setSnmpPriv] = useState('aes 256');
+  const [snmpPrivPass, setSnmpPrivPass] = useState('');
 
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -157,6 +169,7 @@ export function CrawlPanel() {
             klass: d.class,
             platform: d.platform,
             reached: true,
+            via: d.reachedBy,
             picked: true,
           }),
         );
@@ -169,6 +182,7 @@ export function CrawlPanel() {
             klass: n.class,
             platform: n.platform,
             reached: false,
+            via: null,
             // Only what we logged into is ticked to begin with. Everything
             // else is a claim from a neighbour, not something confirmed.
             picked: false,
@@ -186,6 +200,23 @@ export function CrawlPanel() {
       offResult?.();
     };
   }, []);
+
+  /** Only sends SNMP credentials when they are complete enough to work. */
+  const snmpForRun = () => {
+    if (!snmpOpen) return undefined;
+    if (snmpVersion === 'v2c') {
+      return community.trim() ? { version: 'v2c' as const, community: community.trim() } : undefined;
+    }
+    if (!snmpUser.trim() || !snmpAuthPass) return undefined;
+    return {
+      version: 'v3' as const,
+      username: snmpUser.trim(),
+      authProtocol: snmpAuth,
+      authPassword: snmpAuthPass,
+      privacy: snmpPriv || undefined,
+      privacyPassword: snmpPrivPass,
+    };
+  };
 
   const start = async () => {
     setProblem(null);
@@ -206,6 +237,7 @@ export function CrawlPanel() {
           secondFactor,
           addressPreference: preference,
           port,
+          snmp: snmpForRun(),
         },
         { username, password, enablePassword: enablePassword || undefined },
       );
@@ -348,6 +380,71 @@ export function CrawlPanel() {
         </label>
       </div>
 
+      <details className="cv-snmp" open={snmpOpen}
+        onToggle={(e) => setSnmpOpen((e.target as HTMLDetailsElement).open)}>
+        <summary>Also try SNMP for devices that refuse SSH</summary>
+        <div className="cv-discover-form">
+          <label className="cv-field cv-field-narrow">
+            <span>Version</span>
+            <select className="cv-input" value={snmpVersion} disabled={running}
+              onChange={(e) => setSnmpVersion(e.target.value as 'v2c' | 'v3')}>
+              <option value="v2c">v2c</option>
+              <option value="v3">v3</option>
+            </select>
+          </label>
+          {snmpVersion === 'v2c' ? (
+            <label className="cv-field">
+              <span>Community (read-only)</span>
+              <input className="cv-input" type="password" value={community} autoComplete="off"
+                disabled={running} onChange={(e) => setCommunity(e.target.value)} />
+            </label>
+          ) : (
+            <>
+              <label className="cv-field cv-field-narrow">
+                <span>User</span>
+                <input className="cv-input" value={snmpUser} autoComplete="off" disabled={running}
+                  onChange={(e) => setSnmpUser(e.target.value)} />
+              </label>
+              <label className="cv-field cv-field-narrow">
+                <span>Auth</span>
+                <select className="cv-input" value={snmpAuth} disabled={running}
+                  onChange={(e) => setSnmpAuth(e.target.value)}>
+                  <option value="sha">sha</option>
+                  <option value="md5">md5</option>
+                  <option value="sha256">sha256</option>
+                  <option value="sha512">sha512</option>
+                </select>
+              </label>
+              <label className="cv-field cv-field-narrow">
+                <span>Auth password</span>
+                <input className="cv-input" type="password" value={snmpAuthPass} autoComplete="off"
+                  disabled={running} onChange={(e) => setSnmpAuthPass(e.target.value)} />
+              </label>
+              <label className="cv-field cv-field-narrow">
+                <span>Privacy</span>
+                <select className="cv-input" value={snmpPriv} disabled={running}
+                  onChange={(e) => setSnmpPriv(e.target.value)}>
+                  <option value="">none</option>
+                  <option value="aes">aes</option>
+                  <option value="aes 192">aes 192</option>
+                  <option value="aes 256">aes 256</option>
+                  <option value="des">des</option>
+                </select>
+              </label>
+              <label className="cv-field cv-field-narrow">
+                <span>Privacy password</span>
+                <input className="cv-input" type="password" value={snmpPrivPass} autoComplete="off"
+                  disabled={running} onChange={(e) => setSnmpPrivPass(e.target.value)} />
+              </label>
+            </>
+          )}
+        </div>
+        <p className="cv-help">
+          Used only where SSH is refused. A device that answers is named and classified, but
+          cannot report its neighbours, so it appears without links.
+        </p>
+      </details>
+
       {pushMessage && (
         <p className="cv-discover-push" role="status">
           {pushMessage}
@@ -414,7 +511,11 @@ export function CrawlPanel() {
                   <td className="cv-mono">{r.probeTarget || '—'}</td>
                   <td>{r.platform ?? '—'}</td>
                   <td className={r.reached ? 'cv-reached' : 'cv-seen'}>
-                    {r.reached ? 'Logged in' : 'Seen by a neighbour'}
+                    {r.via === 'ssh'
+                      ? 'Logged in'
+                      : r.via === 'snmp'
+                        ? 'SNMP only'
+                        : 'Seen by a neighbour'}
                   </td>
                 </tr>
               ))}

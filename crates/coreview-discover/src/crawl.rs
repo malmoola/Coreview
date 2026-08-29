@@ -15,6 +15,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
@@ -24,6 +25,7 @@ use crate::filter::DiscoveryFilter;
 use crate::hostkeys::HostKeyStore;
 use crate::interfaces::{addresses_from, parse_ip_interface_brief};
 use crate::lldp::parse_lldp_detail;
+use crate::snmp::{classify_identity, identify, SnmpAuth};
 use crate::ssh::{Credentials, Device, SshError, SshOptions, SshProgress};
 use crate::types::{AddressPreference, DeviceAddress, DeviceClass, Neighbor};
 
@@ -47,6 +49,15 @@ pub struct CrawlOptions {
     /// Which of a device's addresses a probe should target afterwards.
     pub address_preference: AddressPreference,
     pub ssh: SshOptions,
+    /// When set, a device that refuses SSH is still identified over SNMP.
+    ///
+    /// Worth having because the two are not interchangeable and not equally
+    /// available: a read-only community is far easier to get approved than
+    /// shell access, and on the network this was built against a neighbouring
+    /// switch rejected SSH credentials while answering SNMP quite happily.
+    /// Without this it would appear as an unreachable address and nothing else.
+    pub snmp: Option<SnmpAuth>,
+    pub snmp_timeout: Duration,
 }
 
 impl Default for CrawlOptions {
@@ -59,11 +70,26 @@ impl Default for CrawlOptions {
             second_factor: false,
             address_preference: AddressPreference::default(),
             ssh: SshOptions::default(),
+            snmp: None,
+            snmp_timeout: Duration::from_secs(5),
         }
     }
 }
 
-/// A device the crawl logged into.
+/// How much a device was willing to tell us.
+///
+/// Kept on the record because the difference matters: an SSH device reported
+/// its own neighbours and its interface table, while an SNMP one only said what
+/// it is. Presenting them identically would imply the map is more complete than
+/// it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReachedBy {
+    Ssh,
+    Snmp,
+}
+
+/// A device the crawl identified.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrawledDevice {
@@ -81,6 +107,7 @@ pub struct CrawledDevice {
     pub version: Option<String>,
     pub neighbors: Vec<Neighbor>,
     pub hops: usize,
+    pub reached_by: ReachedBy,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -186,7 +213,13 @@ pub async fn crawl(
             continue;
         }
 
-        match visit(
+        // Boxed deliberately. Every awaited call inside `visit` — the SSH
+        // handshake, the command reads, the SNMP fallback — is inlined into
+        // this function's state machine, and the whole thing grew past the
+        // stack a thread is given. The symptom was a stack overflow in a test
+        // that had nothing to do with the code that caused it, so the boxing
+        // is load-bearing rather than stylistic.
+        let visited = Box::pin(visit(
             &address,
             hops,
             &credentials,
@@ -195,10 +228,23 @@ pub async fn crawl(
             &events,
             Arc::clone(&auth_gate),
             Arc::clone(&serialise),
-        )
-        .await
-        {
+        ))
+        .await;
+
+        match visited {
             Err(e) => {
+                // SSH refused. Before writing the device off, ask whether it
+                // will identify itself over SNMP — a device that answers is
+                // worth drawing, even without its neighbours.
+                if let Some(device) = Box::pin(identify_over_snmp(&address, hops, &options)).await {
+                    if seen_hostnames.insert(device.hostname.clone()) {
+                        let _ = events
+                            .send(CrawlEvent::Reached(Box::new(device.clone())))
+                            .await;
+                        result.devices.push(device);
+                        continue;
+                    }
+                }
                 let failure = CrawlFailure {
                     address: address.clone(),
                     reason: e.to_string(),
@@ -269,6 +315,46 @@ pub async fn crawl(
         })
         .await;
     result
+}
+
+/// Asks a device to identify itself over SNMP, when SSH would not have it.
+///
+/// Returns `None` when SNMP is not configured or the device does not answer,
+/// so the caller falls through to recording the original SSH failure — which
+/// is the more useful error of the two.
+async fn identify_over_snmp(
+    address: &str,
+    hops: usize,
+    options: &CrawlOptions,
+) -> Option<CrawledDevice> {
+    let auth = options.snmp.as_ref()?;
+    let identity = identify(address, 161, auth, options.snmp_timeout).await.ok()?;
+
+    // A device that answers SNMP but has no name told us nothing worth a row.
+    let hostname = identity
+        .name
+        .clone()
+        .map(|n| crate::cdp::short_name(&n))
+        .filter(|n| !n.is_empty())?;
+
+    Some(CrawledDevice {
+        hostname,
+        address: address.to_string(),
+        addresses: vec![DeviceAddress {
+            ip: address.to_string(),
+            interface: None,
+            is_management: true,
+        }],
+        probe_target: address.to_string(),
+        class: classify_identity(&identity),
+        platform: identity.description.clone(),
+        version: identity.description,
+        // SNMP told us what this is, not what it is connected to. Leaving this
+        // empty is the honest answer.
+        neighbors: Vec::new(),
+        hops,
+        reached_by: ReachedBy::Snmp,
+    })
 }
 
 /// Logs into one device and asks it everything worth asking.
@@ -366,6 +452,7 @@ async fn visit(
             version: first_line(&version).map(str::to_string),
             neighbors: neighbors.clone(),
             hops,
+            reached_by: ReachedBy::Ssh,
         },
         neighbors,
     })
@@ -615,6 +702,23 @@ Model number            : WS-C2960X-24TS-L
             crate::classify::classify(Some(&p), &[], None),
             DeviceClass::Switch
         );
+    }
+
+    #[test]
+    fn snmp_is_off_unless_asked_for() {
+        // A community string is a credential; using one nobody supplied would
+        // be surprising, and an estate without SNMP should see no attempts.
+        assert!(CrawlOptions::default().snmp.is_none());
+    }
+
+    #[test]
+    fn how_a_device_was_reached_is_recorded() {
+        // The distinction matters: SSH gives neighbours and an interface
+        // table, SNMP gives a name. Presenting them identically would imply
+        // the map is more complete than it is.
+        assert_ne!(ReachedBy::Ssh, ReachedBy::Snmp);
+        let json = serde_json::to_string(&ReachedBy::Snmp).unwrap();
+        assert_eq!(json, "\"snmp\"", "the interface reads this");
     }
 
     #[test]

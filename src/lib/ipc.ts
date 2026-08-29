@@ -157,6 +157,22 @@ export type CrawledDevice = {
   version: string | null;
   neighbors: Neighbor[];
   hops: number;
+  /** How the device answered. SSH gives neighbours and interfaces; SNMP gives
+   *  a name and nothing about what it connects to. */
+  reachedBy: 'ssh' | 'snmp';
+};
+
+/** Optional, and only used for devices that refuse SSH. */
+export type SnmpInput = {
+  version: 'v2c' | 'v3';
+  community?: string;
+  username?: string;
+  /** The word a device configuration uses: "sha", "md5", "sha256". */
+  authProtocol?: string;
+  authPassword?: string;
+  /** "aes 256", "aes", "des"; omit for authentication without privacy. */
+  privacy?: string;
+  privacyPassword?: string;
 };
 
 export type CrawlInput = {
@@ -169,6 +185,7 @@ export type CrawlInput = {
   addressPreference: 'loopback' | 'management' | 'first' | 'interface';
   interfaceName?: string;
   port: number;
+  snmp?: SnmpInput;
 };
 
 export type SshProgress =

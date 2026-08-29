@@ -16,6 +16,7 @@ use coreview_discover::capture::{run_backups, BackupOptions, BackupTarget};
 use coreview_discover::crawl::{crawl, CrawlOptions};
 use coreview_discover::filter::DiscoveryFilter;
 use coreview_discover::hostkeys::{host_id, HostKeyStore};
+use coreview_discover::snmp::{AuthKind, PrivKind, SnmpAuth};
 use coreview_discover::ssh::{Credentials, Secret, SshOptions};
 use coreview_discover::types::{AddressPreference, DeviceClass};
 use coreview_probe::sweep::parse_cidr;
@@ -75,6 +76,55 @@ pub struct CrawlInput {
     /// Named interface, when `address_preference` is "interface".
     pub interface_name: Option<String>,
     pub port: u16,
+    /// Optional SNMP credentials, used only for devices that refuse SSH.
+    pub snmp: Option<SnmpInput>,
+}
+
+/// SNMP credentials as the interface sends them.
+///
+/// Not `Debug`, for the same reason the SSH credentials are not: a community
+/// string is a credential and belongs in no log line.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnmpInput {
+    /// "v2c" or "v3".
+    pub version: String,
+    /// v2c only.
+    pub community: Option<String>,
+    /// v3 only.
+    pub username: Option<String>,
+    /// "sha", "md5", "sha256"...
+    pub auth_protocol: Option<String>,
+    pub auth_password: Option<String>,
+    /// "aes 256", "aes", "des"; absent means authentication without privacy.
+    pub privacy: Option<String>,
+    pub privacy_password: Option<String>,
+}
+
+impl SnmpInput {
+    /// Returns `None` rather than a half-built credential: SNMP is optional,
+    /// and an incomplete v3 user would fail on every device with an error that
+    /// looks like the devices are at fault.
+    fn into_auth(self) -> Option<SnmpAuth> {
+        match self.version.as_str() {
+            "v2c" => self
+                .community
+                .filter(|c| !c.is_empty())
+                .map(|community| SnmpAuth::V2c { community }),
+            "v3" => {
+                let username = self.username.filter(|u| !u.is_empty())?;
+                let auth_password = self.auth_password.filter(|p| !p.is_empty())?;
+                Some(SnmpAuth::V3 {
+                    username,
+                    auth_protocol: AuthKind::parse(self.auth_protocol.as_deref().unwrap_or("sha"))?,
+                    auth_password,
+                    privacy: self.privacy.as_deref().and_then(PrivKind::parse),
+                    privacy_password: self.privacy_password.unwrap_or_default(),
+                })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Loads remembered host keys into a store the transport can use.
@@ -162,6 +212,8 @@ pub async fn start_crawl(
             port: input.port,
             ..SshOptions::default()
         },
+        snmp: input.snmp.and_then(SnmpInput::into_auth),
+        ..CrawlOptions::default()
     };
 
     let store = load_host_keys(&state)?;
@@ -391,6 +443,55 @@ mod tests {
                 vec![class],
                 "{class:?} did not survive as {name:?}"
             );
+        }
+    }
+
+    #[test]
+    fn incomplete_snmp_credentials_yield_nothing_rather_than_half_a_user() {
+        // A half-built v3 user fails on every device with an error that reads
+        // like the devices are at fault.
+        let missing_password = SnmpInput {
+            version: "v3".into(),
+            community: None,
+            username: Some("netops".into()),
+            auth_protocol: Some("sha".into()),
+            auth_password: None,
+            privacy: None,
+            privacy_password: None,
+        };
+        assert!(missing_password.into_auth().is_none());
+
+        let empty_community = SnmpInput {
+            version: "v2c".into(),
+            community: Some(String::new()),
+            username: None,
+            auth_protocol: None,
+            auth_password: None,
+            privacy: None,
+            privacy_password: None,
+        };
+        assert!(empty_community.into_auth().is_none());
+    }
+
+    #[test]
+    fn a_complete_v3_user_is_built_from_the_words_a_configuration_uses() {
+        // These come off an `snmp-server user` line verbatim.
+        let input = SnmpInput {
+            version: "v3".into(),
+            community: None,
+            username: Some("GRP123".into()),
+            auth_protocol: Some("sha".into()),
+            auth_password: Some("secret".into()),
+            privacy: Some("aes 256".into()),
+            privacy_password: Some("secret".into()),
+        };
+        match input.into_auth() {
+            Some(SnmpAuth::V3 { username, auth_protocol, privacy, .. }) => {
+                assert_eq!(username, "GRP123");
+                assert_eq!(auth_protocol, AuthKind::Sha1, "IOS 'sha' is SHA-1");
+                assert_eq!(privacy, Some(PrivKind::Aes256));
+            }
+            other => panic!("expected a v3 user, got {other:?}"),
         }
     }
 
