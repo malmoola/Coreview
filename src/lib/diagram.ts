@@ -46,6 +46,8 @@ export interface DiagramInput {
   /** Status per edge id. */
   linkStatus: (id: string) => HealthStatus;
   includeTitleBlock: boolean;
+  /** Mirrors the canvas setting, so the file matches the screen. */
+  nodeStyle?: 'glyph' | 'card';
   /** Injected so the output is deterministic in tests. */
   now?: Date;
 }
@@ -119,7 +121,7 @@ function iconMarkup(type: DeviceNodeData['deviceType'], color: string, x: number
     .replaceAll('currentColor', color);
 }
 
-function nodeMarkup(n: TopoNode, status: HealthStatus): string {
+function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'card'): string {
   const { w, h } = sizeOf(n);
   const { x, y } = n.position;
 
@@ -145,6 +147,49 @@ function nodeMarkup(n: TopoNode, status: HealthStatus): string {
   const bg = d.style?.background ?? '#111823';
   const isShape = SHAPE_TYPES.has(d.deviceType);
   const isText = d.deviceType === 'text';
+  const primary =
+    d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';
+
+  // The glyph presentation: symbol on top, name beneath, no box. Mirrors
+  // DeviceNode so the exported diagram is the one on screen.
+  if (nodeStyle === 'glyph' && !isShape && !isText) {
+    const size = 46;
+    const cx = x + w / 2;
+    const iconY = y + 4;
+    const parts: string[] = [
+      d.imageDataUrl
+        ? `<image x="${cx - size / 2}" y="${iconY}" width="${size}" height="${size}" href="${esc(d.imageDataUrl)}" preserveAspectRatio="xMidYMid meet"/>`
+        : iconMarkup(d.deviceType, d.style?.iconColor ?? color, cx - size / 2, iconY, size),
+      `<g><circle cx="${cx + size / 2 - 2}" cy="${iconY + 4}" r="7.5" fill="${color}" stroke="#0a0e13" stroke-width="2"/>` +
+        `<text x="${cx + size / 2 - 2}" y="${iconY + 7.5}" text-anchor="middle" fill="#07110c" font-size="9" font-weight="700">${esc(STATUS_GLYPH[status])}</text></g>`,
+    ];
+
+    let ty = iconY + size + 14;
+    // Text may be wider than the node box, exactly as on screen.
+    const textW = Math.max(w, 170);
+    parts.push(
+      `<text x="${cx}" y="${ty}" text-anchor="middle" fill="#e6eef7" font-size="12" font-weight="600">${esc(fit(d.label, textW, 12))}</text>`,
+    );
+    if (d.showDetails) {
+      if (primary) {
+        ty += 13;
+        parts.push(
+          `<text x="${cx}" y="${ty}" text-anchor="middle" fill="#8ea2b5" font-size="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">${esc(fit(primary, textW, 10))}</text>`,
+        );
+      }
+      ty += 13;
+      parts.push(
+        `<text x="${cx}" y="${ty}" text-anchor="middle" fill="${color}" font-size="10" font-weight="600">${esc(STATUS_LABEL[status])}</text>`,
+      );
+      if (d.maintenance) {
+        ty += 13;
+        parts.push(
+          `<text x="${cx}" y="${ty}" text-anchor="middle" fill="#8b7ff0" font-size="10">In maintenance</text>`,
+        );
+      }
+    }
+    return `<g>${parts.join('')}</g>`;
+  }
 
   let box: string;
   if (d.deviceType === 'circle') {
@@ -166,7 +211,7 @@ function nodeMarkup(n: TopoNode, status: HealthStatus): string {
   const textX = showIcon ? x + 10 + iconSize + 9 : x + w / 2;
   const anchorAttr = showIcon ? '' : ' text-anchor="middle"';
   const detail = d.showDetails && !isText;
-  const primaryAddress = d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';
+  const primaryAddress = primary;
   const textW = showIcon ? w - (10 + iconSize + 9) - 10 : w - 16;
 
   // Vertical centring of the whole text block, so a node without details is
@@ -356,7 +401,7 @@ export function renderDiagramSvg(input: DiagramInput): string {
   // Edges first, so a line never covers the device it lands on.
   const body =
     edges.map((e) => edgeMarkup(e, byId, input.linkStatus(e.id))).join('') +
-    nodes.map((n) => nodeMarkup(n, input.nodeStatus(n.id))).join('');
+    nodes.map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph')).join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${contentW}" height="${totalH}" viewBox="0 0 ${contentW} ${totalH}" font-family="ui-sans-serif, Segoe UI, Roboto, sans-serif">

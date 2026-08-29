@@ -86,6 +86,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       nodeStatus: (id) => store.nodeStatus(id),
       linkStatus: (id) => store.linkStatus(id),
       includeTitleBlock: true,
+      nodeStyle: store.doc.canvas.nodeStyle ?? 'glyph',
     });
 
   const exportSvg = () => {

@@ -29,12 +29,18 @@ const link: TopoEdge = {
   },
 } as TopoEdge;
 
-const render = (nodes: TopoNode[], edges: TopoEdge[] = [], status: HealthStatus = 'healthy') =>
+const render = (
+  nodes: TopoNode[],
+  edges: TopoEdge[] = [],
+  status: HealthStatus = 'healthy',
+  nodeStyle: 'glyph' | 'card' = 'card',
+) =>
   renderDiagramSvg({
     meta, nodes, edges,
     nodeStatus: () => status,
     linkStatus: () => status,
     includeTitleBlock: true,
+    nodeStyle,
     now: new Date(0),
   });
 
@@ -136,6 +142,33 @@ describe('renderDiagramSvg', () => {
     const svg = render([]);
     expect(svg).toContain('Branch cutover');
     expect(svg).toContain('</svg>');
+  });
+});
+
+describe('the glyph presentation', () => {
+  it('draws no box, but still the glyph, the name and the status', () => {
+    // The canvas draws these as a symbol with its name beneath and no border.
+    // An export that kept the card would be a different diagram.
+    const svg = render([device('n1', 0, 0)], [], 'healthy', 'glyph');
+    expect(svg).toContain('Device n1');
+    expect(svg).toContain('10.0.0.1');
+    expect(svg).toContain('Healthy');
+    expect(svg).toContain('<path');
+    // No node body box. Counting <rect> would not show this — the chassis
+    // glyph is drawn from rects too — so look for the box at the node's own
+    // geometry, which is what the card draws and the glyph does not.
+    expect(svg).not.toMatch(/<rect x="0" y="0" width="176" height="96"/);
+  });
+
+  it('still draws the annotation shapes as shapes', () => {
+    // A rectangle drawn as a glyph is not a rectangle.
+    const svg = render([device('s1', 0, 0, { deviceType: 'rectangle' })], [], 'healthy', 'glyph');
+    expect(svg).toMatch(/<rect[^>]*rx="8"/);
+  });
+
+  it('keeps the card presentation available', () => {
+    const svg = render([device('n1', 0, 0)], [], 'healthy', 'card');
+    expect(svg).toMatch(/<rect x="0" y="0" width="176" height="96"/);
   });
 });
 

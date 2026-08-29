@@ -150,6 +150,57 @@ jobs:
           path: ${{ matrix.paths }}
           if-no-files-found: error
 
+  # A second Windows installer that carries the WebView2 runtime instead of
+  # fetching it, for machines with no internet at install time. It is ~500 MB
+  # against 7 MB, which is why it is not the default: the runtime ships with
+  # Windows 11 and with Edge on Windows 10, so almost every machine already has
+  # it and would be downloading a browser engine it is not going to use.
+  #
+  # Its own job rather than a second target in `bundle`, so the default
+  # installer is never held up or failed by this one.
+  bundle-windows-offline:
+    name: bundle (windows, offline installer)
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+
+      # Node rather than a heredoc: it is already on the runner from
+      # setup-node, and it reads the file the same way Tauri will.
+      - name: Embed the WebView2 runtime
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'src-tauri/tauri.conf.json';
+            const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+            c.bundle.windows.webviewInstallMode = { type: 'offlineInstaller' };
+            fs.writeFileSync(p, JSON.stringify(c, null, 2));
+          "
+          grep -A2 webviewInstallMode src-tauri/tauri.conf.json
+
+      - name: Build bundles
+        run: npm run tauri build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coreview-windows-offline
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
   # Does the AppImage carry WebKit, or does it quietly rely on the build host
   # having it? That is the claim worth testing, and the only one an AppImage
   # actually makes: the format deliberately excludes the graphics stack,

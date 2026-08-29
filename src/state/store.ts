@@ -28,7 +28,15 @@ export interface ProjectDocument {
   nodes: TopoNode[];
   edges: TopoEdge[];
   probes: Probe[];
-  canvas: { gridEnabled: boolean; snapEnabled: boolean; minimap: boolean };
+  canvas: {
+    gridEnabled: boolean;
+    snapEnabled: boolean;
+    minimap: boolean;
+    /** How device nodes are drawn. 'glyph' is the icon with its name beneath
+     *  and no box, the way a network diagram is normally drawn. 'card' is the
+     *  bordered panel that holds the same text inside it. */
+    nodeStyle?: 'glyph' | 'card';
+  };
 }
 
 export interface AppSettings {
@@ -66,6 +74,8 @@ interface Store {
   iconLibraryDir: string | null;
   iconLibraryError: string | null;
   panelOpen: boolean;
+  paletteOpen: boolean;
+  inspectorOpen: boolean;
 
   // --- live
   session: { id: string | null; state: SessionState; startedAt: number | null };
@@ -119,6 +129,8 @@ interface Store {
   loadIconLibrary: (dir: string) => Promise<void>;
   setCanvas: (patch: Partial<ProjectDocument['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
+  setPaletteOpen: (open: boolean) => void;
+  setInspectorOpen: (open: boolean) => void;
   setStatusMessage: (msg: string | null) => void;
 }
 
@@ -126,10 +138,35 @@ export const emptyDocument = (): ProjectDocument => ({
   nodes: [],
   edges: [],
   probes: [],
-  canvas: { gridEnabled: true, snapEnabled: true, minimap: true },
+  canvas: { gridEnabled: true, snapEnabled: true, minimap: true, nodeStyle: 'glyph' },
 });
 
 const HISTORY_LIMIT = 60;
+
+/**
+ * Per-machine view preferences: which panels are open.
+ *
+ * localStorage is the right home for these — unlike the icon library folder,
+ * which the backend also reads and so belongs in the database. Nothing outside
+ * this file reads them, they are meaningless on another machine, and losing
+ * them costs a click.
+ */
+function viewPref(key: string, fallback = true): boolean {
+  try {
+    const v = localStorage.getItem(`coreview.view.${key}`);
+    return v === null ? fallback : v === '1';
+  } catch {
+    return fallback;
+  }
+}
+
+function rememberView(key: string, open: boolean): void {
+  try {
+    localStorage.setItem(`coreview.view.${key}`, open ? '1' : '0');
+  } catch {
+    /* private mode, or storage disabled — the panel just reopens next time */
+  }
+}
 
 function snapshot(doc: ProjectDocument): HistoryEntry {
   return {
@@ -158,7 +195,12 @@ export const useStore = create<Store>((set, get) => ({
     backupFolder: null,
     exportFolder: null,
   },
-  panelOpen: true,
+  panelOpen: viewPref('panelOpen'),
+  // Which panels are open is a view preference for this machine, not part of
+  // the project, so it lives in localStorage rather than the document (which
+  // would mark it dirty and travel in an export) or the settings table.
+  paletteOpen: viewPref('paletteOpen'),
+  inspectorOpen: viewPref('inspectorOpen'),
   session: { id: null, state: 'stopped', startedAt: null },
   runtime: new Map(),
   events: [],
@@ -667,7 +709,18 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   setPanelOpen(open) {
+    rememberView('panelOpen', open);
     set({ panelOpen: open });
+  },
+
+  setPaletteOpen(open) {
+    rememberView('paletteOpen', open);
+    set({ paletteOpen: open });
+  },
+
+  setInspectorOpen(open) {
+    rememberView('inspectorOpen', open);
+    set({ inspectorOpen: open });
   },
 
   setStatusMessage(msg) {

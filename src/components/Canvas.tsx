@@ -218,6 +218,20 @@ export function Canvas() {
         label: doc.canvas.gridEnabled ? 'Hide grid' : 'Show grid',
         onSelect: () => store.setCanvas({ gridEnabled: !doc.canvas.gridEnabled }),
       },
+      {
+        label:
+          (doc.canvas.nodeStyle ?? 'glyph') === 'glyph'
+            ? 'Draw devices as cards'
+            : 'Draw devices as symbols',
+        onSelect: () =>
+          store.setCanvas({
+            nodeStyle: (doc.canvas.nodeStyle ?? 'glyph') === 'glyph' ? 'card' : 'glyph',
+          }),
+      },
+      {
+        label: doc.canvas.minimap ? 'Hide the overview box' : 'Show the overview box',
+        onSelect: () => store.setCanvas({ minimap: !doc.canvas.minimap }),
+      },
     ];
   };
 
@@ -305,12 +319,22 @@ export function Canvas() {
         }}
         snapToGrid={doc.canvas.snapEnabled}
         snapGrid={[10, 10]}
-        selectionOnDrag
-        panOnDrag={[1, 2]}
-        multiSelectionKeyCode="Shift"
+        /* Left-drag pans, which is what every diagram tool does and what
+           people reach for first. It used to draw a selection box, so the
+           only way to move around a diagram larger than the window was the
+           minimap. Shift-drag still draws the box, and Ctrl-click still adds
+           to a selection. */
+        panOnDrag
+        selectionOnDrag={false}
+        selectionKeyCode="Shift"
+        multiSelectionKeyCode="Control"
+        panOnScroll={false}
         deleteKeyCode={null}
         fitView
-        proOptions={{ hideAttribution: false }}
+        /* React Flow is MIT, and its authors ask rather than require that the
+           badge stay. It is a link out to their site sitting on top of the
+           operator's diagram, and it was being mistaken for part of Coreview. */
+        proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: 'live' }}
       >
         {doc.canvas.gridEnabled && (

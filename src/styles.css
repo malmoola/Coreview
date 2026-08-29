@@ -75,6 +75,36 @@ body {
   min-height: 0;
 }
 
+/* Collapsed columns. The rails stay, so the panel can always be brought back.
+   The track count changes with the panel, the same way the responsive rules
+   below do it: a hidden panel is not a zero-width track but one track fewer,
+   or the canvas lands in the wrong one. */
+.cv-main.palette-hidden {
+  grid-template-columns: minmax(320px, 1fr) clamp(240px, 22vw, 340px);
+}
+.cv-main.palette-hidden > .cv-palette { display: none; }
+.cv-main.inspector-hidden {
+  grid-template-columns: clamp(150px, 15vw, 218px) minmax(320px, 1fr);
+}
+.cv-main.inspector-hidden > .cv-inspector { display: none; }
+.cv-main.palette-hidden.inspector-hidden { grid-template-columns: minmax(0, 1fr); }
+.cv-main { position: relative; }
+
+.cv-rail {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 12;
+  width: 14px; height: 54px; padding: 0;
+  background: var(--panel-2); color: var(--text-dim);
+  border: 1px solid var(--line); border-radius: 4px;
+  font-size: 12px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.cv-rail:hover { background: var(--panel); color: var(--text); border-color: var(--line-strong); }
+.cv-rail:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cv-rail-left { left: 0; }
+.cv-rail-right { right: 0; }
+.cv-main:not(.palette-hidden) > .cv-rail-left { left: calc(clamp(150px, 15vw, 218px) - 7px); }
+.cv-main:not(.inspector-hidden) > .cv-rail-right { right: calc(clamp(240px, 22vw, 340px) - 7px); }
+
 /* Narrow enough that three columns cannot all be useful. The inspector goes
    first: it edits the selected thing, and there is usually nothing selected,
    while the palette is how anything gets onto the canvas in the first place.
@@ -705,3 +735,65 @@ textarea.cv-input { resize: vertical; }
    a second decision after the project is already in. */
 .cv-import-vault { border: 1px solid var(--warning); border-radius: var(--radius); padding: 12px 14px; }
 .cv-import-vault h2 { margin-top: 0; }
+
+/* Glyph nodes: the icon with its name beneath it and no box.
+   A network diagram is drawn as symbols with labels, not as a wall of
+   bordered cards — and a card grows every time an address or a status line is
+   added, so the diagram reflows as monitoring turns on. Here the text sits
+   under the glyph and is free to be wider than it, so nothing moves. */
+.cv-glyph-node {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  background: none; border: none; padding: 0;
+  position: relative;
+}
+.cv-glyph-art {
+  position: relative; flex: none;
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+}
+.cv-glyph-art svg { width: 100%; height: 100%; }
+.cv-glyph-art img { width: 100%; height: 100%; object-fit: contain; }
+
+/* Selection is a ring on the glyph rather than a box around everything: the
+   node has no box to outline. */
+.cv-glyph-node.is-selected .cv-glyph-art::after {
+  content: ''; position: absolute; inset: -6px;
+  border: 1.5px solid var(--accent); border-radius: 50%;
+}
+
+.cv-glyph-badge {
+  position: absolute; top: -4px; right: -6px; z-index: 2;
+  width: 15px; height: 15px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: #07110c;
+  border: 2px solid var(--bg);
+}
+.cv-glyph-lock { position: absolute; top: -6px; left: -8px; font-size: 9px; }
+
+.cv-glyph-text {
+  margin-top: 5px; text-align: center; line-height: 1.35;
+  /* Wider than the node box so a long name does not force the node wider and
+     shove its neighbours around. */
+  width: max-content; max-width: 190px;
+  /* The block is wider than the node so a long name does not resize it. Only
+     the text itself takes pointer events, or that overhang would swallow
+     clicks meant for the canvas — and the label has to be clickable to be
+     renamed in place. */
+  pointer-events: none;
+}
+.cv-glyph-label, .cv-glyph-text .cv-inline-edit { pointer-events: auto; }
+.cv-glyph-label { font-weight: 600; font-size: 12px; color: var(--text); }
+.cv-glyph-addr { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+.cv-glyph-status { font-size: 10px; font-weight: 600; }
+
+/* Typing on the diagram itself. Sized and coloured to match the text it
+   replaces, so committing a rename does not make the label jump. */
+.cv-inline-edit {
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 3px;
+  padding: 0 3px; text-align: inherit; font: inherit;
+  width: min(180px, 90%); pointer-events: all;
+}
+.cv-glyph-text .cv-inline-edit { text-align: center; }
+.cv-glyph-label, .cv-node-label { cursor: text; }
