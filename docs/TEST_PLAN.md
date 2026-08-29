@@ -169,6 +169,8 @@ defects found and fixed; each is a commit of its own with its own evidence.
 | Export with / without credentials | **PASS**. The plain package has no vault key at all; the opt-in one carries it still encrypted. The plaintext password is in neither |
 | Import | **Was broken**: unusable on Linux, the dialog listed no files. Now native, and credentials can come back |
 | Projects | **PASS**. Create, duplicate, archive, restore, delete, each with the confirmation it should have |
+| Import devices and links from CSV | **PASS**. 5 devices and 3 links built from two spreadsheets, the nameless row and the link to a device that is not there both reported by name. All 5 went Healthy against the real network, including the Palo on tcp:443 |
+| Icon library | **PASS**. Five files including a hostile SVG; four loaded with names and categories, the oversized one reported, the folder remembered across a restart. Two bugs found |
 | Layout, 8 screen sizes | **PASS**. 3440x1440 down to 900x600, no horizontal overflow, inspector drops below 1080px as designed |
 | Process hygiene | **PASS**. No `ping` left after Stop, after Close project, or after killing the app. No zombies |
 
@@ -212,4 +214,3 @@ headless browser turns out to be true of xdotool into WebKit, not of Chromium:
   backend — discovery, backups, the vault, native dialogs — still has to be
   driven by hand against the packaged binary, because the browser build has no
   backend to drive.
-- CSV import has unit tests but no UI, so it has no manual case yet.

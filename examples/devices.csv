@@ -1,0 +1,6 @@
+name,type,ip,probe type,port,tags,notes
+Edge firewall,firewall,192.0.2.1,icmp,,edge,Example row — replace with your own
+Core switch,core switch,192.0.2.10,icmp,,core,
+Access switch 1,access switch,192.0.2.11,icmp,,access;floor-1,
+Application server,server,192.0.2.50,tcp,443,app,Checked on the port the service listens on
+Wireless AP 1,access point,192.0.2.21,icmp,,wireless,

@@ -1,0 +1,5 @@
+source,target,source port,target port,link label,health rule
+Edge firewall,Core switch,port3,Te1/0/48,10 Gb LACP,both-endpoints
+Core switch,Access switch 1,Gi1/0/1,Gi1/0/48,Trunk VLAN 10 20,both-endpoints
+Core switch,Wireless AP 1,Gi1/0/2,port1,CAPWAP,follow-target
+Access switch 1,Application server,Gi1/0/10,eth0,Access VLAN 30,follow-target

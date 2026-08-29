@@ -528,6 +528,18 @@ export const ipc = {
     return typeof picked === 'string' ? picked : null;
   },
 
+  /** Native open dialog for a CSV. Returns null if cancelled. */
+  async pickCsvFile(): Promise<string | null> {
+    if (!isDesktop) throw new BackendUnavailable('Choosing a file');
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({
+      multiple: false,
+      title: 'Import devices or links from CSV',
+      filters: [{ name: 'CSV', extensions: ['csv', 'txt'] }],
+    });
+    return typeof picked === 'string' ? picked : null;
+  },
+
   /** Reads a file the user chose in the open dialog. */
   readImport(path: string) {
     return invoke<string>('read_import', { path });
