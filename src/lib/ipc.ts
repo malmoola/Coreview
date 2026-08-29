@@ -222,6 +222,30 @@ export type BackupEvent =
 
 export type HostKeyRow = { host: string; fingerprint: string };
 
+export type VaultStatus = {
+  exists: boolean;
+  unlocked: boolean;
+  credentials: number;
+  minimumPassphrase: number;
+};
+
+export type CredentialSummary = {
+  id: string;
+  label: string;
+  kind: string;
+  username: string;
+  detail: string;
+  hasSecondSecret: boolean;
+};
+
+/** Only ever returned by revealCredential, which is the one call that hands
+ *  back a stored secret. */
+export type RevealedCredential = {
+  username: string;
+  secret: string;
+  secondSecret: string | null;
+};
+
 export type BackupDevice = { name: string; captures: number; latest: string | null };
 /** Mirrors the Rust DiffLine, which is tagged with `kind`. */
 export type DiffLine =
@@ -430,6 +454,51 @@ export const ipc = {
     if (!isDesktop) return () => {};
     const { listen } = await import('@tauri-apps/api/event');
     return listen('coreview://backup', (e) => handler(e.payload as BackupEvent));
+  },
+
+  /** The credential vault. Every call here takes secrets in; only
+   *  revealCredential returns one, and only while unlocked. */
+  vaultStatus() {
+    return isDesktop
+      ? invoke<VaultStatus>('vault_status')
+      : Promise.resolve({ exists: false, unlocked: false, credentials: 0, minimumPassphrase: 12 });
+  },
+  createVault(passphrase: string) {
+    return invoke<void>('create_vault', { passphrase });
+  },
+  unlockVault(passphrase: string) {
+    return invoke<void>('unlock_vault', { passphrase });
+  },
+  lockVault() {
+    return invoke<void>('lock_vault');
+  },
+  discardVault() {
+    return invoke<number>('discard_vault');
+  },
+  saveCredential(credential: {
+    id?: string;
+    label: string;
+    kind: string;
+    username: string;
+    secret: string;
+    secondSecret?: string;
+    detail?: string;
+  }) {
+    return invoke<string>('save_credential', { credential });
+  },
+  listCredentials() {
+    return isDesktop ? invoke<CredentialSummary[]>('list_credentials') : Promise.resolve([]);
+  },
+  revealCredential(id: string) {
+    return invoke<RevealedCredential>('reveal_credential', { id });
+  },
+  /** The vault as ciphertext, for moving it to another machine. Opening it
+   *  elsewhere still needs the passphrase. */
+  exportVault() {
+    return invoke<unknown>('export_vault');
+  },
+  deleteCredential(id: string) {
+    return invoke<void>('delete_credential', { id });
   },
 
   /** Devices with backups on disk. */

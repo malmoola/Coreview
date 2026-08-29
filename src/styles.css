@@ -624,3 +624,28 @@ textarea.cv-input { resize: vertical; }
 }
 .cv-btn-danger { color: var(--down); border-color: var(--down); }
 .cv-hostkey-message { margin-top: 8px; }
+
+/* ---- credential vault -------------------------------------------------- */
+.cv-vault { margin-top: 34px; }
+.cv-vault h2 {
+  font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-faint); font-weight: 600; margin: 0 0 12px;
+}
+.cv-vault .cv-help { max-width: 62ch; margin-bottom: 10px; }
+.cv-vault .cv-discover-form { margin-top: 12px; align-items: flex-end; }
+.cv-vault-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cv-vault-add {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px; background: var(--panel);
+}
+.cv-vault-table { margin-top: 12px; }
+.cv-vault-table td, .cv-vault-table th { font-size: 12px; }
+.cv-secret-cell { display: flex; align-items: center; gap: 6px; }
+.cv-second-secret { color: var(--text-faint); }
+.cv-eye {
+  background: none; border: none; padding: 2px; cursor: pointer;
+  color: var(--text-faint); display: inline-flex; align-items: center;
+  border-radius: 3px;
+}
+.cv-eye:hover { color: var(--accent); }
+.cv-menu-danger { color: var(--warning) !important; }

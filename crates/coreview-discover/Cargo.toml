@@ -14,6 +14,10 @@ tokio-util = "0.7"
 russh = "0.63"
 async-trait = "0.1"
 snmp2 = { version = "0.5", features = ["v3"] }
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+zeroize = { version = "1", features = ["derive"] }
+getrandom = "0.2"
 
 [dev-dependencies]
 rand = "0.10"

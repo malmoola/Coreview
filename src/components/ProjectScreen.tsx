@@ -5,6 +5,7 @@ import { SAMPLES } from '../lib/samples';
 import { ipc } from '../lib/ipc';
 import { FolderSettings } from './FolderSettings';
 import { HostKeySettings } from './HostKeySettings';
+import { VaultSettings } from './VaultSettings';
 import type { ProjectMeta } from '../types/domain';
 
 export function ProjectScreen() {
@@ -171,6 +172,8 @@ export function ProjectScreen() {
         </section>
 
         <FolderSettings />
+
+        <VaultSettings />
 
         <HostKeySettings />
 

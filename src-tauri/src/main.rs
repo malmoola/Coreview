@@ -4,6 +4,7 @@
 mod icons;
 mod commands;
 mod discovery;
+mod vault_commands;
 mod db;
 
 use std::sync::{Arc, Mutex};
@@ -28,6 +29,7 @@ fn main() {
             sweep_cancel: Mutex::new(None),
             crawl_cancel: Mutex::new(None),
             backup_cancel: Mutex::new(None),
+            vault_key: Mutex::new(None),
         })
         .setup(move |app| {
             commands::pump_events(app.handle().clone(), rx);
@@ -75,6 +77,16 @@ fn main() {
             discovery::list_host_keys,
             discovery::clear_host_keys,
             discovery::forget_host_key,
+            vault_commands::vault_status,
+            vault_commands::create_vault,
+            vault_commands::unlock_vault,
+            vault_commands::lock_vault,
+            vault_commands::discard_vault,
+            vault_commands::save_credential,
+            vault_commands::list_credentials,
+            vault_commands::reveal_credential,
+            vault_commands::export_vault,
+            vault_commands::delete_credential,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Coreview")

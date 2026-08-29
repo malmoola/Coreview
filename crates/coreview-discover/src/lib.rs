@@ -30,6 +30,7 @@ pub mod snmp;
 pub mod ssh;
 pub mod lldp;
 pub mod types;
+pub mod vault;
 
 pub use backup::{backup_path, is_inside, safe_component, BackupKind, BackupPathError};
 pub use capture::{count_changes, diff, list_captures, run_backups, BackupEvent, BackupOptions, BackupTarget, DiffLine};
@@ -44,3 +45,4 @@ pub use classify::classify;
 pub use filter::{count_by_class, DiscoveryFilter};
 pub use lldp::parse_lldp_detail;
 pub use types::{AddressPreference, DeviceAddress, DeviceClass, Neighbor, Protocol};
+pub use vault::{create, open, seal, unlock, SealedSecret, VaultError, VaultHeader, VaultKey};

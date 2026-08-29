@@ -115,6 +115,23 @@ fn dirs_next_local() -> Option<PathBuf> {
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
 }
 
+/// Restricts the database to its owner.
+///
+/// It holds encrypted credentials, and while the encryption is what actually
+/// protects them, a world-readable file hands an attacker the ciphertext and
+/// the salt to work on offline at their leisure. Best effort: on Windows the
+/// file inherits the folder's ACL, which is that platform's answer to the same
+/// question.
+fn restrict(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+}
+
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -123,6 +140,17 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     migrate(&conn)?;
+    // After WAL is enabled, so the sidecar files exist and get the same
+    // treatment — a readable -wal is as good as a readable database.
+    restrict(path);
+    for suffix in ["-wal", "-shm"] {
+        let mut sidecar = path.as_os_str().to_owned();
+        sidecar.push(suffix);
+        let sidecar = std::path::PathBuf::from(sidecar);
+        if sidecar.exists() {
+            restrict(&sidecar);
+        }
+    }
     Ok(conn)
 }
 
@@ -147,6 +175,36 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         -- refused. Fingerprints only: a public key fingerprint is not a secret,
         -- and storing it here rather than in a project keeps it out of anything
         -- that gets exported or shared.
+        -- The credential vault. Nothing here is readable without the
+        -- passphrase, which is not stored: `salt` and `verifier` let a key be
+        -- re-derived and checked, and neither reveals anything on its own.
+        CREATE TABLE IF NOT EXISTS vault_header (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            salt BLOB NOT NULL,
+            verifier BLOB NOT NULL,
+            created_ms INTEGER NOT NULL
+        );
+
+        -- One saved credential. The username and label are deliberately in
+        -- clear: they are not secrets, they are how a person picks the right
+        -- credential from a list, and encrypting them would only make the
+        -- interface unusable while locked.
+        CREATE TABLE IF NOT EXISTS credentials (
+            id TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            username TEXT NOT NULL,
+            secret_nonce BLOB NOT NULL,
+            secret_cipher BLOB NOT NULL,
+            -- The second secret: an enable password for SSH, a privacy
+            -- password for SNMPv3. Absent when there is none.
+            extra_nonce BLOB,
+            extra_cipher BLOB,
+            -- Algorithm words for SNMPv3, which are not secret.
+            detail TEXT NOT NULL DEFAULT '',
+            created_ms INTEGER NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS host_keys (
             host_id TEXT PRIMARY KEY,
             fingerprint TEXT NOT NULL,
@@ -454,8 +512,217 @@ pub fn forget_host_key(conn: &Connection, host_id: &str) -> rusqlite::Result<usi
     conn.execute("DELETE FROM host_keys WHERE host_id = ?1", params![host_id])
 }
 
+// ------------------------------------------------------------------- vault
+
+pub struct StoredCredential {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+    pub username: String,
+    pub secret: (Vec<u8>, Vec<u8>),
+    pub extra: Option<(Vec<u8>, Vec<u8>)>,
+    pub detail: String,
+}
+
+pub fn vault_header(conn: &Connection) -> rusqlite::Result<Option<(Vec<u8>, Vec<u8>)>> {
+    conn.query_row(
+        "SELECT salt, verifier FROM vault_header WHERE id = 1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )
+    .optional()
+}
+
+/// Creates the vault. Refuses to replace an existing one: overwriting the
+/// header would orphan every stored credential, silently and irreversibly.
+pub fn create_vault(
+    conn: &Connection,
+    salt: &[u8],
+    verifier: &[u8],
+    now_ms: i64,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO vault_header (id, salt, verifier, created_ms) VALUES (1, ?1, ?2, ?3)",
+        params![salt, verifier, now_ms],
+    )?;
+    Ok(())
+}
+
+/// Removes the vault and everything in it.
+///
+/// The only way out of a forgotten passphrase, and it is destructive by
+/// necessity — without the key the rows are unreadable, so keeping them would
+/// only be keeping rubbish.
+pub fn destroy_vault(conn: &Connection) -> rusqlite::Result<usize> {
+    let removed = conn.execute("DELETE FROM credentials", [])?;
+    conn.execute("DELETE FROM vault_header", [])?;
+    Ok(removed)
+}
+
+pub fn save_credential(conn: &Connection, c: &StoredCredential, now_ms: i64) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO credentials
+           (id, label, kind, username, secret_nonce, secret_cipher, extra_nonce, extra_cipher, detail, created_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+         ON CONFLICT(id) DO UPDATE SET
+           label = excluded.label, kind = excluded.kind, username = excluded.username,
+           secret_nonce = excluded.secret_nonce, secret_cipher = excluded.secret_cipher,
+           extra_nonce = excluded.extra_nonce, extra_cipher = excluded.extra_cipher,
+           detail = excluded.detail",
+        params![
+            c.id, c.label, c.kind, c.username,
+            c.secret.0, c.secret.1,
+            c.extra.as_ref().map(|e| &e.0), c.extra.as_ref().map(|e| &e.1),
+            c.detail, now_ms
+        ],
+    )?;
+    Ok(())
+}
+
+/// Everything about the saved credentials *except* the secrets.
+///
+/// A deliberately separate query from `credential`, so the listing path cannot
+/// accidentally carry ciphertext towards the interface.
+/// id, label, kind, username, detail — everything about a saved credential
+/// except its secrets.
+pub type CredentialListing = (String, String, String, String, String);
+
+pub fn list_credentials(conn: &Connection) -> rusqlite::Result<Vec<CredentialListing>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, label, kind, username, detail FROM credentials ORDER BY label",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+    })?;
+    rows.collect()
+}
+
+pub fn credential(conn: &Connection, id: &str) -> rusqlite::Result<Option<StoredCredential>> {
+    conn.query_row(
+        "SELECT id, label, kind, username, secret_nonce, secret_cipher, extra_nonce, extra_cipher, detail
+           FROM credentials WHERE id = ?1",
+        params![id],
+        |r| {
+            let extra_nonce: Option<Vec<u8>> = r.get(6)?;
+            let extra_cipher: Option<Vec<u8>> = r.get(7)?;
+            Ok(StoredCredential {
+                id: r.get(0)?,
+                label: r.get(1)?,
+                kind: r.get(2)?,
+                username: r.get(3)?,
+                secret: (r.get(4)?, r.get(5)?),
+                extra: extra_nonce.zip(extra_cipher),
+                detail: r.get(8)?,
+            })
+        },
+    )
+    .optional()
+}
+
+pub fn delete_credential(conn: &Connection, id: &str) -> rusqlite::Result<usize> {
+    conn.execute("DELETE FROM credentials WHERE id = ?1", params![id])
+}
+
 #[cfg(test)]
 mod tests {
+
+    fn cred(id: &str, label: &str) -> StoredCredential {
+        StoredCredential {
+            id: id.into(),
+            label: label.into(),
+            kind: "ssh".into(),
+            username: "netops".into(),
+            secret: (vec![1, 2, 3], vec![9, 9, 9]),
+            extra: Some((vec![4, 5, 6], vec![8, 8, 8])),
+            detail: String::new(),
+        }
+    }
+
+    #[test]
+    fn a_vault_can_only_be_created_once() {
+        // Replacing the header would orphan every stored credential, silently
+        // and with no way back.
+        let conn = mem();
+        assert!(vault_header(&conn).unwrap().is_none());
+        create_vault(&conn, b"salt", b"verifier", 1).unwrap();
+        assert!(create_vault(&conn, b"other", b"other", 2).is_err());
+
+        let (salt, verifier) = vault_header(&conn).unwrap().unwrap();
+        assert_eq!(salt, b"salt");
+        assert_eq!(verifier, b"verifier");
+    }
+
+    #[test]
+    fn listing_credentials_returns_no_ciphertext_at_all() {
+        // The listing feeds the interface. Its query is deliberately separate
+        // from the one that reads a secret, so this path cannot carry
+        // ciphertext towards the front end even by mistake.
+        let conn = mem();
+        save_credential(&conn, &cred("a", "Core switches"), 1).unwrap();
+
+        let listed = list_credentials(&conn).unwrap();
+        assert_eq!(listed.len(), 1);
+        let (id, label, kind, username, _detail) = &listed[0];
+        assert_eq!((id.as_str(), label.as_str(), kind.as_str(), username.as_str()),
+                   ("a", "Core switches", "ssh", "netops"));
+    }
+
+    #[test]
+    fn a_credential_round_trips_with_both_secrets() {
+        let conn = mem();
+        save_credential(&conn, &cred("a", "Core"), 1).unwrap();
+        let got = credential(&conn, "a").unwrap().unwrap();
+        assert_eq!(got.secret, (vec![1, 2, 3], vec![9, 9, 9]));
+        assert_eq!(got.extra, Some((vec![4, 5, 6], vec![8, 8, 8])));
+    }
+
+    #[test]
+    fn a_credential_without_a_second_secret_stays_without_one() {
+        // An SSH credential with no enable password, or v3 with no privacy.
+        let conn = mem();
+        let mut c = cred("a", "Core");
+        c.extra = None;
+        save_credential(&conn, &c, 1).unwrap();
+        assert_eq!(credential(&conn, "a").unwrap().unwrap().extra, None);
+    }
+
+    #[test]
+    fn saving_the_same_id_updates_rather_than_duplicating() {
+        let conn = mem();
+        save_credential(&conn, &cred("a", "Old name"), 1).unwrap();
+        save_credential(&conn, &cred("a", "New name"), 2).unwrap();
+        let listed = list_credentials(&conn).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].1, "New name");
+    }
+
+    #[test]
+    fn destroying_the_vault_takes_the_credentials_with_it() {
+        // Without the key the rows are unreadable, so keeping them would only
+        // be keeping rubbish — and leaving them would make a fresh vault look
+        // like it had contents.
+        let conn = mem();
+        create_vault(&conn, b"salt", b"verifier", 1).unwrap();
+        save_credential(&conn, &cred("a", "One"), 1).unwrap();
+        save_credential(&conn, &cred("b", "Two"), 1).unwrap();
+
+        assert_eq!(destroy_vault(&conn).unwrap(), 2);
+        assert!(vault_header(&conn).unwrap().is_none());
+        assert!(list_credentials(&conn).unwrap().is_empty());
+        // And a new vault can be created afterwards.
+        assert!(create_vault(&conn, b"new", b"new", 2).is_ok());
+    }
+
+    #[test]
+    fn one_credential_can_be_deleted_without_touching_the_rest() {
+        let conn = mem();
+        save_credential(&conn, &cred("a", "One"), 1).unwrap();
+        save_credential(&conn, &cred("b", "Two"), 1).unwrap();
+        assert_eq!(delete_credential(&conn, "a").unwrap(), 1);
+        let listed = list_credentials(&conn).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].0, "b");
+    }
 
     #[test]
     fn host_keys_round_trip() {

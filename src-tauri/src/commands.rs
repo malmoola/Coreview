@@ -30,6 +30,9 @@ pub struct AppState {
     /// are three different jobs and stopping one must not stop the others.
     pub crawl_cancel: Mutex<Option<CancellationToken>>,
     pub backup_cancel: Mutex<Option<CancellationToken>>,
+    /// The unlocked vault key, for as long as the app is running. Never
+    /// written anywhere, and zeroed when it is dropped.
+    pub vault_key: Mutex<Option<coreview_discover::vault::VaultKey>>,
 }
 
 type CmdResult<T> = Result<T, String>;

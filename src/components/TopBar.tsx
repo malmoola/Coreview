@@ -95,12 +95,19 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     void runExport(`${slug(meta.name)}-report.md`, () => md, 'text/markdown');
   };
 
-  const exportPackage = async () => {
+  const exportPackage = async (withCredentials = false) => {
     const pkg = await ipc.loadProject(meta.id);
     if (!pkg) return;
+    // Credentials are app-wide rather than part of a project, so they are
+    // never in an export unless asked for. A project package is the thing
+    // people send to each other, and quietly including every saved password
+    // in it is how they escape.
+    const payload = withCredentials
+      ? { ...pkg, vault: await ipc.exportVault() }
+      : pkg;
     await runExport(
-      `${slug(meta.name)}.coreview`,
-      () => JSON.stringify(pkg, null, 2),
+      withCredentials ? `${slug(meta.name)}-with-credentials.coreview` : `${slug(meta.name)}.coreview`,
+      () => JSON.stringify(payload, null, 2),
       'application/json',
     );
   };
@@ -191,8 +198,16 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             <button type="button" onClick={exportReport}>
               Validation report (Markdown)
             </button>
-            <button type="button" onClick={() => void exportPackage()}>
+            <button type="button" onClick={() => void exportPackage(false)}>
               Project package (.coreview)
+            </button>
+            <button
+              type="button"
+              className="cv-menu-danger"
+              title="Includes every saved credential, still encrypted. Whoever opens it needs your vault passphrase."
+              onClick={() => void exportPackage(true)}
+            >
+              Project package with saved credentials
             </button>
           </div>
         </details>

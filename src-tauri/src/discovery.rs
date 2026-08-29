@@ -78,6 +78,11 @@ pub struct CrawlInput {
     pub port: u16,
     /// Optional SNMP credentials, used only for devices that refuse SSH.
     pub snmp: Option<SnmpInput>,
+    /// A saved credential to use instead of typed ones. The interface sends an
+    /// id; the password is fetched inside Rust and never travels.
+    pub credential_id: Option<String>,
+    /// A saved SNMP credential, likewise by reference.
+    pub snmp_credential_id: Option<String>,
 }
 
 /// SNMP credentials as the interface sends them.
@@ -124,6 +129,23 @@ impl SnmpInput {
             }
             _ => None,
         }
+    }
+}
+
+/// Chooses between a saved credential and typed ones.
+///
+/// The saved reference wins when given, because sending both is how a stale
+/// typed password silently overrides the one the user just picked from a list.
+/// Fetching happens here, inside Rust, so the password never travels either
+/// way across the interface boundary.
+fn resolve_ssh(
+    state: &State<'_, AppState>,
+    saved: Option<&str>,
+    typed: CredentialInput,
+) -> CmdResult<Credentials> {
+    match saved {
+        Some(id) => crate::vault_commands::ssh_credentials(state, id),
+        None => Ok(typed.into()),
     }
 }
 
@@ -212,7 +234,10 @@ pub async fn start_crawl(
             port: input.port,
             ..SshOptions::default()
         },
-        snmp: input.snmp.and_then(SnmpInput::into_auth),
+        snmp: match input.snmp_credential_id.as_deref() {
+            Some(id) => Some(crate::vault_commands::snmp_credentials(&state, id)?),
+            None => input.snmp.and_then(SnmpInput::into_auth),
+        },
         ..CrawlOptions::default()
     };
 
@@ -234,7 +259,7 @@ pub async fn start_crawl(
     });
 
     let seed = input.seed;
-    let credentials: Credentials = credentials.into();
+    let credentials = resolve_ssh(&state, input.credential_id.as_deref(), credentials)?;
     let persist_store = Arc::clone(&store);
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -270,6 +295,8 @@ pub fn cancel_crawl(state: State<'_, AppState>) -> CmdResult<()> {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupInput {
+    /// A saved credential to use instead of typed ones.
+    pub credential_id: Option<String>,
     pub targets: Vec<BackupTarget>,
     /// "running", "startup", or both.
     pub kinds: Vec<String>,
@@ -338,7 +365,7 @@ pub async fn start_backup(
         }
     });
 
-    let credentials: Credentials = credentials.into();
+    let credentials = resolve_ssh(&state, input.credential_id.as_deref(), credentials)?;
     let targets = input.targets;
     let persist_store = Arc::clone(&store);
     let handle = app.clone();
