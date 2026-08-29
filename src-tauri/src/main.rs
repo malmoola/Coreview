@@ -105,6 +105,7 @@ fn main() {
             commands::app_info,
             commands::list_icon_library,
             commands::save_export,
+            commands::read_import,
             commands::get_settings,
             commands::set_setting,
             commands::check_folder_writable,
@@ -131,6 +132,7 @@ fn main() {
             vault_commands::list_credentials,
             vault_commands::reveal_credential,
             vault_commands::export_vault,
+            vault_commands::import_vault,
             vault_commands::delete_credential,
         ])
         .build(tauri::generate_context!())

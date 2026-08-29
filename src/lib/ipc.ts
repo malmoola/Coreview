@@ -506,8 +506,31 @@ export const ipc = {
   exportVault() {
     return invoke<unknown>('export_vault');
   },
+  /** Takes the credentials out of an exported package. Needs the passphrase
+   *  of the vault they were exported from, and this vault unlocked.
+   *  Returns how many were imported. */
+  importVault(vault: unknown, passphrase: string) {
+    return invoke<number>('import_vault', { vault, passphrase });
+  },
   deleteCredential(id: string) {
     return invoke<void>('delete_credential', { id });
+  },
+
+  /** Native open dialog for a project package. Returns null if cancelled. */
+  async pickProjectFile(): Promise<string | null> {
+    if (!isDesktop) throw new BackendUnavailable('Choosing a file');
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({
+      multiple: false,
+      title: 'Import a Coreview project',
+      filters: [{ name: 'Coreview project', extensions: ['coreview', 'livetopo', 'json'] }],
+    });
+    return typeof picked === 'string' ? picked : null;
+  },
+
+  /** Reads a file the user chose in the open dialog. */
+  readImport(path: string) {
+    return invoke<string>('read_import', { path });
   },
 
   /** Devices with backups on disk. */

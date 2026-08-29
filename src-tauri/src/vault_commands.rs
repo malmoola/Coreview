@@ -303,6 +303,81 @@ pub fn export_vault(state: State<'_, AppState>) -> CmdResult<serde_json::Value> 
     }))
 }
 
+/// Takes the credentials out of an exported project package.
+///
+/// The credentials in that file are sealed under the *exporting* machine's
+/// key, so importing them needs that machine's passphrase — there is no way
+/// around it, and no way to check the file is worth importing without it.
+/// Each secret is opened with the imported key and resealed under this
+/// vault's, so nothing on disk here is ever encrypted with someone else's
+/// passphrase.
+///
+/// Requires the local vault to be unlocked: this writes into it.
+#[tauri::command]
+pub fn import_vault(
+    state: State<'_, AppState>,
+    vault: serde_json::Value,
+    passphrase: String,
+) -> CmdResult<usize> {
+    let guard = state.vault_key.lock().map_err(db_err)?;
+    let local = guard.as_ref().ok_or_else(|| vault::VaultError::Locked.to_string())?;
+
+    let bytes = |v: &serde_json::Value| -> Option<Vec<u8>> {
+        v.as_array()?
+            .iter()
+            .map(|n| n.as_u64().and_then(|x| u8::try_from(x).ok()))
+            .collect()
+    };
+
+    let header = vault::VaultHeader {
+        salt: bytes(&vault["salt"]).ok_or("That package's credentials are damaged.")?,
+        verifier: bytes(&vault["verifier"]).ok_or("That package's credentials are damaged.")?,
+    };
+    // Fails here, before anything is written, if the passphrase is wrong.
+    let source = vault::unlock(&passphrase, &header).map_err(|e| e.to_string())?;
+
+    let items = vault["credentials"]
+        .as_array()
+        .ok_or("That package has no credentials to import.")?;
+
+    let conn = state.db.lock().map_err(db_err)?;
+    let mut imported = 0usize;
+    for item in items {
+        let reseal = |nonce: &serde_json::Value, cipher: &serde_json::Value| -> CmdResult<Option<(Vec<u8>, Vec<u8>)>> {
+            let (Some(nonce), Some(ciphertext)) = (bytes(nonce), bytes(cipher)) else {
+                return Ok(None);
+            };
+            let plain = vault::open(&source, &vault::SealedSecret { nonce, ciphertext })
+                .map_err(|e| e.to_string())?;
+            let sealed = vault::seal(local, &plain).map_err(|e| e.to_string())?;
+            Ok(Some((sealed.nonce, sealed.ciphertext)))
+        };
+
+        let Some(secret) = reseal(&item["secretNonce"], &item["secretCipher"])? else {
+            continue;
+        };
+        let extra = reseal(&item["extraNonce"], &item["extraCipher"])?;
+
+        let text = |k: &str| item[k].as_str().unwrap_or_default().to_string();
+        let stored = db::StoredCredential {
+            // A fresh id: an import must not overwrite a local credential that
+            // happens to share one, which two vaults seeded from the same
+            // export would.
+            id: uuid::Uuid::new_v4().to_string(),
+            label: text("label"),
+            kind: text("kind"),
+            username: text("username"),
+            secret,
+            extra,
+            detail: text("detail"),
+        };
+        db::save_credential(&conn, &stored, now_ms()).map_err(db_err)?;
+        imported += 1;
+    }
+
+    Ok(imported)
+}
+
 /// Rebuilds SSH credentials from the vault, for use inside this process.
 ///
 /// Deliberately not a command. It returns plaintext, so it is callable from

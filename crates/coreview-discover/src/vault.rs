@@ -50,15 +50,20 @@ const VERIFIER_PLAINTEXT: &[u8] = b"coreview-vault-v1";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum VaultError {
-    #[error("that passphrase does not unlock this vault")]
+    // Sentence case with a full stop, against the usual Rust convention of
+    // lowercase and no punctuation. Every one of these reaches a person
+    // verbatim — the interface prints `to_string()` as its own line and never
+    // composes it into a larger message — and "that passphrase does not
+    // unlock this vault" sitting under a capitalised heading reads as a bug.
+    #[error("That passphrase does not unlock this vault.")]
     WrongPassphrase,
-    #[error("the vault is locked — unlock it before using a saved credential")]
+    #[error("The vault is locked — unlock it before using a saved credential.")]
     Locked,
-    #[error("a passphrase must be at least {0} characters")]
+    #[error("A passphrase must be at least {0} characters.")]
     PassphraseTooShort(usize),
-    #[error("the stored credential is damaged and cannot be read")]
+    #[error("The stored credential is damaged and cannot be read.")]
     Corrupt,
-    #[error("could not generate random bytes: {0}")]
+    #[error("Could not generate random bytes: {0}")]
     NoRandomness(String),
 }
 
@@ -193,6 +198,41 @@ pub fn open(key: &VaultKey, sealed: &SealedSecret) -> Result<String, VaultError>
 
 #[cfg(test)]
 mod tests {
+
+    /// Moving a credential between machines, which is what importing a project
+    /// package with credentials does.
+    ///
+    /// The secrets in that file are sealed with the *exporting* vault's key, so
+    /// the import has to unlock that header with its own passphrase, open each
+    /// secret, and reseal it under the local key. Nothing on the importing
+    /// machine may end up encrypted with someone else's passphrase.
+    #[test]
+    fn a_secret_moves_between_vaults_by_resealing() {
+        let (exported_header, exporting) = create("passphrase on the first box").unwrap();
+        let (_, importing) = create("a different passphrase here").unwrap();
+
+        let from_them = seal(&exporting, "C!sco212").unwrap();
+        // The local key must not be able to read the file as it arrived.
+        assert!(open(&importing, &from_them).is_err());
+
+        let source = unlock("passphrase on the first box", &exported_header).unwrap();
+        let plain = open(&source, &from_them).unwrap();
+        let ours = seal(&importing, &plain).unwrap();
+
+        assert_eq!(open(&importing, &ours).unwrap(), "C!sco212");
+        // Resealing produces different bytes, so the file's ciphertext is not
+        // simply copied into the local database.
+        assert_ne!(ours.ciphertext, from_them.ciphertext);
+    }
+
+    #[test]
+    fn the_wrong_passphrase_will_not_open_an_exported_header() {
+        let (header, _) = create("passphrase on the first box").unwrap();
+        assert!(matches!(
+            unlock("not that passphrase at all", &header),
+            Err(VaultError::WrongPassphrase)
+        ));
+    }
     use super::*;
 
     const PASSPHRASE: &str = "a passphrase long enough";

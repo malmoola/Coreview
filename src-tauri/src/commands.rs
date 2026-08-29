@@ -252,6 +252,32 @@ pub fn save_export(path: String, contents_b64: String) -> CmdResult<()> {
     std::fs::write(&path, bytes).map_err(|e| format!("Could not write {path}: {e}"))
 }
 
+/// Reads a project package the user picked in the open dialog.
+///
+/// The counterpart to `save_export`, and the only way the webview can read a
+/// file: it cannot name a path on its own, only pass back one chosen in a
+/// native dialog.
+///
+/// Import used an `<input type="file">` instead, which is how it came to be
+/// unusable on Linux — WebKitGTK turns the `accept` list into a filter that
+/// matches nothing when the extension has no registered MIME type, so the
+/// dialog showed an empty folder and Open stayed greyed out.
+#[tauri::command]
+pub fn read_import(path: String) -> CmdResult<String> {
+    const MAX: u64 = 64 * 1024 * 1024;
+    let size = std::fs::metadata(&path)
+        .map_err(|e| format!("Could not read {path}: {e}"))?
+        .len();
+    if size > MAX {
+        return Err(format!(
+            "{path} is {} MB. A Coreview project is not that large, so this is not one.",
+            size / (1024 * 1024)
+        ));
+    }
+    std::fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read {path}: {e}"))
+}
+
 #[cfg(test)]
 mod export_tests {
     use super::*;

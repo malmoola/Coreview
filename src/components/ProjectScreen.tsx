@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { useStore, type ProjectDocument } from '../state/store';
 import { SAMPLES } from '../lib/samples';
-import { ipc } from '../lib/ipc';
+import { ipc, isDesktop } from '../lib/ipc';
 import { FolderSettings } from './FolderSettings';
 import { HostKeySettings } from './HostKeySettings';
 import { VaultSettings } from './VaultSettings';
@@ -16,6 +16,15 @@ export function ProjectScreen() {
   const [confirmDelete, setConfirmDelete] = useState<ProjectMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Set when an imported package turned out to carry credentials, so the
+  // passphrase can be asked for after the project itself is safely in.
+  const [pending, setPending] = useState<{
+    meta: ProjectMeta;
+    document: ProjectDocument;
+    vault?: unknown;
+  } | null>(null);
+  const [vaultPassphrase, setVaultPassphrase] = useState('');
+  const [vaultNote, setVaultNote] = useState<string | null>(null);
 
   useEffect(() => {
     void store.refreshProjects();
@@ -27,23 +36,89 @@ export function ProjectScreen() {
 
   const visible = projects.filter((p) => p.archived === showArchived);
 
+  type Package = { meta: ProjectMeta; document: ProjectDocument; vault?: unknown };
+
+  const openImported = (pkg: Package) =>
+    store.createProject(
+      { ...pkg.meta, name: `${pkg.meta.name} (imported)` },
+      pkg.document as ProjectDocument,
+    );
+
+  const readPackage = async (text: string) => {
+    const pkg = JSON.parse(text) as Package;
+    if (!pkg?.meta?.name || !pkg.document) throw new Error('missing project metadata');
+    // A package carrying credentials asks about them here, before the project
+    // opens — creating it first would navigate away from this screen and the
+    // question would never be seen. Either answer still opens the project, so
+    // a refused or failed credential import never costs the diagram.
+    if (pkg.vault) {
+      setPending(pkg);
+      setVaultPassphrase('');
+      setVaultNote(null);
+      return;
+    }
+    await openImported(pkg);
+  };
+
+  const failedImport = (err: unknown) =>
+    setError(
+      `That file could not be read as a Coreview project (${
+        err instanceof Error ? err.message : String(err)
+      }). Choose a .coreview file exported from Coreview (.livetopo files from before the rename still work).`,
+    );
+
+  /** Native dialog, then a backend read.
+   *
+   *  This was an `<input type="file" accept=".coreview,...">`, which does not
+   *  work on Linux: WebKitGTK turns the accept list into a filter that matches
+   *  nothing when the extension has no registered MIME type, so the dialog
+   *  opened on an empty folder with Open greyed out and no way to proceed. */
+  const importFromDialog = async () => {
+    setError(null);
+    try {
+      const path = await ipc.pickProjectFile();
+      if (!path) return;
+      await readPackage(await ipc.readImport(path));
+    } catch (err) {
+      failedImport(err);
+    }
+  };
+
+  /** Browser fallback, where there is no native dialog. */
   const importPackage = async (file: File) => {
     setError(null);
     try {
-      const text = await file.text();
-      const pkg = JSON.parse(text) as { meta: ProjectMeta; document: ProjectDocument };
-      if (!pkg?.meta?.name || !pkg.document) throw new Error('missing project metadata');
-      await store.createProject(
-        { ...pkg.meta, name: `${pkg.meta.name} (imported)` },
-        pkg.document as ProjectDocument,
-      );
+      await readPackage(await file.text());
     } catch (err) {
-      setError(
-        `That file could not be read as a Coreview project (${
-          err instanceof Error ? err.message : String(err)
-        }). Choose a .coreview file exported from Coreview (.livetopo files from\n        before the rename still work).`,
-      );
+      failedImport(err);
     }
+  };
+
+  const importCredentials = () => {
+    if (!pending) return;
+    const pkg = pending;
+    setVaultNote(null);
+    void ipc
+      .importVault(pkg.vault, vaultPassphrase)
+      .then(async (n) => {
+        setPending(null);
+        setVaultPassphrase('');
+        await openImported(pkg);
+        store.setStatusMessage(
+          `Imported ${n} credential${n === 1 ? '' : 's'}, re-sealed with this machine's passphrase.`,
+        );
+      })
+      .catch((e: unknown) => setVaultNote(e instanceof Error ? e.message : String(e)));
+  };
+
+  const skipCredentials = () => {
+    if (!pending) return;
+    const pkg = pending;
+    setPending(null);
+    setVaultPassphrase('');
+    void openImported(pkg).then(() =>
+      store.setStatusMessage('Credentials left in the file. The project was imported without them.'),
+    );
   };
 
   return (
@@ -61,20 +136,26 @@ export function ProjectScreen() {
           <button type="button" className="cv-btn cv-btn-start" onClick={() => setCreating(true)}>
             Create project
           </button>
-          <button type="button" className="cv-btn" onClick={() => fileRef.current?.click()}>
+          <button
+            type="button"
+            className="cv-btn"
+            onClick={() => (isDesktop ? void importFromDialog() : fileRef.current?.click())}
+          >
             Import project
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".coreview,.livetopo,application/json"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void importPackage(f);
-              e.target.value = '';
-            }}
-          />
+          {!isDesktop && (
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".coreview,.livetopo,application/json"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void importPackage(f);
+                e.target.value = '';
+              }}
+            />
+          )}
           <label className="cv-check cv-check-inline">
             <input
               type="checkbox"
@@ -86,6 +167,43 @@ export function ProjectScreen() {
         </div>
 
         {error && <p className="cv-error">{error}</p>}
+
+        {pending != null && (
+          <section className="cv-welcome-section cv-import-vault">
+            <h2>This package also carries saved credentials</h2>
+            <p className="cv-help">
+              They are sealed with the passphrase of the vault they were exported from, so that
+              is the passphrase they need — not this machine's. Your own vault has to be unlocked,
+              because each one is re-sealed with your key on the way in.
+            </p>
+            <div className="cv-discover-form">
+              <label className="cv-field">
+                <span>Passphrase of the exporting vault</span>
+                <input
+                  className="cv-input"
+                  type="password"
+                  value={vaultPassphrase}
+                  autoComplete="off"
+                  onChange={(e) => setVaultPassphrase(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && vaultPassphrase && importCredentials()}
+                />
+              </label>
+              <button
+                type="button"
+                className="cv-btn cv-btn-start"
+                onClick={importCredentials}
+                disabled={!vaultPassphrase}
+              >
+                Import credentials
+              </button>
+              <button type="button" className="cv-btn" onClick={skipCredentials}>
+                Skip them
+              </button>
+            </div>
+          </section>
+        )}
+
+        {vaultNote && <p className="cv-help cv-hostkey-message">{vaultNote}</p>}
 
         <section className="cv-welcome-section">
           <h2>{showArchived ? 'Archived projects' : 'Recent projects'}</h2>
