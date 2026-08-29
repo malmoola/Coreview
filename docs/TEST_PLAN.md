@@ -192,10 +192,26 @@ could not: the Tauri build renders in WebKitGTK, and xdotool does not produce
 the pointer sequence `NodeResizer` needs or a real HTML5 drag from the palette.
 These components are pure frontend, so the browser exercises the same code.
 
-Eleven checks: a palette item dragged onto the canvas creates the right node;
+Twenty-two checks: a palette item dragged onto the canvas creates the right node;
 a selected node and a selected note both show resize handles and grow when a
 corner is dragged; a node can be moved; a locked node and a locked note refuse
-to move and offer no handles.
+to move and offer no handles; and grouping — a companion follows the node that
+was dragged, a member React Flow already moved is not moved twice, and
+ungrouping parts them again.
+
+Two of these checks passed against code with the feature removed when first
+written, and both were rewritten rather than kept. The locked-node checks
+measured absolute screen position, which panning legitimately changes now that
+left-drag pans; they compare the gap between two nodes instead. The grouping
+check left both nodes selected from grouping them, and React Flow moves a
+selection together on its own; it deselects first now. Every check in this file
+has been confirmed to fail against the unfixed code.
+
+**Grouping cannot be driven in the packaged binary.** Ctrl-click and Shift-drag
+do not reach WebKitGTK through xdotool — the same limitation that put cases 2
+and 5 here rather than in the manual script. The frontend is identical in both
+builds and selection is React Flow's own, so the browser coverage is the
+evidence for it.
 
 It found one defect on its first run. **"Lock position" did not lock the
 position.** React Flow decides draggability from a `draggable` field on the
