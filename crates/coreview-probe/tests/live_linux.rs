@@ -11,6 +11,7 @@
 //! Requires a `ping` binary. Run with: cargo test --test live_linux -- --nocapture
 
 use coreview_probe::engine::{run_once, Engine, EngineEvent, SessionState};
+use coreview_probe::icmp::probe_icmp;
 use coreview_probe::types::{HealthStatus, ObjectKind, Outcome, ProbeConfig, ProbeKind};
 use std::time::{Duration, Instant};
 
@@ -269,4 +270,95 @@ async fn dropping_a_probe_future_leaves_no_zombie() {
 
     let z = zombie_pings();
     assert_eq!(z, 0, "{z} ping zombie(s) survived a dropped probe future");
+}
+
+/// Counts this process's defunct children.
+///
+/// Reads /proc directly rather than shelling out to ps, so the test does not
+/// depend on a tool being installed or on its output format.
+#[cfg(target_os = "linux")]
+fn zombie_children() -> usize {
+    let me = std::process::id();
+    let Ok(entries) = std::fs::read_dir("/proc") else { return 0 };
+    let mut zombies = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid) = name.to_str().and_then(|n| n.parse::<u32>().ok()) else { continue };
+        let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else { continue };
+        // "pid (comm) state ppid ..." — comm can contain spaces and brackets,
+        // so the fields after it are found from the last ')'.
+        let Some(after) = stat.rsplit_once(')').map(|(_, rest)| rest) else { continue };
+        let mut fields = after.split_whitespace();
+        let state = fields.next().unwrap_or("");
+        let ppid: u32 = fields.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+        if ppid == me && state == "Z" {
+            zombies += 1;
+        }
+    }
+    zombies
+}
+
+/// A probe that times out must leave no defunct process behind.
+///
+/// **This test does not reproduce the bug it was written for, and passed
+/// against the unfixed code.** Recording that rather than implying otherwise,
+/// because the same mistake was made in Phase 3: a guard that cannot fail
+/// looks like evidence and is not.
+///
+/// The condition needs a runtime that is alive but idle. Tokio reaps orphans
+/// when its process driver is polled, and in a test binary other tests keep
+/// spawning, so the reap always happens. In the running app, after validation
+/// stops, nothing spawns — and a `[ping] <defunct>` was observed surviving
+/// nearly two minutes there. What settled it was the app itself: the same
+/// start-then-stop showed one zombie before the fix and none after, checked
+/// every three seconds for fifteen seconds.
+///
+/// Kept as a floor. It would still catch a regression that stopped killing
+/// children at all.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_timed_out_probe_leaves_no_zombie() {
+    let before = zombie_children();
+
+    // The documentation range does not answer, so this reaches the timeout.
+    for i in 0..4 {
+        let result = probe_icmp(&format!("z{i}"), "192.0.2.1", 300, 0).await;
+        assert!(!result.outcome.is_success(), "192.0.2.1 must not answer");
+    }
+
+    // Long enough that a lazy reap would have had every chance, and with
+    // nothing else spawning — which is the condition that exposes it.
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    let after = zombie_children();
+    assert_eq!(
+        after, before,
+        "left {} defunct child process(es) behind",
+        after.saturating_sub(before)
+    );
+}
+
+/// The same, for a probe cancelled part-way rather than timing out — and with
+/// the same caveat: it passes either way, and is a floor rather than proof.
+#[cfg(target_os = "linux")]
+#[tokio::test]
+async fn a_cancelled_probe_leaves_no_zombie() {
+    let before = zombie_children();
+
+    for i in 0..4 {
+        let id = format!("c{i}");
+        let fut = probe_icmp(&id, "192.0.2.2", 4_000, 0);
+        tokio::pin!(fut);
+        // Poll it far enough to spawn the child, then abandon it.
+        let _ = tokio::time::timeout(Duration::from_millis(120), &mut fut).await;
+    }
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    let after = zombie_children();
+    assert_eq!(
+        after, before,
+        "left {} defunct child process(es) behind",
+        after.saturating_sub(before)
+    );
 }

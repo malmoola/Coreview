@@ -33,6 +33,9 @@ export function StatusPanel() {
   const select = useStore((s) => s.select);
 
   const [tab, setTab] = useState<'objects' | 'events' | 'discover' | 'crawl' | 'backup'>('objects');
+  // Devices handed over from a crawl, so a discovery can go straight to a
+  // backup without being drawn first.
+  const [handedOver, setHandedOver] = useState<{ address: string; name: string }[]>([]);
   const [query, setQuery] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
 
@@ -201,9 +204,14 @@ export function StatusPanel() {
         {tab === 'discover' ? (
           <DiscoverPanel />
         ) : tab === 'crawl' ? (
-          <CrawlPanel />
+          <CrawlPanel
+            onBackup={(targets) => {
+              setHandedOver(targets);
+              setTab('backup');
+            }}
+          />
         ) : tab === 'backup' ? (
-          <BackupPanel />
+          <BackupPanel fromCrawl={handedOver} onConsumed={() => setHandedOver([])} />
         ) : tab === 'objects' ? (
           <table className="cv-table">
             <thead>

@@ -45,7 +45,16 @@ fn fit_to_screen(app: &tauri::App) {
     let height = (size.height * OF_SCREEN).clamp(MIN_H, MAX_H);
 
     let _ = window.set_size(LogicalSize::new(width, height));
-    let _ = window.center();
+
+    // Positioned explicitly rather than with center(). That reads the window's
+    // current size to work out where the middle is, and the resize above has
+    // not necessarily been applied by the time it looks — so it centred a
+    // window it believed had no size and put the top-left at the middle of the
+    // screen, leaving more than half the window off the display. Computing the
+    // position from the size just asked for has no such race.
+    let x = ((size.width - width) / 2.0).max(0.0);
+    let y = ((size.height - height) / 2.0).max(0.0);
+    let _ = window.set_position(tauri::LogicalPosition::new(x, y));
 }
 
 fn main() {

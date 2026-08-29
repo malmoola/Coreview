@@ -20,7 +20,16 @@ function describeCapture(filename: string): string {
  * free. Devices come from whatever is on the diagram, so the list is the
  * network you have actually drawn rather than a separate inventory to maintain.
  */
-export function BackupPanel() {
+export function BackupPanel({
+  fromCrawl = [],
+  onConsumed,
+}: {
+  /** Devices handed over from a discovery run. Shown alongside the diagram's
+   *  own, because a crawl finds things that are not drawn yet and backing them
+   *  up should not require drawing them first. */
+  fromCrawl?: { address: string; name: string }[];
+  onConsumed?: () => void;
+} = {}) {
   const store = useStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -45,9 +54,11 @@ export function BackupPanel() {
   const [compare, setCompare] = useState<[string, string] | null>(null);
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
 
-  /** Nodes on the diagram that carry an address are what can be backed up. */
+  /** What can be backed up: the diagram's devices, plus anything a crawl just
+   *  handed over. Merged by address so a device that is both does not appear
+   *  twice. */
   const targets = useMemo(() => {
-    return store.doc.nodes
+    const fromDiagram = store.doc.nodes
       .filter((n) => n.type === 'device')
       .map((n) => {
         const data = n.data as { label?: string; addresses?: { address: string; isPrimary?: boolean }[] };
@@ -56,7 +67,10 @@ export function BackupPanel() {
         return { name: data.label ?? 'device', address };
       })
       .filter((t) => t.address);
-  }, [store.doc.nodes]);
+
+    const seen = new Set(fromDiagram.map((t) => t.address));
+    return [...fromDiagram, ...fromCrawl.filter((t) => t.address && !seen.has(t.address))];
+  }, [store.doc.nodes, fromCrawl]);
 
   const refreshDevices = () => {
     void ipc
@@ -66,6 +80,15 @@ export function BackupPanel() {
   };
 
   useEffect(refreshDevices, []);
+
+  // Handed-over devices arrive already chosen — they were picked a moment ago
+  // in the other tab, and asking again would be asking twice.
+  useEffect(() => {
+    if (!fromCrawl.length) return;
+    setPicked(new Set(fromCrawl.map((t) => t.address)));
+    onConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromCrawl]);
 
   useEffect(() => {
     let off: (() => void) | undefined;

@@ -70,7 +70,14 @@ type Row = {
  * is applied here rather than during the crawl so changing your mind costs a
  * click instead of another walk of the estate.
  */
-export function CrawlPanel() {
+export function CrawlPanel({
+  onBackup,
+}: {
+  /** Hands devices to the Backups tab, which owns the credentials and the
+   *  folder. Duplicating the backup form here would mean two places to keep
+   *  right. */
+  onBackup: (targets: { address: string; name: string }[]) => void;
+}) {
   const store = useStore();
   const [seed, setSeed] = useState('');
   const [subnets, setSubnets] = useState<string[]>([]);
@@ -271,6 +278,19 @@ export function CrawlPanel() {
   }, [rows, classes, search]);
 
   const picked = visible.filter((r) => r.picked);
+
+  /** Only what was logged into can be backed up: a device seen by a neighbour
+   *  has not proved it will accept a session, and one found over SNMP has
+   *  proved it will not. */
+  const backupable = picked.filter((r) => r.via === 'ssh');
+
+  const backUp = () => {
+    if (!backupable.length) return;
+    store.setStatusMessage(
+      `Sending ${backupable.length} device${backupable.length === 1 ? '' : 's'} to the Backups tab`,
+    );
+    onBackup(backupable.map((r) => ({ address: r.probeTarget || r.address, name: r.name })));
+  };
 
   const toggleClass = (c: DeviceClassName) =>
     setClasses((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -485,6 +505,15 @@ export function CrawlPanel() {
             <button type="button" className="cv-btn cv-btn-small cv-btn-start"
               onClick={build} disabled={!picked.length}>
               Add {picked.length} to diagram
+            </button>
+            <button type="button" className="cv-btn cv-btn-small" onClick={backUp}
+              disabled={!backupable.length}
+              title={
+                backupable.length < picked.length
+                  ? 'Only devices Coreview logged into can be backed up'
+                  : undefined
+              }>
+              Back up {backupable.length}
             </button>
             <span className="cv-help">
               {visible.length} of {rows.length} shown

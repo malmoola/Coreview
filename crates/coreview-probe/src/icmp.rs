@@ -7,6 +7,7 @@
 use std::process::Stdio;
 use std::time::Duration;
 
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::time::timeout;
 
@@ -177,29 +178,56 @@ pub async fn ping_once(target: &Target, timeout_ms: u64) -> Result<PingParse, Pi
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
+    // Spawned and waited on explicitly rather than through `output()`.
+    //
+    // `output()` consumes the child, so a timeout can only drop the future —
+    // and dropping is not enough. `kill_on_drop` does kill the process, but
+    // tokio reaps orphans lazily, when its process driver is next polled. Once
+    // validation stops nothing spawns, nothing polls, and the killed child sits
+    // as `[ping] <defunct>` indefinitely. That was seen once during Phase 3,
+    // written off as a transient reaping window, and is not transient: one
+    // survived nearly two minutes after Stop.
+    //
+    // Holding the child means a timeout can kill *and* wait, which reaps it
+    // there and then.
+    let mut child = cmd.spawn().map_err(|e| PingFailure {
+        outcome: Outcome::OsError,
+        summary: format!("Could not run ping: {e}"),
+    })?;
+
     // Hard wall-clock bound so a wedged child cannot hold a scheduler slot.
     let wall = Duration::from_millis(timeout_ms + 2_000);
-    let output = match timeout(wall, cmd.output()).await {
+    let status = match timeout(wall, child.wait()).await {
         Err(_) => {
+            // kill() is start_kill followed by wait, so this reaps.
+            let _ = child.kill().await;
             return Err(PingFailure {
                 outcome: Outcome::Timeout,
                 summary: "Ping did not return within the timeout".into(),
-            })
+            });
         }
         Ok(Err(e)) => {
+            let _ = child.kill().await;
             return Err(PingFailure {
                 outcome: Outcome::OsError,
                 summary: format!("Could not run ping: {e}"),
-            })
+            });
         }
-        Ok(Ok(o)) => o,
+        Ok(Ok(status)) => status,
     };
 
-    Ok(parse_ping_output(
-        &String::from_utf8_lossy(&output.stdout),
-        &String::from_utf8_lossy(&output.stderr),
-        output.status.code(),
-    ))
+    // Read after the exit. A single ping writes a few hundred bytes, far under
+    // the pipe buffer, so nothing can have blocked waiting to be drained.
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    if let Some(mut pipe) = child.stdout.take() {
+        let _ = pipe.read_to_string(&mut stdout).await;
+    }
+    if let Some(mut pipe) = child.stderr.take() {
+        let _ = pipe.read_to_string(&mut stderr).await;
+    }
+
+    Ok(parse_ping_output(&stdout, &stderr, status.code()))
 }
 
 /// Run a single ICMP check. Cancellation is handled by the caller dropping the
