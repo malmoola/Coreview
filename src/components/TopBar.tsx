@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 
 import { useStore } from '../state/store';
@@ -25,6 +25,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
   const settings = useStore((s) => s.settings);
   const store = useStore();
   const rf = useReactFlow();
+  const exportMenu = useRef<HTMLDetailsElement>(null);
   const [about, setAbout] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -34,6 +35,30 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     const t = setTimeout(() => void store.saveProject(), 2500);
     return () => clearTimeout(t);
   }, [meta, dirty, store]);
+
+  // A bare <details> opens and then stays open: neither Escape nor a click
+  // elsewhere closes it, so the export menu sat over the canvas until someone
+  // clicked "Export" a second time. Give it the dismissal every other menu has.
+  useEffect(() => {
+    const away = (e: Event) => {
+      const el = exportMenu.current;
+      if (el?.open && !el.contains(e.target as Node)) el.open = false;
+    };
+    const key = (e: KeyboardEvent) => {
+      const el = exportMenu.current;
+      if (e.key !== 'Escape' || !el?.open) return;
+      el.open = false;
+      // Focus goes back to the control that opened it, or it lands on <body>
+      // and the next Tab restarts from the top of the page.
+      el.querySelector('summary')?.focus();
+    };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', key);
+    };
+  }, []);
 
   if (!meta) return null;
 
@@ -186,9 +211,14 @@ export function TopBar({ onExit }: { onExit: () => void }) {
 
         <div className="cv-divider" />
 
-        <details className="cv-dropdown">
+        <details className="cv-dropdown" ref={exportMenu}>
           <summary className="cv-btn">Export</summary>
-          <div className="cv-dropdown-menu">
+          <div
+            className="cv-dropdown-menu"
+            onClick={() => {
+              if (exportMenu.current) exportMenu.current.open = false;
+            }}
+          >
             <button type="button" onClick={exportPng} disabled={busy === 'png'}>
               Diagram as PNG
             </button>

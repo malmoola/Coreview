@@ -116,37 +116,36 @@ Run this once on a clean Windows machine after the Rust side compiles.
 17. Build a 50-node/75-link project, start validation, and watch CPU in Task
     Manager for five minutes. Record the number. (Case 20)
 
-## Open defect: diagram export renders no diagram
+## Fixed: diagram export renders no diagram
 
 Found while driving Case 17 on the packaged binary. "Diagram as PNG" and
-"Diagram as SVG" produce a file with the correct title block and legend and an
-**empty canvas area**. Confirmed a 2084x1508 PNG with nothing but the header.
+"Diagram as SVG" produced a file with the correct title block and legend and an
+**empty canvas area** — a 2084x1508 PNG with nothing but the header.
 
-`canvasToSvg` serialises `.react-flow__viewport` and injects the result into an
-`<svg>` document. In @xyflow/react 12 that element and its children are HTML
-`<div>`s, not SVG — `react-flow__viewport` at `dist/esm/index.js:3090`,
-`react-flow__nodes` at 2380, `react-flow__edges` at 3057. HTML in the SVG
-namespace outside a `<foreignObject>` renders nothing, so the whole diagram
-drops out. This is not a regression; the code was written against an assumed
-DOM shape and, like the rest of the app, had never been run.
+`canvasToSvg` serialised `.react-flow__viewport` into an `<svg>` document. In
+@xyflow/react 12 that element and its children are HTML `<div>`s, not SVG —
+`react-flow__viewport` at `dist/esm/index.js:3090`, `react-flow__nodes` at 2380.
+HTML in the SVG namespace outside a `<foreignObject>` renders nothing, so the
+whole diagram dropped out. Only the edge layer is real SVG, which is why the
+lines survived and the devices did not.
 
-The fix is to draw the export from the document model instead of from the DOM:
-`getNodesBounds` for the extent, `getSmoothStepPath` / `getBezierPath` /
-`getStraightPath` (all exported by the library) for the link geometry, and
-`renderToStaticMarkup` on the existing glyph components in
-`src/components/icons.tsx` so the exported artwork stays the same one the
-canvas draws rather than a second copy that can drift. Not attempted here —
-it is a rewrite of the exporter, not a patch.
+Fixed on 2026-08-29 in `src/lib/diagram.ts`, which draws from the document
+model: node positions and sizes for the extent, `getSmoothStepPath` /
+`getBezierPath` / `getStraightPath` for link geometry, and `renderToStaticMarkup`
+on the glyph components in `src/components/icons.tsx` so the exported artwork
+is the one the canvas draws rather than a second copy that can drift. Link
+status moved onto the store for the same reason.
 
-Case 13 of the manual script ("Export the diagram as PNG and SVG. Confirm the
-title block ... and that the legend is present") passes as literally written:
-both are present. The diagram between them is not.
+**Verified 2026-08-29** on the packaged binary under Xvfb: exported the branch
+office sample and read the PNG back. 14 devices with glyphs, addresses, status
+badges and status glyphs; 13 links with arrowheads, port labels and centre
+labels; the change note with its checklist. Nothing obscured. 13 unit tests in
+`src/lib/diagram.test.ts` cover the cases a screenshot cannot pin down —
+off-screen and negative coordinates, XML escaping, glyph tinting, and the short-
+link label collision that the first fix did not clear.
 
 ## Known gaps
 
-- Case 20 has never been run. Everything about the animation design was chosen
-  with it in mind — SMIL in the compositor, memoised edge components, dots
-  unmounted when not healthy — but that is reasoning, not a measurement.
 - No end-to-end UI test harness. Playwright against the Tauri build would cover
   cases 1–5 and 8–9 properly and is the obvious next investment.
 - CSV import has unit tests but no UI, so it has no manual case yet.
