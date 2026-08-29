@@ -163,6 +163,19 @@ pub enum SnmpError {
         #[source]
         source: snmp2::Error,
     },
+    /// Authentication was refused, which SNMPv3 reports identically whether the
+    /// password is wrong or the algorithms are. Kept separate so the message
+    /// can say so, because a user staring at "not authenticated" has no way to
+    /// tell which of the two it is and will usually retype the password.
+    #[error("{host} does not have an SNMPv3 user called {username:?}")]
+    V3NoSuchUser { host: String, username: String },
+    #[error("{host} refused the SNMPv3 user {username:?}. SNMPv3 reports a wrong password and a wrong algorithm the same way, so check both — the device was sent {auth} authentication and {privacy} privacy. A device where v3 is not configured at all also fails like this.")]
+    V3Refused {
+        host: String,
+        username: String,
+        auth: String,
+        privacy: String,
+    },
 }
 
 /// Asks a device to identify itself.
@@ -257,12 +270,7 @@ pub async fn identify(
                     })?;
                 match retried {
                     Ok(Some(_)) => {}
-                    _ => {
-                        return Err(SnmpError::Protocol {
-                            host: host.into(),
-                            source: original,
-                        })
-                    }
+                    _ => return Err(describe_v3_failure(host, auth, original)),
                 }
             }
             s
@@ -279,16 +287,18 @@ pub async fn identify(
     ];
     let refs: Vec<&Oid<'_>> = oids.iter().collect();
 
+    // v3 engine discovery is unauthenticated, so a wrong user or a wrong
+    // algorithm pair does not fail at init — it fails here, on the first real
+    // request. The failure has to be described in both places or the useful
+    // message never appears, which is exactly what happened the first time
+    // this was pointed at a Palo Alto.
     let pdu = tokio::time::timeout(timeout, session.get_many(&refs))
         .await
         .map_err(|_| SnmpError::Timeout {
             host: host.into(),
             timeout,
         })?
-        .map_err(|e| SnmpError::Protocol {
-            host: host.into(),
-            source: e,
-        })?;
+        .map_err(|e| describe_v3_failure(host, auth, e))?;
 
     let mut identity = SnmpIdentity {
         address: host.to_string(),
@@ -332,6 +342,51 @@ pub async fn identify(
     }
 
     Ok(identity)
+}
+
+/// Turns a v3 authentication failure into something actionable.
+///
+/// Anything else is passed through unchanged: a timeout or a socket problem is
+/// already clear, and rewording it would only hide the cause.
+fn describe_v3_failure(host: &str, auth: &SnmpAuth, source: snmp2::Error) -> SnmpError {
+    let SnmpAuth::V3 {
+        username,
+        auth_protocol,
+        privacy,
+        ..
+    } = auth
+    else {
+        return SnmpError::Protocol {
+            host: host.into(),
+            source,
+        };
+    };
+
+    match source {
+        // The device knows its own user list, and this is the one case where
+        // it says so plainly. Worth its own message: no amount of checking
+        // algorithms will help.
+        snmp2::Error::AuthFailure(snmp2::v3::AuthErrorKind::UsernameMismatch) => {
+            SnmpError::V3NoSuchUser {
+                host: host.into(),
+                username: username.clone(),
+            }
+        }
+        snmp2::Error::AuthFailure(_) => SnmpError::V3Refused {
+            host: host.into(),
+            username: username.clone(),
+            auth: format!("{auth_protocol:?}").to_lowercase(),
+            privacy: privacy
+                .map(|p| format!("{p:?}").to_lowercase())
+                .unwrap_or_else(|| "none".into()),
+        },
+        // A timeout or a socket problem is already clear; rewording it would
+        // only hide the cause.
+        other => SnmpError::Protocol {
+            host: host.into(),
+            source: other,
+        },
+    }
 }
 
 /// Whether the privacy key has to be stretched beyond what the hash produces.
@@ -492,6 +547,73 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(classify_identity(&l3_switch), DeviceClass::Switch, "bridging wins");
+    }
+
+    #[test]
+    fn a_refused_v3_user_is_told_it_could_be_either_thing() {
+        // Found on a Palo Alto: twelve algorithm pairs all reported "not
+        // authenticated", which is what a device with no v3 user configured
+        // says and also what a wrong algorithm says. Someone reading it will
+        // retype the password, which is the one thing that will not help.
+        let auth = SnmpAuth::V3 {
+            username: "palo".into(),
+            auth_protocol: AuthKind::Sha1,
+            auth_password: "secret".into(),
+            privacy: Some(PrivKind::Aes128),
+            privacy_password: "secret".into(),
+        };
+        let err = describe_v3_failure(
+            "10.1.1.1",
+            &auth,
+            snmp2::Error::AuthFailure(snmp2::v3::AuthErrorKind::NotAuthenticated),
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("palo"), "{msg}");
+        assert!(msg.contains("sha1") && msg.contains("aes128"), "it must name what was tried: {msg}");
+        assert!(msg.contains("not configured at all"), "the third possibility: {msg}");
+        assert!(!msg.contains("secret"), "the password leaked: {msg}");
+    }
+
+    #[test]
+    fn a_username_the_device_does_not_have_says_exactly_that() {
+        // The device knows its own user list, and no amount of trying
+        // algorithms would help here.
+        let auth = SnmpAuth::V3 {
+            username: "nobody".into(),
+            auth_protocol: AuthKind::Sha1,
+            auth_password: "secret".into(),
+            privacy: None,
+            privacy_password: String::new(),
+        };
+        let err = describe_v3_failure(
+            "10.1.1.1",
+            &auth,
+            snmp2::Error::AuthFailure(snmp2::v3::AuthErrorKind::UsernameMismatch),
+        );
+        assert!(matches!(err, SnmpError::V3NoSuchUser { .. }), "{err}");
+        assert!(err.to_string().contains("nobody"));
+    }
+
+    #[test]
+    fn a_non_authentication_error_is_passed_through_unchanged() {
+        // A timeout or socket problem is already clear; rewording it hides the
+        // cause.
+        let auth = SnmpAuth::V2c { community: "public".into() };
+        let err = describe_v3_failure("10.1.1.1", &auth, snmp2::Error::AsnParse);
+        assert!(matches!(err, SnmpError::Protocol { .. }));
+
+        // And a v3 user hitting something that is not an auth problem.
+        let v3 = SnmpAuth::V3 {
+            username: "x".into(),
+            auth_protocol: AuthKind::Sha1,
+            auth_password: "y".into(),
+            privacy: None,
+            privacy_password: String::new(),
+        };
+        assert!(matches!(
+            describe_v3_failure("10.1.1.1", &v3, snmp2::Error::AsnParse),
+            SnmpError::Protocol { .. }
+        ));
     }
 
     #[test]
