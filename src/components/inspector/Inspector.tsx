@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 
 import { useStore } from '../../state/store';
 import { uid } from '../../lib/id';
+import { newProbe } from '../../lib/probes';
 import { DEVICE_LABEL } from '../icons';
 import { STATUS_COLOR } from '../edges/LiveEdge';
 import { describeRule, linkStatus } from '../../health/evaluate';
@@ -16,36 +17,9 @@ import type {
 } from '../../types/domain';
 import {
   HEALTH_RULE_LABEL,
-  PROBE_DEFAULTS,
   STATUS_GLYPH,
   STATUS_LABEL,
 } from '../../types/domain';
-
-function newProbe(
-  objectKind: 'node' | 'link',
-  objectId: string,
-  projectId: string,
-  target = '',
-): Probe {
-  return {
-    id: uid(),
-    projectId,
-    objectKind,
-    objectId,
-    name: objectKind === 'node' ? 'Management' : 'Link check',
-    kind: 'icmp',
-    target,
-    tcpPort: null,
-    intervalSeconds: PROBE_DEFAULTS.intervalSeconds,
-    timeoutMs: PROBE_DEFAULTS.timeoutMs,
-    failureThreshold: PROBE_DEFAULTS.failureThreshold,
-    recoveryThreshold: PROBE_DEFAULTS.recoveryThreshold,
-    warningLatencyMs: PROBE_DEFAULTS.warningLatencyMs,
-    enabled: true,
-    maintenance: false,
-    isPrimary: true,
-  };
-}
 
 function Field({
   label,

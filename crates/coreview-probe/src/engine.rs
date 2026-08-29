@@ -49,8 +49,15 @@ pub struct ProbeSnapshot {
 }
 
 /// Emitted to the UI and to the project event log.
+///
+/// camelCase like every other event enum crossing this boundary. It was
+/// snake_case, which made the tag `session_state` while the interface looked
+/// for `sessionState`, so a session the engine ended on its own — a project
+/// switch, an error — left the toolbar reading "Running" for a session that
+/// no longer existed. `sample` and `transition` are the same in both, which is
+/// why only the third one went missing.
 #[derive(Debug, Clone, serde::Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EngineEvent {
     Sample {
         session_id: String,
@@ -324,6 +331,41 @@ pub async fn run_once(cfg: &ProbeConfig) -> ProbeResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The interface matches on these strings. A rename that looks harmless in
+    /// Rust silently stops an event from ever being handled, and nothing fails
+    /// — the events simply go nowhere. `sessionState` was `session_state` for
+    /// exactly that reason.
+    #[test]
+    fn event_tags_are_the_ones_the_interface_matches_on() {
+        let tag = |e: &EngineEvent| {
+            serde_json::to_value(e).unwrap()["kind"].as_str().unwrap().to_string()
+        };
+        assert_eq!(
+            tag(&EngineEvent::SessionState {
+                session_id: "s".into(),
+                project_id: "p".into(),
+                state: SessionState::Running,
+            }),
+            "sessionState"
+        );
+        assert_eq!(
+            tag(&EngineEvent::Transition {
+                session_id: "s".into(),
+                transition: StatusTransition {
+                    probe_id: "p".into(),
+                    project_id: "proj".into(),
+                    object_kind: crate::types::ObjectKind::Node,
+                    object_id: "n".into(),
+                    previous: HealthStatus::Unknown,
+                    current: HealthStatus::Healthy,
+                    timestamp_ms: 0,
+                    message: String::new(),
+                },
+            }),
+            "transition"
+        );
+    }
 
     #[tokio::test]
     async fn stop_is_idempotent_and_safe_with_no_session() {

@@ -14,6 +14,7 @@ import { makeDeviceNode } from './Canvas';
 import { CredentialPicker } from './CredentialPicker';
 import { SubnetList } from './SubnetList';
 import { reasonWithoutAddress } from '../lib/failures';
+import { newProbe } from '../lib/probes';
 import { uid } from '../lib/id';
 import type { DeviceNodeData } from '../types/domain';
 
@@ -324,6 +325,13 @@ export function CrawlPanel({
         ];
       }
       store.addNode(node);
+      // Discovery picked this address precisely so it could be watched — the
+      // probe-address preference on the form is a question about what to
+      // monitor. A device drawn with no probe answers that question with
+      // "nothing".
+      if (r.probeTarget && store.meta) {
+        store.upsertProbe(newProbe('node', node.id, store.meta.id, r.probeTarget, 'Discovered'));
+      }
     });
     store.setStatusMessage(`Added ${picked.length} discovered device${picked.length === 1 ? '' : 's'}`);
     setAllVisible(false);

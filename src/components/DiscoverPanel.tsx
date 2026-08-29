@@ -6,6 +6,7 @@ import { makeDeviceNode } from './Canvas';
 import { SubnetList } from './SubnetList';
 import type { DeviceNodeData } from '../types/domain';
 import { uid } from '../lib/id';
+import { newProbe } from '../lib/probes';
 
 type Hit = { ip: string; rttMs: number | null; picked: boolean };
 
@@ -93,6 +94,10 @@ export function DiscoverPanel() {
       data.label = h.ip;
       data.addresses = [{ id: uid(), label: 'Discovered', address: h.ip, isPrimary: true }];
       store.addNode(node);
+      // The sweep just proved this address answers ICMP. Drawing it as an
+      // object nothing ever checks would throw that away and leave the
+      // operator adding twenty probes by hand.
+      if (store.meta) store.upsertProbe(newProbe('node', node.id, store.meta.id, h.ip, 'Discovered'));
     });
     store.setStatusMessage(
       `Added ${picked.length} ${picked.length === 1 ? 'device' : 'devices'}`,
