@@ -53,14 +53,20 @@ fn from_platform(s: &str) -> Option<DeviceClass> {
         return Some(DeviceClass::WirelessController);
     }
 
-    // Access points.
-    const AP: [&str; 6] = ["AIR-", "AIR ", "C9105", "C9115", "C9120", "C9130"];
+    // Access points. The non-Cisco names are here because a real network has
+    // them and CDP reports their platform verbatim: a FortiAP advertises
+    // "Capabilities: Switch Host", so without the model rule it classifies as a
+    // switch and the crawler tries to log into an access point.
+    const AP: [&str; 11] = [
+        "AIR-", "AIR ", "C9105", "C9115", "C9120", "C9130",
+        "FORTIAP", "UAP-", "MERAKI MR", "IAP-", "AP-U",
+    ];
     if AP.iter().any(|p| s.contains(p)) {
         return Some(DeviceClass::AccessPoint);
     }
 
     // Firewalls. FPR is Firepower; ASA covers the 5500 series.
-    const FW: [&str; 6] = ["ASA", "FPR", "FIREPOWER", "PALO ALTO", "PA-", "FORTIGATE"];
+    const FW: [&str; 7] = ["ASA", "FPR", "FIREPOWER", "PALO ALTO", "PA-", "FORTIGATE", "SONICWALL"];
     if FW.iter().any(|p| s.contains(p)) {
         return Some(DeviceClass::Firewall);
     }
@@ -90,7 +96,16 @@ fn from_platform(s: &str) -> Option<DeviceClass> {
     }
 
     // Switches. Catalyst, Nexus, and the WS- Catalyst prefix.
-    const SWITCH: [&str; 8] = ["WS-C", "C9200", "C9300", "C9400", "C9500", "N9K", "N5K", "N7K"];
+    const SWITCH: [&str; 18] = [
+        "WS-C", "C9200", "C9300", "C9400", "C9500", "N9K", "N5K", "N7K",
+        // Seen on a real network: Fortinet and Ubiquiti switches, which
+        // advertise a bare Bridge capability and would otherwise be Unknown.
+        "FORTISWITCH", "UBNT-US", "USW-",
+        // Older Catalyst families, which name themselves by number rather than
+        // with a WS- prefix in a version banner. A real C2960CX classified as
+        // Unknown without these.
+        "C2960", "C3560", "C3650", "C3750", "C3850", "C1000", "CBS350",
+    ];
     if SWITCH.iter().any(|p| s.contains(p)) {
         return Some(DeviceClass::Switch);
     }
@@ -191,6 +206,25 @@ mod tests {
             classify(Some("AIR-AP3802I-B-K9"), &caps("Trans-Bridge Source-Route-Bridge"), None),
             DeviceClass::AccessPoint
         );
+    }
+
+    #[test]
+    fn non_cisco_access_points_are_not_switches() {
+        // From a real network: a FortiAP advertises "Capabilities: Switch Host"
+        // over CDP, so without the model rule the capability guess wins and the
+        // crawler tries to log into an access point.
+        assert_eq!(
+            classify(Some("FortiAP-U431F"), &caps("Switch Host"), None),
+            DeviceClass::AccessPoint
+        );
+        assert_eq!(classify(Some("UAP-AC-PRO"), &caps("Bridge"), None), DeviceClass::AccessPoint);
+    }
+
+    #[test]
+    fn non_cisco_switches_are_recognised_by_model() {
+        // A Ubiquiti switch seen over LLDP advertises only "B".
+        assert_eq!(classify(Some("UBNT-USL8L"), &caps("B"), None), DeviceClass::Switch);
+        assert_eq!(classify(Some("FortiSwitch-124F"), &caps(""), None), DeviceClass::Switch);
     }
 
     #[test]

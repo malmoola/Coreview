@@ -379,22 +379,21 @@ async fn visit(
 /// does not, but an LLDP-only neighbour is kept — that is the whole reason for
 /// asking both.
 pub fn merge_neighbors(cdp: Vec<Neighbor>, lldp: Vec<Neighbor>) -> Vec<Neighbor> {
-    let key = |n: &Neighbor| {
-        (
-            n.short_name.to_ascii_lowercase(),
-            n.local_interface.clone().unwrap_or_default().to_ascii_lowercase(),
-        )
+    let same = |a: &Neighbor, b: &Neighbor| {
+        a.short_name.eq_ignore_ascii_case(&b.short_name)
+            && same_interface(
+                a.local_interface.as_deref().unwrap_or(""),
+                b.local_interface.as_deref().unwrap_or(""),
+            )
     };
 
     let mut merged: Vec<Neighbor> = Vec::new();
-    let mut seen: HashSet<(String, String)> = HashSet::new();
 
     for n in cdp {
-        seen.insert(key(&n));
         merged.push(n);
     }
     for mut n in lldp {
-        if let Some(existing) = merged.iter_mut().find(|e| key(e) == key(&n)) {
+        if let Some(existing) = merged.iter_mut().find(|e| same(e, &n)) {
             // Fill gaps CDP left rather than discarding the LLDP view entirely.
             if existing.addresses.is_empty() && !n.addresses.is_empty() {
                 existing.addresses = std::mem::take(&mut n.addresses);
@@ -409,13 +408,48 @@ pub fn merge_neighbors(cdp: Vec<Neighbor>, lldp: Vec<Neighbor>) -> Vec<Neighbor>
     merged
 }
 
+/// Whether two interface names refer to the same port.
+///
+/// CDP prints `GigabitEthernet0/8` and LLDP prints `Gi0/8` for the same port on
+/// the same switch. Comparing the strings directly means one adjacency becomes
+/// two, and every device running both protocols gets a duplicate edge — which
+/// is exactly what a real switch produced the first time this was pointed at
+/// one.
+///
+/// The rule: split each name into its alphabetic prefix and its numeric tail.
+/// The tails must match exactly; the shorter prefix must be a prefix of the
+/// longer. That makes `Gi` match `GigabitEthernet`, `Te` match
+/// `TenGigabitEthernet` and `Po` match `Port-channel`, without inventing a
+/// table of abbreviations that would go stale.
+pub fn same_interface(a: &str, b: &str) -> bool {
+    let split = |s: &str| {
+        let s = s.trim().to_ascii_lowercase();
+        let head: String = s.chars().take_while(|c| c.is_ascii_alphabetic() || *c == '-').filter(|c| *c != '-').collect();
+        let tail: String = s.chars().skip_while(|c| c.is_ascii_alphabetic() || *c == '-').collect();
+        (head, tail)
+    };
+    let (ha, ta) = split(a);
+    let (hb, tb) = split(b);
+    if ta != tb {
+        return false;
+    }
+    if ha.is_empty() || hb.is_empty() {
+        // No alphabetic part at all — compare what is left, so a bare port
+        // number is not treated as matching everything.
+        return ha == hb && !ta.is_empty();
+    }
+    ha.starts_with(&hb) || hb.starts_with(&ha)
+}
+
 fn first_line(text: &str) -> Option<&str> {
     text.lines().map(str::trim).find(|l| !l.is_empty())
 }
 
 /// Pulls a model out of a `show version` banner, for classification.
 fn platform_from_version(version: &str) -> Option<String> {
-    for line in version.lines().take(30) {
+    // A `show version` on a Catalyst runs to sixty lines and puts "Model
+    // number" near the bottom, past where a short scan would look.
+    for line in version.lines().take(80) {
         let t = line.trim();
         // "Model number            : WS-C2960X-24TS-L"
         if let Some((label, value)) = t.split_once(':') {
@@ -427,8 +461,11 @@ fn platform_from_version(version: &str) -> Option<String> {
                 }
             }
         }
-        // "cisco WS-C2960X-24TS-L (PowerPC405) processor"
-        if let Some(rest) = t.strip_prefix("cisco ") {
+        // "cisco WS-C2960X-24TS-L (PowerPC405) processor" — and the same line
+        // is capitalised on some trains.
+        let lower = t.to_ascii_lowercase();
+        if let Some(offset) = lower.strip_prefix("cisco ").map(|_| "cisco ".len()) {
+            let rest = &t[offset..];
             if let Some(model) = rest.split_whitespace().next() {
                 if model.len() > 3 {
                     return Some(model.to_string());
@@ -505,6 +542,54 @@ mod tests {
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].addresses.len(), 1, "the address LLDP knew was dropped");
         assert_eq!(merged[0].addresses[0].ip, "10.1.1.2");
+    }
+
+    #[test]
+    fn cdp_and_lldp_names_for_one_port_are_the_same_port() {
+        // From a real switch: CDP said GigabitEthernet0/8 and LLDP said Gi0/8
+        // for the same access point, and the diagram gained a duplicate edge.
+        assert!(same_interface("GigabitEthernet0/8", "Gi0/8"));
+        assert!(same_interface("Gi0/8", "GigabitEthernet0/8"));
+        assert!(same_interface("TenGigabitEthernet1/0/1", "Te1/0/1"));
+        assert!(same_interface("Port-channel10", "Po10"));
+        assert!(same_interface("Ethernet1/1", "Eth1/1"));
+        assert!(same_interface("Gi0/8", "gi0/8"));
+    }
+
+    #[test]
+    fn different_ports_are_not_merged() {
+        // The failure in the other direction loses a real link.
+        assert!(!same_interface("GigabitEthernet0/8", "Gi0/9"));
+        assert!(!same_interface("GigabitEthernet1/0/8", "Gi0/8"));
+        assert!(!same_interface("Gi0/1", "Te0/1"), "different media, same number");
+        assert!(!same_interface("", ""));
+    }
+
+    #[test]
+    fn one_adjacency_named_two_ways_merges_into_one() {
+        let cdp = vec![neighbor("AP-1", "GigabitEthernet0/8", Protocol::Cdp)];
+        let lldp = vec![neighbor("AP-1", "Gi0/8", Protocol::Lldp)];
+        assert_eq!(merge_neighbors(cdp, lldp).len(), 1);
+    }
+
+    #[test]
+    fn a_catalyst_version_banner_classifies_as_a_switch() {
+        // A real C2960CX came back Unknown: the model line sits past the first
+        // thirty lines, and the family was missing from the switch list.
+        let banner = "\
+Cisco IOS Software, C2960CX Software (C2960CX-UNIVERSALK9-M), Version 15.2(7)E, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2019 by Cisco Systems, Inc.
+
+HOME-MAIN-SW uptime is 5 weeks
+System image file is \"flash:/c2960cx-universalk9-mz.152-7.E.bin\"
+";
+        let platform = platform_from_version(banner).unwrap();
+        assert_eq!(
+            crate::classify::classify(Some(&platform), &[], Some(banner)),
+            DeviceClass::Switch,
+            "platform was {platform:?}"
+        );
     }
 
     #[test]

@@ -22,6 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use russh::client::{self, KeyboardInteractiveAuthResponse};
+use russh::{cipher, kex, mac, Preferred};
 use russh::keys::ssh_key::HashAlg;
 use russh::keys::PublicKeyOrCertificate;
 use russh::{ChannelMsg, Disconnect};
@@ -184,6 +185,47 @@ impl client::Handler for Verifier {
     }
 }
 
+
+/// Algorithm preferences that can actually reach network equipment.
+///
+/// russh's defaults are what a modern SSH client should offer, and a great deal
+/// of network gear cannot meet them. A Catalyst running a current IOS image
+/// offers `diffie-hellman-group14-sha1` and `diffie-hellman-group-exchange-sha1`
+/// and nothing else, so a client with only SHA-2 key exchange fails the
+/// handshake before it ever sees a password prompt — which is exactly what
+/// happened the first time this was pointed at a real switch.
+///
+/// The legacy algorithms are appended **after** the modern ones rather than
+/// replacing them. SSH negotiation picks the client's first choice the server
+/// also supports, so a modern device still negotiates modern algorithms and
+/// nothing is weakened for equipment that can do better; the old names are only
+/// reached when the alternative is not connecting at all.
+///
+/// This is a deliberate trade, and worth being clear about: talking to a switch
+/// that only speaks SHA-1 means using SHA-1. The honest options are to support
+/// it or to not manage the device.
+fn network_device_algorithms() -> Preferred {
+    let mut kex: Vec<kex::Name> = Preferred::DEFAULT.kex.to_vec();
+    kex.extend([kex::DH_G14_SHA1, kex::DH_GEX_SHA1]);
+
+    let mut cipher: Vec<cipher::Name> = Preferred::DEFAULT.cipher.to_vec();
+    cipher.extend([
+        cipher::AES_256_CBC,
+        cipher::AES_192_CBC,
+        cipher::AES_128_CBC,
+    ]);
+
+    let mut mac: Vec<mac::Name> = Preferred::DEFAULT.mac.to_vec();
+    mac.extend([mac::HMAC_SHA1_ETM, mac::HMAC_SHA1]);
+
+    Preferred {
+        kex: kex.into(),
+        cipher: cipher.into(),
+        mac: mac.into(),
+        ..Preferred::DEFAULT
+    }
+}
+
 /// An open session on a device.
 pub struct Device {
     host: String,
@@ -227,6 +269,7 @@ impl Device {
 
         let config = Arc::new(client::Config {
             inactivity_timeout: Some(Duration::from_secs(300)),
+            preferred: network_device_algorithms(),
             ..Default::default()
         });
 
@@ -558,6 +601,33 @@ fn second_factor_message(instructions: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_algorithms_are_offered_but_never_preferred() {
+        // The order is the whole point: a modern device must still negotiate
+        // modern algorithms, and the SHA-1 names exist only so an old switch
+        // is reachable at all.
+        let p = network_device_algorithms();
+
+        let kex: Vec<&str> = p.kex.iter().map(|k| k.as_ref()).collect();
+        assert!(kex.contains(&"diffie-hellman-group14-sha1"), "no legacy kex: {kex:?}");
+        assert!(kex.contains(&"diffie-hellman-group-exchange-sha1"));
+        let modern = kex.iter().position(|k| *k == "curve25519-sha256").unwrap();
+        let legacy = kex.iter().position(|k| *k == "diffie-hellman-group14-sha1").unwrap();
+        assert!(modern < legacy, "SHA-1 kex must sit below the modern ones");
+
+        let macs: Vec<&str> = p.mac.iter().map(|m| m.as_ref()).collect();
+        assert!(macs.contains(&"hmac-sha1"));
+        let modern = macs.iter().position(|m| *m == "hmac-sha2-256-etm@openssh.com").unwrap();
+        let legacy = macs.iter().position(|m| *m == "hmac-sha1").unwrap();
+        assert!(modern < legacy, "SHA-1 MACs must sit below the modern ones");
+
+        let ciphers: Vec<&str> = p.cipher.iter().map(|c| c.as_ref()).collect();
+        assert!(ciphers.contains(&"aes256-cbc"), "CBC is common on older IOS");
+        let modern = ciphers.iter().position(|c| *c == "aes256-ctr").unwrap();
+        let legacy = ciphers.iter().position(|c| *c == "aes256-cbc").unwrap();
+        assert!(modern < legacy, "CBC must sit below CTR and GCM");
+    }
 
     #[test]
     fn a_password_never_appears_in_debug_output() {
