@@ -29,10 +29,10 @@ actually observed, not what is expected to work. "Backend" means verified in
 | # | Case | Result | Evidence |
 | --- | --- | --- | --- |
 | 1 | Draw firewall, router, switch, AP, server | **PASS (UI)** | Branch office sample renders 9 devices of distinct types; palette shows all 26 |
-| 2 | Resize all object categories | **PARTIAL (UI)** | window resized 1600x1000 -> 1150x740 on the packaged binary: toolbar wraps to a second row, panels reflow, table stays readable, no overflow. Per-node drag-resize still not exercised — synthetic drags do not reach `NodeResizer` |
+| 2 | Resize all object categories | **PASS (UI + e2e)** | window resized 1600x1000 -> 1150x740 on the packaged binary: toolbar wraps, panels reflow, no overflow. Per-node drag-resize now covered by `e2e/interact.mjs`, which drags a real `NodeResizer` corner in Chromium |
 | 3 | Label all nodes | **PASS (UI)** | every node shows its display name and address |
 | 4 | Source, target and centre labels on one link | **PASS (UI)** | `Primary ISP / port1`, `10 Gb LACP — VLANs 10,20,30 / Te1/0/48 / Po10` |
-| 5 | Free-form note, resize and lock | **PARTIAL (UI)** | change note renders with checklist; resize/lock not exercised |
+| 5 | Free-form note, resize and lock | **PASS (UI + e2e)** | change note renders with checklist; `e2e/interact.mjs` resizes it by its corner and confirms a locked note refuses to move. The lock did not work when first driven — see below |
 | 6 | Reachable ICMP target reaches healthy | **PASS (UI + backend)** | 127.0.0.1 → green, `Healthy · <1 ms`; backend measured rtt 0.019 ms |
 | 7 | Unreachable range goes down after threshold | **PASS (UI + backend)** | 192.0.2.x → red `Down`, `Request timed out`; backend `Unknown→Down` |
 | 8 | Healthy link animates green dots | **PARTIAL (UI)** | healthy links render green and solid, down links red and dashed; motion itself is not observable in a still capture |
@@ -179,13 +179,37 @@ Not exercised, and honestly so:
   prompt.
 - **Print / save as PDF.** Hands off to the webview's print dialog, which does
   not render under Xvfb.
-- **Icon library.** Needs a folder of SVGs to point at.
-- **Per-node drag-resize** (case 2) and **note resize/lock** (case 5), as
-  before: synthetic drags do not reach `NodeResizer`.
+- **Icon library.** Covered on 2026-08-29 against a folder of five files
+  including a hostile SVG; two bugs found and fixed.
+
+## Interaction harness, added 2026-08-29
+
+`e2e/interact.mjs` (`npm run e2e:interact`, with `npm run dev` running) drives
+Chromium against the browser build. That reaches what the hand-run smoke test
+could not: the Tauri build renders in WebKitGTK, and xdotool does not produce
+the pointer sequence `NodeResizer` needs or a real HTML5 drag from the palette.
+These components are pure frontend, so the browser exercises the same code.
+
+Eleven checks: a palette item dragged onto the canvas creates the right node;
+a selected node and a selected note both show resize handles and grow when a
+corner is dragged; a node can be moved; a locked node and a locked note refuse
+to move and offer no handles.
+
+It found one defect on its first run. **"Lock position" did not lock the
+position.** React Flow decides draggability from a `draggable` field on the
+node; `locked` lives in `data`, which it never reads. `DeviceNode` reads
+`data.locked` directly for the resizer, so the lock hid the handles and looked
+like it worked, while the node stayed as draggable as before. Fixed in
+`Canvas.tsx` by deriving `draggable` for every node.
+
+The remark in `paletteDrop.ts` that a real drop "is not practical" in a
+headless browser turns out to be true of xdotool into WebKit, not of Chromium:
+`dragTo` fires the whole HTML5 sequence and the drop lands.
 
 ## Known gaps
 
-- No end-to-end UI test harness. The smoke test above was driven by hand
-  through xdotool, which found nine real defects but is not repeatable.
-  Playwright against the Tauri build is the obvious next investment.
+- The e2e harness covers canvas interaction only. Everything that needs the
+  backend — discovery, backups, the vault, native dialogs — still has to be
+  driven by hand against the packaged binary, because the browser build has no
+  backend to drive.
 - CSV import has unit tests but no UI, so it has no manual case yet.

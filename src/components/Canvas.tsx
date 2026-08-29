@@ -1,5 +1,5 @@
 import { nodeForDrop } from '../lib/paletteDrop';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -258,11 +258,24 @@ export function Canvas() {
     return () => window.removeEventListener('keydown', handler);
   }, [doc.nodes, rf, store]);
 
+  // React Flow decides whether a node can be dragged from a `draggable` field
+  // on the node itself. `locked` lives in `data`, which it never looks at, so
+  // "Lock position" hid the resize handles — the one part DeviceNode reads
+  // directly — and left the node as draggable as before.
+  const nodes = useMemo(
+    () =>
+      doc.nodes.map((n) => {
+        const locked = Boolean((n.data as { locked?: boolean }).locked);
+        return locked ? { ...n, draggable: false } : n;
+      }),
+    [doc.nodes],
+  );
+
   return (
     <div className="cv-canvas" ref={wrapper} onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
       <EdgeMarkerDefs />
       <ReactFlow
-        nodes={doc.nodes}
+        nodes={nodes}
         edges={doc.edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
