@@ -46,6 +46,21 @@ Ordered by what makes the app more useful, not by what is easiest.
       the way the FortiGate reference script does with `get system arp`
 - [ ] MAC OUI lookup to name and classify unmanaged devices
 
+## Status honesty
+
+- [x] **A device that stops answering looks different straight away.** With the
+      default thresholds — a check every 5 seconds, 3 failures before a device
+      is called down — something unplugged stayed solid green for fifteen
+      seconds with nothing to say otherwise. The engine and both probe kinds
+      were verified correct; the fault was that `consecutiveFailures` was
+      tracked and only shown in the inspector. A missed check now shows on the
+      node and in the table immediately, without claiming the device is down
+      before the rule says so
+- [ ] Show how long ago each result was confirmed, so a status nobody has
+      re-checked is obviously not current
+- [ ] Let the interval and failure threshold be set for the whole project
+      rather than per probe, so "tell me within 5 seconds" is one setting
+
 ## Then — the diagram itself
 
 - [ ] Manual re-layout that survives a re-crawl: re-running discovery should

@@ -7,7 +7,7 @@ import { BackupPanel } from './BackupPanel';
 import { CsvImportPanel } from './CsvImportPanel';
 import { STATUS_COLOR } from './edges/LiveEdge';
 import { linkStatus } from '../health/evaluate';
-import type { DeviceNodeData, HealthStatus, LinkData } from '../types/domain';
+import type { DeviceNodeData, HealthStatus, LinkData, ProbeRuntime } from '../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../types/domain';
 
 type Row = {
@@ -21,6 +21,23 @@ type Row = {
   rtt: number | null;
   tags: string[];
 };
+
+/**
+ * What to say while a device has stopped answering but has not yet missed
+ * enough checks to be called down.
+ *
+ * Repeating the last successful reply here reads as a current result, which
+ * for the fifteen seconds the default thresholds take is the table asserting
+ * something it has not confirmed.
+ */
+function missedNote(live: ProbeRuntime | undefined): string | null {
+  if (!live || live.consecutiveFailures < 1) return null;
+  // Only while the count still means something. Past the threshold the device
+  // is down and has been reported as such; carrying on counting produces
+  // "10 of 3 missed", which reads as a bug because it is one.
+  if (live.consecutiveFailures >= live.failureThreshold) return null;
+  return `No answer — ${live.consecutiveFailures} of ${live.failureThreshold} missed`;
+}
 
 export function StatusPanel() {
   const open = useStore((s) => s.panelOpen);
@@ -55,7 +72,7 @@ export function StatusPanel() {
         type: d.deviceType,
         target: primary?.target ?? '',
         status: nodeStatusOf(n.id),
-        detail: live?.lastSummary ?? '',
+        detail: missedNote(live) ?? live?.lastSummary ?? '',
         rtt: live?.lastRttMs ?? null,
         tags: d.tags ?? [],
       });
@@ -81,7 +98,7 @@ export function StatusPanel() {
           runtime,
           sessionRunning: session.state === 'running',
         }),
-        detail: live?.lastSummary ?? '',
+        detail: missedNote(live) ?? live?.lastSummary ?? '',
         rtt: live?.lastRttMs ?? null,
         tags: [],
       });

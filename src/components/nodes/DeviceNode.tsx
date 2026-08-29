@@ -106,6 +106,15 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const primaryAddress =
     d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';
 
+  // A device that has stopped answering but has not yet failed enough times
+  // to be called down. It is still drawn as healthy, because that is what the
+  // rule says — but drawn as *confirmed* healthy it is a claim the app cannot
+  // stand behind, and for the fifteen seconds the default thresholds take, a
+  // device someone has just unplugged looks perfectly fine.
+  const missed = live && live.consecutiveFailures > 0 ? live.consecutiveFailures : 0;
+  const failing = missed > 0 && status !== 'down' && status !== 'disabled';
+  const missedLabel = failing ? `${missed} of ${live?.failureThreshold ?? '?'} missed` : null;
+
   const isShape = SHAPE_TYPES.has(d.deviceType);
   const isText = d.deviceType === 'text';
   // The annotation shapes are boxes by definition — a rectangle drawn as a
@@ -130,7 +139,10 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
         <Handle type="source" position={Position.Bottom} id="b" className="cv-handle" />
         <Handle type="target" position={Position.Left} id="l" className="cv-handle" />
 
-        <div className="cv-glyph-art" style={{ color: d.style?.iconColor ?? color }}>
+        <div
+          className={`cv-glyph-art${failing ? ' is-failing' : ''}`}
+          style={{ color: d.style?.iconColor ?? color }}
+        >
           {d.imageDataUrl ? <img src={d.imageDataUrl} alt="" /> : <Icon />}
           <span
             key={status}
@@ -155,11 +167,13 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
           {d.showDetails && (
             <>
               {primaryAddress && <div className="cv-glyph-addr">{primaryAddress}</div>}
-              <div className="cv-glyph-status" style={{ color }}>
+              <div className="cv-glyph-status" style={{ color: failing ? '#e8a33d' : color }}>
                 {STATUS_LABEL[status]}
-                {live?.lastRttMs != null && status !== 'down'
-                  ? ` · ${live.lastRttMs < 1 ? '<1' : live.lastRttMs.toFixed(0)} ms`
-                  : ''}
+                {missedLabel
+                  ? ` · ${missedLabel}`
+                  : live?.lastRttMs != null && status !== 'down'
+                    ? ` · ${live.lastRttMs < 1 ? '<1' : live.lastRttMs.toFixed(0)} ms`
+                    : ''}
               </div>
               {d.maintenance && <div className="cv-node-maint">In maintenance</div>}
             </>
@@ -231,11 +245,13 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
           {d.showDetails && !isText && (
             <div className="cv-node-detail">
               {primaryAddress && <div className="cv-mono">{primaryAddress}</div>}
-              <div className="cv-node-status-line" style={{ color }}>
+              <div className="cv-node-status-line" style={{ color: failing ? '#e8a33d' : color }}>
                 {STATUS_LABEL[status]}
-                {live?.lastRttMs != null && status !== 'down'
-                  ? ` · ${live.lastRttMs < 1 ? '<1' : live.lastRttMs.toFixed(0)} ms`
-                  : ''}
+                {missedLabel
+                  ? ` · ${missedLabel}`
+                  : live?.lastRttMs != null && status !== 'down'
+                    ? ` · ${live.lastRttMs < 1 ? '<1' : live.lastRttMs.toFixed(0)} ms`
+                    : ''}
               </div>
               {d.maintenance && <div className="cv-node-maint">In maintenance</div>}
             </div>
