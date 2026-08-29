@@ -147,6 +147,8 @@ pub struct SnmpIdentity {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SnmpError {
+    #[error("{host} answered SNMP but returned nothing from the system group — the credentials are probably wrong for this device, or the view does not include it")]
+    NothingReturned { host: String },
     #[error("{host} did not answer SNMP within {}s — check the community or v3 user, and that SNMP is permitted from this machine", .timeout.as_secs())]
     Timeout { host: String, timeout: Duration },
     #[error("could not open a socket to {host}: {source}")]
@@ -320,6 +322,15 @@ pub async fn identify(
         }
     }
 
+    // An answer with nothing in it is not success. A device with the wrong
+    // credentials, or a view that excludes the system group, replies without
+    // erroring and leaves every field empty — and reporting that as a
+    // successful identification puts a nameless row on the diagram and hides
+    // the real problem. Seen on a UniFi switch whose v3 user did not match.
+    if identity.name.is_none() && identity.description.is_none() && identity.object_id.is_none() {
+        return Err(SnmpError::NothingReturned { host: host.into() });
+    }
+
     Ok(identity)
 }
 
@@ -481,6 +492,18 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(classify_identity(&l3_switch), DeviceClass::Switch, "bridging wins");
+    }
+
+    #[test]
+    fn an_empty_identity_is_not_a_successful_identification() {
+        // The check that turns "answered with nothing" into an error rather
+        // than a nameless device on the diagram.
+        let empty = SnmpIdentity::default();
+        assert!(empty.name.is_none() && empty.description.is_none() && empty.object_id.is_none());
+
+        // Anything real is enough to keep.
+        let named = SnmpIdentity { name: Some("SW1".into()), ..Default::default() };
+        assert!(named.name.is_some());
     }
 
     #[test]

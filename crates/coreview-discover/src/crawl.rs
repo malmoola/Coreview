@@ -236,7 +236,20 @@ pub async fn crawl(
                 // SSH refused. Before writing the device off, ask whether it
                 // will identify itself over SNMP — a device that answers is
                 // worth drawing, even without its neighbours.
-                if let Some(device) = Box::pin(identify_over_snmp(&address, hops, &options)).await {
+                // What a neighbour already told us about this address. SNMP
+                // often cannot work out a device's role — a UniFi switch
+                // reports sysServices 0 and a description of "Linux UBNT" —
+                // while the switch that advertised it said plainly that it is
+                // a bridge. Throwing that away would make a device change kind
+                // depending on which protocol reached it.
+                let known = pending_neighbors
+                    .values()
+                    .find(|n| n.addresses.iter().any(|a| a.ip == address))
+                    .cloned();
+
+                if let Some(device) =
+                    Box::pin(identify_over_snmp(&address, hops, &options, known.as_ref())).await
+                {
                     if seen_hostnames.insert(device.hostname.clone()) {
                         let _ = events
                             .send(CrawlEvent::Reached(Box::new(device.clone())))
@@ -326,16 +339,27 @@ async fn identify_over_snmp(
     address: &str,
     hops: usize,
     options: &CrawlOptions,
+    known: Option<&Neighbor>,
 ) -> Option<CrawledDevice> {
     let auth = options.snmp.as_ref()?;
     let identity = identify(address, 161, auth, options.snmp_timeout).await.ok()?;
 
-    // A device that answers SNMP but has no name told us nothing worth a row.
+    // The device's own name first, then whatever the neighbour called it.
     let hostname = identity
         .name
         .clone()
         .map(|n| crate::cdp::short_name(&n))
+        .filter(|n| !n.is_empty())
+        .or_else(|| known.map(|n| n.short_name.clone()))
         .filter(|n| !n.is_empty())?;
+
+    // SNMP's view of what a device *is* is often weaker than a neighbour's:
+    // sysServices is frequently 0 on equipment that plainly bridges. Prefer
+    // whichever of the two actually knows something.
+    let class = match classify_identity(&identity) {
+        DeviceClass::Unknown => known.map(|n| n.class).unwrap_or(DeviceClass::Unknown),
+        decided => decided,
+    };
 
     Some(CrawledDevice {
         hostname,
@@ -346,7 +370,7 @@ async fn identify_over_snmp(
             is_management: true,
         }],
         probe_target: address.to_string(),
-        class: classify_identity(&identity),
+        class,
         platform: identity.description.clone(),
         version: identity.description,
         // SNMP told us what this is, not what it is connected to. Leaving this

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { DiscoverPanel } from './DiscoverPanel';
 import { CrawlPanel } from './CrawlPanel';
+import { BackupPanel } from './BackupPanel';
 import { STATUS_COLOR } from './edges/LiveEdge';
 import { linkStatus } from '../health/evaluate';
 import type { DeviceNodeData, HealthStatus, LinkData } from '../types/domain';
@@ -31,7 +32,7 @@ export function StatusPanel() {
   const nodeStatusOf = useStore((s) => s.nodeStatus);
   const select = useStore((s) => s.select);
 
-  const [tab, setTab] = useState<'objects' | 'events' | 'discover' | 'crawl'>('objects');
+  const [tab, setTab] = useState<'objects' | 'events' | 'discover' | 'crawl' | 'backup'>('objects');
   const [query, setQuery] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
 
@@ -131,7 +132,7 @@ export function StatusPanel() {
   }
 
   return (
-    <div className={`cv-panel${tab === "crawl" || tab === "discover" ? " is-tall" : ""}`}>
+    <div className={`cv-panel${tab === "crawl" || tab === "discover" || tab === "backup" ? " is-tall" : ""}`}>
       <div className="cv-panel-head">
         <div className="cv-tabs">
           <button
@@ -162,9 +163,16 @@ export function StatusPanel() {
           >
             Discover devices
           </button>
+          <button
+            type="button"
+            className={tab === 'backup' ? 'is-active' : ''}
+            onClick={() => setTab('backup')}
+          >
+            Backups
+          </button>
         </div>
 
-        {tab !== 'discover' && tab !== 'crawl' && (
+        {tab !== 'discover' && tab !== 'crawl' && tab !== 'backup' && (
           <>
             <input
               className="cv-input cv-panel-search"
@@ -194,6 +202,8 @@ export function StatusPanel() {
           <DiscoverPanel />
         ) : tab === 'crawl' ? (
           <CrawlPanel />
+        ) : tab === 'backup' ? (
+          <BackupPanel />
         ) : tab === 'objects' ? (
           <table className="cv-table">
             <thead>

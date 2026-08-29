@@ -358,6 +358,119 @@ pub fn cancel_backup(state: State<'_, AppState>) -> CmdResult<()> {
     Ok(())
 }
 
+// ------------------------------------------------------------ backup browsing
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupDevice {
+    pub name: String,
+    pub captures: usize,
+    /// Newest capture, as its filename. Sortable, because the names begin with
+    /// a timestamp.
+    pub latest: Option<String>,
+}
+
+fn backup_root(state: &State<'_, AppState>) -> CmdResult<std::path::PathBuf> {
+    let conn = state.db.lock().map_err(db_err)?;
+    let root = db::all_settings(&conn)
+        .map_err(db_err)?
+        .get("backupFolder")
+        .cloned()
+        .ok_or("No backup folder has been chosen yet.")?;
+    Ok(root.into())
+}
+
+/// Every device with backups, for the browser.
+#[tauri::command]
+pub fn list_backup_devices(state: State<'_, AppState>) -> CmdResult<Vec<BackupDevice>> {
+    let root = backup_root(&state)?;
+    let Ok(entries) = std::fs::read_dir(&root) else {
+        return Ok(Vec::new());
+    };
+
+    let mut devices: Vec<BackupDevice> = entries
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let captures = coreview_discover::capture::list_captures(&root, &name, "");
+            BackupDevice {
+                latest: captures
+                    .first()
+                    .and_then(|p| p.file_name())
+                    .map(|f| f.to_string_lossy().to_string()),
+                captures: captures.len(),
+                name,
+            }
+        })
+        .filter(|d| d.captures > 0)
+        .collect();
+    devices.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(devices)
+}
+
+/// Every capture for one device, newest first, as filenames.
+#[tauri::command]
+pub fn list_device_captures(state: State<'_, AppState>, device: String) -> CmdResult<Vec<String>> {
+    let root = backup_root(&state)?;
+    Ok(coreview_discover::capture::list_captures(&root, &device, "")
+        .into_iter()
+        .filter_map(|p| p.file_name().map(|f| f.to_string_lossy().to_string()))
+        .collect())
+}
+
+/// Reads one capture.
+///
+/// Takes a device and a filename rather than a path, so the interface cannot
+/// name a file outside the backup folder — the same reason the writer builds
+/// its own paths instead of accepting them.
+#[tauri::command]
+pub fn read_capture(
+    state: State<'_, AppState>,
+    device: String,
+    filename: String,
+) -> CmdResult<String> {
+    let root = backup_root(&state)?;
+    let path = capture_path(&root, &device, &filename)?;
+    std::fs::read_to_string(&path).map_err(|e| format!("Could not read {}: {e}", path.display()))
+}
+
+/// Compares two captures of one device.
+#[tauri::command]
+pub fn diff_captures(
+    state: State<'_, AppState>,
+    device: String,
+    before: String,
+    after: String,
+) -> CmdResult<Vec<coreview_discover::capture::DiffLine>> {
+    let root = backup_root(&state)?;
+    let a = std::fs::read_to_string(capture_path(&root, &device, &before)?).map_err(|e| e.to_string())?;
+    let b = std::fs::read_to_string(capture_path(&root, &device, &after)?).map_err(|e| e.to_string())?;
+    Ok(coreview_discover::capture::diff(&a, &b))
+}
+
+/// Builds a path inside the backup folder from a device and a filename, and
+/// refuses anything that would land outside it.
+///
+/// Both components are sanitised rather than trusted. They reach here from the
+/// interface, which got them from a listing — but a listing is not a
+/// guarantee, and this is the only place a caller-supplied name becomes a path.
+fn capture_path(
+    root: &std::path::Path,
+    device: &str,
+    filename: &str,
+) -> CmdResult<std::path::PathBuf> {
+    let device = coreview_discover::backup::safe_component(device)
+        .ok_or("That is not a device name Coreview would have filed a backup under.")?;
+    let filename = coreview_discover::backup::safe_component(filename)
+        .ok_or("That is not a capture filename.")?;
+    let path = root.join(device).join(filename);
+    if !coreview_discover::backup::is_inside(root, &path) {
+        return Err("That path is outside the backup folder.".into());
+    }
+    Ok(path)
+}
+
 // --------------------------------------------------------------- host keys
 
 #[derive(serde::Serialize)]
@@ -444,6 +557,38 @@ mod tests {
                 "{class:?} did not survive as {name:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_capture_path_cannot_escape_the_backup_folder() {
+        // Both components arrive from the interface. It got them from a
+        // listing, but a listing is not a guarantee, and this is the only
+        // place a caller-supplied name becomes a path.
+        let root = std::path::Path::new("/home/me/backups");
+        for (device, file) in [
+            ("../../../etc", "passwd"),
+            ("SW1", "../../../etc/passwd"),
+            ("..", ".."),
+            ("SW1", "../../secrets.txt"),
+        ] {
+            match capture_path(root, device, file) {
+                Err(_) => {}
+                Ok(p) => assert!(
+                    coreview_discover::backup::is_inside(root, &p),
+                    "{device:?}/{file:?} produced {p:?}"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn an_ordinary_capture_path_is_built_as_expected() {
+        let root = std::path::Path::new("/home/me/backups");
+        let p = capture_path(root, "CORE-SW-01", "20260828-101530-running-config.txt").unwrap();
+        assert_eq!(
+            p,
+            std::path::Path::new("/home/me/backups/CORE-SW-01/20260828-101530-running-config.txt")
+        );
     }
 
     #[test]

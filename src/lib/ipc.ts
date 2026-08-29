@@ -222,6 +222,13 @@ export type BackupEvent =
 
 export type HostKeyRow = { host: string; fingerprint: string };
 
+export type BackupDevice = { name: string; captures: number; latest: string | null };
+/** Mirrors the Rust DiffLine, which is tagged with `kind`. */
+export type DiffLine =
+  | { kind: 'same'; value: string }
+  | { kind: 'added'; value: string }
+  | { kind: 'removed'; value: string };
+
 export type IconLibEntry = { id: string; name: string; category: string; svg: string };
 export type IconLibrary = { dir: string; icons: IconLibEntry[]; skipped: string[] };
 
@@ -423,6 +430,20 @@ export const ipc = {
     if (!isDesktop) return () => {};
     const { listen } = await import('@tauri-apps/api/event');
     return listen('coreview://backup', (e) => handler(e.payload as BackupEvent));
+  },
+
+  /** Devices with backups on disk. */
+  listBackupDevices() {
+    return isDesktop ? invoke<BackupDevice[]>('list_backup_devices') : Promise.resolve([]);
+  },
+  listDeviceCaptures(device: string) {
+    return invoke<string[]>('list_device_captures', { device });
+  },
+  readCapture(device: string, filename: string) {
+    return invoke<string>('read_capture', { device, filename });
+  },
+  diffCaptures(device: string, before: string, after: string) {
+    return invoke<DiffLine[]>('diff_captures', { device, before, after });
   },
 
   /** Remembered SSH host keys, and the ways to forget them. */
