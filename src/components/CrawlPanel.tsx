@@ -10,12 +10,11 @@ import {
   type DeviceClassName,
   type Neighbor,
 } from '../lib/ipc';
-import { makeDeviceNode } from './Canvas';
 import { CredentialPicker } from './CredentialPicker';
 import { SubnetList } from './SubnetList';
 import { reasonWithoutAddress } from '../lib/failures';
 import { newProbe } from '../lib/probes';
-import { uid } from '../lib/id';
+import { buildTopology } from '../lib/topology';
 import type { DeviceNodeData } from '../types/domain';
 
 const CLASS_LABEL: Record<DeviceClassName, string> = {
@@ -33,22 +32,25 @@ const CLASS_LABEL: Record<DeviceClassName, string> = {
 };
 
 /** The glyphs the canvas already knows, keyed by discovered class. */
-const CLASS_GLYPH: Record<DeviceClassName, string> = {
-  router: 'router',
-  switch: 'core-switch',
-  firewall: 'firewall',
-  'wireless-controller': 'wireless-controller',
-  'access-point': 'access-point',
-  phone: 'endpoint-client',
-  camera: 'camera-iot',
-  printer: 'printer',
-  server: 'server',
-  endpoint: 'endpoint-client',
-  unknown: 'generic',
-};
-
 /** Classes the crawl logs into by default. */
 const INFRASTRUCTURE: DeviceClassName[] = ['router', 'switch', 'firewall', 'wireless-controller'];
+
+/** Everything that can be ticked as somewhere to log in to. Phones, printers
+ *  and cameras are on the list because someone may genuinely want to, not
+ *  because it is a good idea by default. */
+const LOGIN_CHOICES: { value: DeviceClassName; label: string }[] = [
+  { value: 'router', label: 'Routers' },
+  { value: 'switch', label: 'Switches' },
+  { value: 'firewall', label: 'Firewalls' },
+  { value: 'wireless-controller', label: 'WLCs' },
+  { value: 'access-point', label: 'Access points' },
+  { value: 'server', label: 'Servers' },
+  { value: 'printer', label: 'Printers' },
+  { value: 'camera', label: 'Cameras' },
+  { value: 'phone', label: 'Phones' },
+  { value: 'endpoint', label: 'Endpoints' },
+  { value: 'unknown', label: 'Unclassified' },
+];
 
 /** One row of the results list: something reached, or something merely seen. */
 type Row = {
@@ -113,6 +115,14 @@ export function CrawlPanel({
   const [failures, setFailures] = useState<{ address: string; reason: string }[]>([]);
   // Live count while the crawl runs, so failures are visible before it ends.
   const [liveFailed, setLiveFailed] = useState(0);
+
+  // Chosen before the run: the classes the crawl is allowed to log into.
+  // Everything discovered is drawn either way — this only decides what gets a
+  // connection attempt, which is what sets off intrusion alerts.
+  const [loginClasses, setLoginClasses] = useState<DeviceClassName[]>(INFRASTRUCTURE);
+  const [result, setResult] = useState<{ devices: CrawledDevice[]; notVisited: Neighbor[] } | null>(
+    null,
+  );
 
   // Filter, applied after the crawl.
   const [classes, setClasses] = useState<DeviceClassName[]>([]);
@@ -204,6 +214,10 @@ export function CrawlPanel({
         );
         setRows((prev) => [...prev, ...next]);
         setFailures(r.failures);
+        // The adjacencies live here and nowhere else. Flattening to rows threw
+        // away who is plugged into what, which is why the built diagram used
+        // to be a grid of unconnected boxes.
+        setResult({ devices: r.devices, notVisited: r.notVisited });
       })
       .then((f) => {
         offResult = f;
@@ -239,13 +253,14 @@ export function CrawlPanel({
     setLiveFailed(0);
     setPushMessage(null);
     seenKeys.current = new Set();
+    setResult(null);
     setRunning(true);
     try {
       await ipc.startCrawl(
         {
           seed: seed.trim(),
           subnets,
-          crawlClasses: INFRASTRUCTURE,
+          crawlClasses: loginClasses,
           maxHops,
           maxDevices: 500,
           secondFactor,
@@ -305,35 +320,53 @@ export function CrawlPanel({
     setRows((prev) => prev.map((r) => (keys.has(r.key) ? { ...r, picked } : r)));
   };
 
-  /** Builds the diagram from what survived the filter. */
+  /**
+   * Builds the diagram from the crawl.
+   *
+   * Not from the rows: those are a flattened list and know nothing about who
+   * is plugged into what. The result carries every device's neighbours with
+   * the port at each end, which is what makes this a diagram rather than a
+   * grid of boxes.
+   */
   const build = () => {
-    if (!picked.length) return;
+    if (!result || !store.meta) return;
+    const keep = new Set(picked.map((r) => r.key.toLowerCase()));
     const bottom = store.doc.nodes.reduce((m, n) => Math.max(m, n.position.y + 120), 0);
-    const originY = bottom + 80;
 
-    picked.forEach((r, i) => {
-      const node = makeDeviceNode(
-        CLASS_GLYPH[r.klass] as never,
-        80 + (i % 6) * 230,
-        originY + Math.floor(i / 6) * 140,
-      );
-      const data = node.data as DeviceNodeData;
-      data.label = r.name;
-      if (r.probeTarget) {
-        data.addresses = [
-          { id: uid(), label: 'Discovered', address: r.probeTarget, isPrimary: true },
-        ];
-      }
-      store.addNode(node);
-      // Discovery picked this address precisely so it could be watched — the
-      // probe-address preference on the form is a question about what to
-      // monitor. A device drawn with no probe answers that question with
-      // "nothing".
-      if (r.probeTarget && store.meta) {
-        store.upsertProbe(newProbe('node', node.id, store.meta.id, r.probeTarget, 'Discovered'));
-      }
+    const topo = buildTopology(result, store.meta.id, {
+      origin: { x: 80, y: bottom + 80 },
     });
-    store.setStatusMessage(`Added ${picked.length} discovered device${picked.length === 1 ? '' : 's'}`);
+
+    // The ticks in the table decide what is placed. Matching on the drawn
+    // label keeps that honest without the builder having to know about rows.
+    const wanted = (n: (typeof topo.nodes)[number]) =>
+      keep.size === 0 || keep.has(String((n.data as DeviceNodeData).label).toLowerCase());
+    const placed = topo.nodes.filter(wanted);
+    const placedIds = new Set(placed.map((n) => n.id));
+
+    for (const node of placed) {
+      store.addNode(node);
+      const address = (node.data as DeviceNodeData).addresses?.[0]?.address;
+      const reached = (node.data as DeviceNodeData).tags?.includes('discovered');
+      // Only what was logged into is monitored. A crawl of a flat network can
+      // see hundreds of endpoints, and probing all of them is a decision, not
+      // a side effect of drawing them.
+      if (address && reached) {
+        store.upsertProbe(newProbe('node', node.id, store.meta.id, address, 'Discovered'));
+      }
+    }
+    let links = 0;
+    for (const edge of topo.edges) {
+      if (!placedIds.has(edge.source) || !placedIds.has(edge.target)) continue;
+      store.addEdge(edge);
+      links += 1;
+    }
+
+    store.setStatusMessage(
+      `Added ${placed.length} device${placed.length === 1 ? '' : 's'} and ${links} link${
+        links === 1 ? '' : 's'
+      }.` + (topo.danglingLinks ? ` ${topo.danglingLinks} link ends were not on the diagram.` : ''),
+    );
     setAllVisible(false);
   };
 
@@ -396,6 +429,39 @@ export function CrawlPanel({
 
       <SubnetList label="Stay inside these subnets" subnets={subnets} onChange={setSubnets}
         disabled={running} placeholder="10.1.0.0/16" />
+
+      {/* Chosen before the run, because a connection attempt to a phone or a
+          camera is what sets off an intrusion alert, and by then it has
+          happened. Everything discovered is drawn either way — this decides
+          only what gets logged into. */}
+      <div className="cv-login-classes">
+        <span className="cv-subnets-label">Log in to</span>
+        <div className="cv-class-chips">
+          {LOGIN_CHOICES.map(({ value, label }) => {
+            const on = loginClasses.includes(value);
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`cv-chip${on ? ' is-on' : ''}`}
+                disabled={running}
+                aria-pressed={on}
+                onClick={() =>
+                  setLoginClasses((prev) =>
+                    prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value],
+                  )
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <span className="cv-help">
+          Everything found is drawn, including whatever is not ticked here. Unticking something
+          means Coreview will not try to log in to it — nothing more.
+        </span>
+      </div>
 
       <div className="cv-discover-run">
         {running ? (
