@@ -4,6 +4,7 @@ import { useStore, type ProjectDocument } from '../state/store';
 import { SAMPLES } from '../lib/samples';
 import { ipc } from '../lib/ipc';
 import { FolderSettings } from './FolderSettings';
+import { HostKeySettings } from './HostKeySettings';
 import type { ProjectMeta } from '../types/domain';
 
 export function ProjectScreen() {
@@ -170,6 +171,8 @@ export function ProjectScreen() {
         </section>
 
         <FolderSettings />
+
+        <HostKeySettings />
 
         <footer className="cv-welcome-foot">
           Coreview runs every check from this machine. It has no account, no cloud sync and no

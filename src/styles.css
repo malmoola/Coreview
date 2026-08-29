@@ -609,3 +609,18 @@ textarea.cv-input { resize: vertical; }
 .cv-diff-body .is-removed { color: var(--down); }
 .cv-backup-results { margin-top: 12px; }
 .cv-backup-results p { margin: 2px 0; }
+
+/* ---- host keys --------------------------------------------------------- */
+.cv-hostkeys { margin-top: 34px; }
+.cv-hostkeys h2 {
+  font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted, var(--text-faint)); font-weight: 600; margin: 0 0 12px;
+}
+.cv-hostkey-table { margin-top: 10px; }
+.cv-hostkey-table td, .cv-hostkey-table th { font-size: 12px; }
+.cv-fingerprint { color: var(--text-dim); overflow-wrap: anywhere; }
+.cv-hostkey-actions {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px;
+}
+.cv-btn-danger { color: var(--down); border-color: var(--down); }
+.cv-hostkey-message { margin-top: 8px; }
