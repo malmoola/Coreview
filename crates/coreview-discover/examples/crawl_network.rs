@@ -49,6 +49,16 @@ async fn main() {
         password: Secret::new(pass),
         enable_password: std::env::var("CV_ENABLE").ok().map(Secret::new),
     };
+    // A second login, for an estate that does not have just one.
+    let fallbacks: Vec<Credentials> = match (std::env::var("CV_USER2"), std::env::var("CV_PASS2")) {
+        (Ok(u), Ok(p)) if !u.is_empty() => vec![Credentials {
+            username: u,
+            password: Secret::new(p),
+            enable_password: std::env::var("CV_ENABLE2").ok().map(Secret::new),
+        }],
+        _ => Vec::new(),
+    };
+
     let ssh = SshOptions {
         port: 22,
         connect_timeout: Duration::from_secs(8),
@@ -77,6 +87,7 @@ async fn main() {
         credentials.clone(),
         CrawlOptions {
             filter: DiscoveryFilter { subnets, ..Default::default() },
+            fallback_credentials: fallbacks,
             max_hops: 3,
             ssh: ssh.clone(),
             snmp: snmp_from_env(),

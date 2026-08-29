@@ -28,10 +28,19 @@ Ordered by what makes the app more useful, not by what is easiest.
 
 ## Next — reaching more devices
 
-- [ ] **Backup credentials**: a second username and password tried when the
-      first is rejected, as the reference scripts do. Needed on this very test
-      network — the Cisco takes Coreview/C!sco212 and the FortiSwitch takes
-      Coreview/Cisco123, so one crawl cannot currently reach both
+- [x] **Backup credentials**: a second login, tried only where the first is
+      rejected. Not on a timeout or a refused connection — a second password
+      cannot help there, and on a locking account policy it would do harm.
+      Proved against the real Cisco with a deliberately wrong first password
+
+- [ ] **Resolve a neighbour that advertises no address.** This is what now
+      blocks the test network. The FortiSwitch is seen by the Cisco on Gi0/9
+      and classified correctly, but advertises no management address, so the
+      crawl has nowhere to connect and no credential can help. The switch that
+      sees it does know: the LLDP chassis-id is a MAC, and `show ip arp` or
+      `show mac address-table` maps that MAC to an address. This is what the
+      FortiGate reference script does with `get system arp`. Doing it would
+      turn "seen only" into "reached" for a whole class of devices
 - [ ] **Telnet transport**: `russh` is SSH-only, so this is a new transport,
       not a flag. Wanted for old gear that has nothing else. Must be opt-in
       per run and say plainly that credentials cross the network in clear text

@@ -49,6 +49,14 @@ pub struct CrawlOptions {
     /// Which of a device's addresses a probe should target afterwards.
     pub address_preference: AddressPreference,
     pub ssh: SshOptions,
+    /// Credential sets to try when the first one is rejected.
+    ///
+    /// A single estate rarely has a single login: sites migrate between TACACS
+    /// realms, and appliances from a different vendor keep their own local
+    /// account. On the network this was built against the Cisco and the
+    /// FortiSwitch take different passwords, so one crawl could reach one or
+    /// the other and never both.
+    pub fallback_credentials: Vec<Credentials>,
     /// When set, a device that refuses SSH is still identified over SNMP.
     ///
     /// Worth having because the two are not interchangeable and not equally
@@ -70,6 +78,7 @@ impl Default for CrawlOptions {
             second_factor: false,
             address_preference: AddressPreference::default(),
             ssh: SshOptions::default(),
+            fallback_credentials: Vec::new(),
             snmp: None,
             snmp_timeout: Duration::from_secs(5),
         }
@@ -407,7 +416,7 @@ async fn visit(
         }
     });
 
-    let mut device = {
+    let (mut device, credentials) = {
         // Held only across the login. Commands afterwards can overlap freely;
         // it is the push that cannot.
         let _lock = if serialise.load(std::sync::atomic::Ordering::Relaxed) {
@@ -415,14 +424,35 @@ async fn visit(
         } else {
             None
         };
-        Device::connect(
-            address,
-            credentials,
-            options.ssh.clone(),
-            store,
-            Some(tx),
-        )
-        .await?
+
+        let mut connected = None;
+        let mut rejected = None;
+        for cred in std::iter::once(credentials).chain(options.fallback_credentials.iter()) {
+            match Device::connect(
+                address,
+                cred,
+                options.ssh.clone(),
+                Arc::clone(&store),
+                Some(tx.clone()),
+            )
+            .await
+            {
+                Ok(d) => {
+                    connected = Some((d, cred));
+                    break;
+                }
+                // Only a rejected password is worth another set. A timeout, a
+                // refused connection or a changed host key fails identically
+                // for every credential, and retrying those would multiply the
+                // wait and, on a locking account policy, do real harm.
+                Err(e @ SshError::AuthFailed { .. }) => rejected = Some(e),
+                Err(e) => return Err(e),
+            }
+        }
+        match connected {
+            Some(pair) => pair,
+            None => return Err(rejected.expect("a failed loop leaves an error")),
+        }
     };
 
     // Escalate before asking for anything privileged. From user mode the

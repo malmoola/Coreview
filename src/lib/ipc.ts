@@ -425,8 +425,13 @@ export const ipc = {
 
   /** Walk the network from a seed address. Credentials are used for this run
    *  and never stored. */
-  startCrawl(input: CrawlInput, credentials: CredentialInput) {
-    return invoke<void>('start_crawl', { input, credentials });
+  /** `fallbackCredentials` are tried in order when the first is rejected. */
+  startCrawl(
+    input: CrawlInput,
+    credentials: CredentialInput,
+    fallbackCredentials?: CredentialInput[],
+  ) {
+    return invoke<void>('start_crawl', { input, credentials, fallbackCredentials });
   },
   cancelCrawl() {
     return invoke<void>('cancel_crawl');

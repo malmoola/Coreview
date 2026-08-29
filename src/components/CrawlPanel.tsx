@@ -120,6 +120,11 @@ export function CrawlPanel({
   // Everything discovered is drawn either way — this only decides what gets a
   // connection attempt, which is what sets off intrusion alerts.
   const [loginClasses, setLoginClasses] = useState<DeviceClassName[]>(INFRASTRUCTURE);
+  // A second login, tried only where the first is rejected.
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [backupUsername, setBackupUsername] = useState('');
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupEnable, setBackupEnable] = useState('');
   const [result, setResult] = useState<{ devices: CrawledDevice[]; notVisited: Neighbor[] } | null>(
     null,
   );
@@ -270,6 +275,15 @@ export function CrawlPanel({
           credentialId: credentialId ?? undefined,
         },
         { username, password, enablePassword: enablePassword || undefined },
+        backupUsername.trim()
+          ? [
+              {
+                username: backupUsername.trim(),
+                password: backupPassword,
+                enablePassword: backupEnable || undefined,
+              },
+            ]
+          : undefined,
       );
     } catch (err) {
       setRunning(false);
@@ -429,6 +443,38 @@ export function CrawlPanel({
 
       <SubnetList label="Stay inside these subnets" subnets={subnets} onChange={setSubnets}
         disabled={running} placeholder="10.1.0.0/16" />
+
+      {/* Two logins, because one estate rarely has one. Sites migrate between
+          TACACS realms and appliances keep a local account of their own. */}
+      <details
+        className="cv-backup-creds"
+        open={backupOpen}
+        onToggle={(e) => setBackupOpen((e.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary>Second login, if the first is refused</summary>
+        <div className="cv-discover-form">
+          <label className="cv-field cv-field-narrow">
+            <span>Username</span>
+            <input className="cv-input" value={backupUsername} autoComplete="off" disabled={running}
+              onChange={(e) => setBackupUsername(e.target.value)} />
+          </label>
+          <label className="cv-field cv-field-narrow">
+            <span>Password</span>
+            <input className="cv-input" type="password" value={backupPassword} autoComplete="off"
+              disabled={running} onChange={(e) => setBackupPassword(e.target.value)} />
+          </label>
+          <label className="cv-field cv-field-narrow">
+            <span>Enable</span>
+            <input className="cv-input" type="password" value={backupEnable} autoComplete="off"
+              disabled={running} onChange={(e) => setBackupEnable(e.target.value)} />
+          </label>
+        </div>
+        <span className="cv-help">
+          Used only where the first login is rejected. A timeout or a refused connection is not
+          retried — a second password will not help, and on a locking account policy it would do
+          harm.
+        </span>
+      </details>
 
       {/* Chosen before the run, because a connection attempt to a phone or a
           camera is what sets off an intrusion alert, and by then it has

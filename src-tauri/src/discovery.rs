@@ -210,6 +210,10 @@ pub async fn start_crawl(
     state: State<'_, AppState>,
     input: CrawlInput,
     credentials: CredentialInput,
+    // Tried in order when the first is rejected. One estate rarely has one
+    // login: sites migrate between TACACS realms and appliances keep a local
+    // account of their own.
+    fallback_credentials: Option<Vec<CredentialInput>>,
 ) -> CmdResult<()> {
     let mut subnets = Vec::new();
     for s in &input.subnets {
@@ -234,6 +238,13 @@ pub async fn start_crawl(
             port: input.port,
             ..SshOptions::default()
         },
+        fallback_credentials: fallback_credentials
+            .unwrap_or_default()
+            .into_iter()
+            // A set with no username is an empty form, not a credential.
+            .filter(|c| !c.username.trim().is_empty())
+            .map(Credentials::from)
+            .collect(),
         snmp: match input.snmp_credential_id.as_deref() {
             Some(id) => Some(crate::vault_commands::snmp_credentials(&state, id)?),
             None => input.snmp.and_then(SnmpInput::into_auth),

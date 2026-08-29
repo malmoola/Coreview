@@ -809,3 +809,9 @@ textarea.cv-input { resize: vertical; }
 .cv-chip:hover:not(:disabled) { border-color: var(--line-strong); color: var(--text); }
 .cv-chip.is-on { background: rgba(94, 184, 255, 0.14); border-color: var(--accent); color: var(--text); }
 .cv-chip:disabled { opacity: 0.5; cursor: default; }
+
+/* The second credential set: present but folded away, because most estates
+   have one login and the form is already long. */
+.cv-backup-creds { margin: 8px 0 2px; }
+.cv-backup-creds > summary { cursor: pointer; color: var(--text-dim); font-size: 12px; }
+.cv-backup-creds > summary:hover { color: var(--text); }

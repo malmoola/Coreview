@@ -294,6 +294,59 @@ async fn crawls_two_switches_without_looping_between_them() {
     assert_eq!(reached, 2, "one Reached event per device, no repeats");
 }
 
+/// One estate, more than one login.
+///
+/// Sites migrate between TACACS realms and appliances keep their own local
+/// account. On the network this was built against, the Cisco and the
+/// FortiSwitch take different passwords, so a crawl with one credential set
+/// reached one of them and never both.
+#[tokio::test]
+async fn a_rejected_password_falls_back_to_the_next_credential() {
+    let port = start_network().await;
+    let store = Arc::new(std::sync::Mutex::new(HostKeyStore::new()));
+    let (tx, _rx) = mpsc::channel(256);
+
+    let wrong = Credentials {
+        username: "netops".into(),
+        password: Secret::new("not-the-password"),
+        enable_password: None,
+    };
+    let mut opts = options(port);
+    opts.fallback_credentials = vec![creds()];
+
+    let result = crawl("127.0.0.1", wrong, opts, store, tx, CancellationToken::new()).await;
+
+    let names: Vec<&str> = result.devices.iter().map(|d| d.hostname.as_str()).collect();
+    assert_eq!(names, vec!["SW1", "SW2"], "the second credential should get in");
+    assert!(result.failures.is_empty(), "{:?}", result.failures);
+}
+
+/// The fallback is for a rejected password and nothing else.
+#[tokio::test]
+async fn every_credential_being_wrong_still_reports_one_failure() {
+    let port = start_network().await;
+    let store = Arc::new(std::sync::Mutex::new(HostKeyStore::new()));
+    let (tx, _rx) = mpsc::channel(256);
+
+    let wrong = |p: &str| Credentials {
+        username: "netops".into(),
+        password: Secret::new(p),
+        enable_password: None,
+    };
+    let mut opts = options(port);
+    opts.fallback_credentials = vec![wrong("also-wrong")];
+
+    let result = crawl("127.0.0.1", wrong("wrong"), opts, store, tx, CancellationToken::new()).await;
+
+    assert!(result.devices.is_empty());
+    assert_eq!(result.failures.len(), 1, "one device, one failure: {:?}", result.failures);
+    assert!(
+        result.failures[0].reason.contains("rejected"),
+        "the last rejection is what to report: {:?}",
+        result.failures[0]
+    );
+}
+
 #[tokio::test]
 async fn an_access_point_is_recorded_but_never_logged_into() {
     let port = start_network().await;
