@@ -307,6 +307,95 @@ const gapBetween = async (a, b) => {
   }
 }
 
+// ---------------------------------------------------------------- grouping
+// A group is drawn as nothing at all, so the only way to see whether it worked
+// is whether the other members move.
+{
+  // Start clean: the earlier checks left things locked.
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".cv-project-open").first().click();
+  await page.waitForSelector(".react-flow__node", { timeout: 15000 });
+  await page.waitForTimeout(500);
+
+  const dev = ".react-flow__node:not(:has(.cv-note))";
+  const note = ".react-flow__node:has(.cv-note)";
+
+  await page.locator(dev).first().click();
+  await page.locator(note).first().click({ modifiers: ["Control"] });
+  await page.waitForTimeout(300);
+  await page.locator(dev).first().click({ button: "right" });
+  await page.waitForTimeout(300);
+  const groupItem = page.locator(".cv-menu button", { hasText: /^Group / }).first();
+  const offered = (await groupItem.count()) > 0;
+  check("grouping is offered for a multiple selection", offered);
+  if (offered) {
+    await groupItem.click();
+    await page.waitForTimeout(300);
+
+    // Deselect first. Both were selected in order to group them, and React
+    // Flow moves a selection together on its own — leaving them selected made
+    // this check pass with the grouping logic removed entirely.
+    await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+    await page.waitForTimeout(250);
+
+    const before = await gapBetween(note, dev);
+    const b = await page.locator(dev).first().boundingBox();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 130, b.y + b.height / 2 + 90, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const after = await gapBetween(note, dev);
+    check(
+      "a grouped companion moves with the node that was dragged",
+      Math.abs(after.dx - before.dx) < 8 && Math.abs(after.dy - before.dy) < 8,
+      `gap (${before.dx},${before.dy}) -> (${after.dx},${after.dy})`,
+    );
+
+    // Now with both selected: React Flow moves both itself, and moving the
+    // companion again on top of that would send it twice as far.
+    await page.locator(dev).first().click();
+    await page.locator(note).first().click({ modifiers: ["Control"] });
+    await page.waitForTimeout(250);
+    const before2 = await gapBetween(note, dev);
+    const b2 = await page.locator(dev).first().boundingBox();
+    await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b2.x + b2.width / 2 - 120, b2.y + b2.height / 2, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const after2 = await gapBetween(note, dev);
+    check(
+      "a member that moved itself is not moved twice",
+      Math.abs(after2.dx - before2.dx) < 8 && Math.abs(after2.dy - before2.dy) < 8,
+      `gap (${before2.dx},${before2.dy}) -> (${after2.dx},${after2.dy})`,
+    );
+
+    await page.locator(dev).first().click({ button: "right" });
+    await page.waitForTimeout(300);
+    const ungroup = page.locator(".cv-menu button", { hasText: /^Ungroup/ }).first();
+    check("ungroup is offered on a grouped node", (await ungroup.count()) > 0);
+    await ungroup.click();
+    await page.waitForTimeout(300);
+    await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+    await page.waitForTimeout(200);
+
+    const before3 = await gapBetween(note, dev);
+    const b3 = await page.locator(dev).first().boundingBox();
+    await page.mouse.move(b3.x + b3.width / 2, b3.y + b3.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b3.x + b3.width / 2 + 140, b3.y + b3.height / 2, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const after3 = await gapBetween(note, dev);
+    check(
+      "an ungrouped companion stays where it was",
+      Math.abs(after3.dx - before3.dx) > 60,
+      `gap (${before3.dx},${before3.dy}) -> (${after3.dx},${after3.dy})`,
+    );
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);
