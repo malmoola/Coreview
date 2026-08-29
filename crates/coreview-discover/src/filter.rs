@@ -179,6 +179,7 @@ mod tests {
             version: None,
             class,
             discovered_by: Protocol::Cdp,
+            chassis_id: None,
         }
     }
 

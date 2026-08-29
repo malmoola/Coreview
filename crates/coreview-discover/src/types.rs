@@ -238,6 +238,10 @@ pub struct Neighbor {
     pub version: Option<String>,
     pub class: DeviceClass,
     pub discovered_by: Protocol,
+    /// The LLDP chassis id, when there was one. Usually a MAC, which is what
+    /// lets a neighbour that advertises no address be looked up in the ARP
+    /// table of the device that saw it. CDP has no equivalent.
+    pub chassis_id: Option<String>,
 }
 
 impl Neighbor {

@@ -17,6 +17,7 @@
 //! first step finds four hundred phones whether you want them or not, and the
 //! decision about what to draw should not be buried inside the crawl.
 
+pub mod arp;
 pub mod backup;
 pub mod capture;
 pub mod cdp;

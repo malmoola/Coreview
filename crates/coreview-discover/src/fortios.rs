@@ -154,6 +154,7 @@ pub fn parse_lldp_summary(out: &str) -> Vec<Neighbor> {
             // Access Point, T:Telephone.
             class: class_from_codes(&capabilities),
             discovered_by: Protocol::Lldp,
+            chassis_id: None,
         });
     }
     neighbors

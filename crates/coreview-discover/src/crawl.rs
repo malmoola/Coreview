@@ -469,6 +469,11 @@ async fn visit(
     let lldp = device.run("show lldp neighbors detail").await.unwrap_or_default();
     let brief = device.run("show ip interface brief").await.unwrap_or_default();
     let version = device.run("show version").await.unwrap_or_default();
+    // LLDP does not require a device to advertise a management address, and
+    // plenty do not — a FortiSwitch on the network this was built against is
+    // named and classified correctly and has nowhere to connect. The switch
+    // that sees it knows: the chassis id is a MAC, and this maps it.
+    let arp = crate::arp::parse_arp_table(&device.run("show ip arp").await.unwrap_or_default());
 
     // FortiSwitch and FortiGate answer SSH and then reject all of the above
     // with a parse error. Without this the crawl logs in, takes the hostname
@@ -512,6 +517,27 @@ async fn visit(
     }
 
     let mut neighbors = merge_neighbors(parse_cdp_detail(&cdp), parse_lldp_detail(&lldp));
+
+    // Fill in an address for anything that did not advertise one. Only where
+    // there is none: an address a device advertised about itself beats one
+    // inferred from a MAC.
+    if !arp.is_empty() {
+        for n in &mut neighbors {
+            if !n.addresses.is_empty() {
+                continue;
+            }
+            let Some(mac) = n.chassis_id.as_deref().and_then(crate::arp::normalise_mac) else {
+                continue;
+            };
+            if let Some(ip) = arp.get(&mac) {
+                n.addresses.push(DeviceAddress {
+                    ip: ip.clone(),
+                    interface: None,
+                    is_management: true,
+                });
+            }
+        }
+    }
     if let Some((_, _, forti_neighbors)) = &forti {
         if neighbors.is_empty() {
             neighbors = forti_neighbors.clone();
@@ -675,6 +701,7 @@ mod tests {
             version: None,
             class: DeviceClass::Switch,
             discovered_by: protocol,
+            chassis_id: None,
         }
     }
 

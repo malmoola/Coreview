@@ -33,14 +33,11 @@ Ordered by what makes the app more useful, not by what is easiest.
       cannot help there, and on a locking account policy it would do harm.
       Proved against the real Cisco with a deliberately wrong first password
 
-- [ ] **Resolve a neighbour that advertises no address.** This is what now
-      blocks the test network. The FortiSwitch is seen by the Cisco on Gi0/9
-      and classified correctly, but advertises no management address, so the
-      crawl has nowhere to connect and no credential can help. The switch that
-      sees it does know: the LLDP chassis-id is a MAC, and `show ip arp` or
-      `show mac address-table` maps that MAC to an address. This is what the
-      FortiGate reference script does with `get system arp`. Doing it would
-      turn "seen only" into "reached" for a whole class of devices
+- [x] **Resolve a neighbour that advertises no address**, from the chassis id
+      and the ARP table of the device that saw it. This unblocked the test
+      network: the FortiSwitch advertises no address, its chassis id
+      e81c.bac4.964b appears in the Cisco's ARP table as 192.168.14.203, and
+      it is now reached, identified as a FortiSwitch-224E and linked both ways
 - [ ] **Telnet transport**: `russh` is SSH-only, so this is a new transport,
       not a flag. Wanted for old gear that has nothing else. Must be opt-in
       per run and say plainly that credentials cross the network in clear text
@@ -81,7 +78,7 @@ Recorded because it is the only evidence that counts.
 | Palo Alto PA-220 (192.168.14.206) | SNMP v2c identity, classified as a firewall |
 | FortiGate (192.168.14.195) | Not answering on 161 — the error now says what to check |
 | FortiAP U431F ×2 | Classified as access points from LLDP platform |
-| FortiSwitch 224E (192.168.14.203) | SSH via the FortiOS command set — classified Switch, platform FortiSwitch-224E, and its LLDP neighbour HOME-MAIN-SW on port24. SNMP v3 identity too |
+| FortiSwitch 224E (192.168.14.203) | SSH via the FortiOS command set — classified Switch, platform FortiSwitch-224E, and its LLDP neighbour HOME-MAIN-SW on port24. SNMP v3 identity too. Reached only because its address is resolved from its chassis id, and only with the second credential set — three features composing on one device |
 
 ## Not doing, and why
 

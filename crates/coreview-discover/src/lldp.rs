@@ -136,6 +136,7 @@ fn parse_entry(block: &str) -> Option<Neighbor> {
         version: description,
         class,
         discovered_by: Protocol::Lldp,
+        chassis_id,
     })
 }
 

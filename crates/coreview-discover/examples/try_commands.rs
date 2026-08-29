@@ -78,11 +78,11 @@ async fn main() {
                     println!("--- {command}\n    NOT UNDERSTOOD: {}", trimmed.lines().next().unwrap_or(""));
                 } else {
                     println!("--- {command}\n    {} bytes, {} lines", trimmed.len(), trimmed.lines().count());
-                    for line in trimmed.lines().take(25) {
+                    for line in trimmed.lines().take(400) {
                         println!("    | {line}");
                     }
-                    if trimmed.lines().count() > 25 {
-                        println!("    | ... {} more", trimmed.lines().count() - 25);
+                    if trimmed.lines().count() > 400 {
+                        println!("    | ... {} more", trimmed.lines().count() - 400);
                     }
                 }
             }

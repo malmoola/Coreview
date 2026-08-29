@@ -82,6 +82,8 @@ struct FakeSwitch {
     cdp: String,
     lldp: String,
     loopback: String,
+    /// `show ip arp`, for resolving a neighbour that advertises no address.
+    arp: String,
 }
 
 impl server::Handler for FakeSwitch {
@@ -144,6 +146,7 @@ impl server::Handler for FakeSwitch {
             "terminal length 0" | "enable" => String::new(),
             "show cdp neighbors detail" => self.cdp.clone(),
             "show lldp neighbors detail" => self.lldp.clone(),
+            "show ip arp" => self.arp.clone(),
             "show ip interface brief" => format!(
                 "Interface              IP-Address      OK? Method Status                Protocol\r\n\
                  GigabitEthernet1/0/1   {}        YES NVRAM  up                    up\r\n\
@@ -217,8 +220,11 @@ async fn start_network() -> u16 {
         FakeSwitch {
             hostname: "SW1".into(),
             cdp: sw1_cdp(),
-            lldp: String::new(),
+            lldp: sw1_lldp(),
             loopback: "10.255.0.1".into(),
+            // SW1 has seen the silent switch and knows its address.
+            arp: "Protocol  Address          Age (min)  Hardware Addr   Type   Interface\r\n                  Internet  127.0.0.4               0   e81c.bac4.964b  ARPA   Vlan1\r\n"
+                .into(),
         },
     )
     .await;
@@ -230,10 +236,33 @@ async fn start_network() -> u16 {
             cdp: sw2_cdp(),
             lldp: sw2_lldp(),
             loopback: "10.255.0.2".into(),
+            arp: String::new(),
+        },
+    )
+    .await;
+    // The switch SW1 can see but that advertises no address of its own. It is
+    // reachable — the point is that its address has to be worked out from the
+    // chassis id and SW1's ARP table before anything can reach it.
+    start(
+        "127.0.0.4",
+        port,
+        FakeSwitch {
+            hostname: "SILENT-SW".into(),
+            cdp: String::new(),
+            lldp: String::new(),
+            loopback: "10.255.0.4".into(),
+            arp: String::new(),
         },
     )
     .await;
     port
+}
+
+/// A switch that advertises a chassis id and no management address, which is
+/// what a FortiSwitch does and what left one undrawable on the real network.
+fn sw1_lldp() -> String {
+    "------------------------------------------------\r\n     Local Intf: Gi0/9\r\n     Chassis id: e81c.bac4.964b\r\n     Port id: port24\r\n     System Name: SILENT-SW\r\n\r\n     System Description:\r\n     FortiSwitch-224E v7.6.1\r\n\r\n     Time remaining: 96 seconds\r\n     System Capabilities: B,R\r\n     Enabled Capabilities: B\r\n\r\n     Total entries displayed: 1\r\n"
+        .into()
 }
 
 fn creds() -> Credentials {
@@ -279,7 +308,11 @@ async fn crawls_two_switches_without_looping_between_them() {
     .await;
 
     let names: Vec<&str> = result.devices.iter().map(|d| d.hostname.as_str()).collect();
-    assert_eq!(names, vec!["SW1", "SW2"], "both switches, each once");
+    assert_eq!(
+        names,
+        vec!["SW1", "SW2", "SILENT-SW"],
+        "both switches plus the one whose address came from ARP, each once"
+    );
     assert!(result.failures.is_empty(), "unexpected failures: {:?}", result.failures);
     assert!(!result.cancelled);
 
@@ -291,7 +324,7 @@ async fn crawls_two_switches_without_looping_between_them() {
         .chain(std::iter::from_fn(|| rx.try_recv().ok()))
         .filter(|e| matches!(e, CrawlEvent::Reached(_)))
         .count();
-    assert_eq!(reached, 2, "one Reached event per device, no repeats");
+    assert_eq!(reached, 3, "one Reached event per device, no repeats");
 }
 
 /// One estate, more than one login.
@@ -317,7 +350,11 @@ async fn a_rejected_password_falls_back_to_the_next_credential() {
     let result = crawl("127.0.0.1", wrong, opts, store, tx, CancellationToken::new()).await;
 
     let names: Vec<&str> = result.devices.iter().map(|d| d.hostname.as_str()).collect();
-    assert_eq!(names, vec!["SW1", "SW2"], "the second credential should get in");
+    assert_eq!(
+        names,
+        vec!["SW1", "SW2", "SILENT-SW"],
+        "the second credential should get in"
+    );
     assert!(result.failures.is_empty(), "{:?}", result.failures);
 }
 
@@ -344,6 +381,35 @@ async fn every_credential_being_wrong_still_reports_one_failure() {
         result.failures[0].reason.contains("rejected"),
         "the last rejection is what to report: {:?}",
         result.failures[0]
+    );
+}
+
+/// LLDP does not require a management address, and plenty of devices do not
+/// advertise one. Without resolving it there is nowhere to connect, and no
+/// credential can help — a FortiSwitch sat undrawable on the real network for
+/// exactly this reason.
+#[tokio::test]
+async fn a_neighbour_that_advertises_no_address_is_resolved_from_arp() {
+    let port = start_network().await;
+    let store = Arc::new(std::sync::Mutex::new(HostKeyStore::new()));
+    let (tx, _rx) = mpsc::channel(256);
+
+    let result = crawl("127.0.0.1", creds(), options(port), store, tx, CancellationToken::new()).await;
+
+    let silent = result
+        .devices
+        .iter()
+        .find(|d| d.hostname == "SILENT-SW")
+        .expect("the switch with no advertised address should have been reached");
+    // Its chassis id is e81c.bac4.964b and SW1's ARP table maps that to
+    // 127.0.0.4. Nothing else in the crawl knows that address.
+    assert_eq!(silent.address, "127.0.0.4");
+
+    // And it is one device, not two: the same switch must not appear once as
+    // an addressless neighbour and again as a reached device.
+    assert_eq!(
+        result.devices.iter().filter(|d| d.hostname == "SILENT-SW").count(),
+        1
     );
 }
 
@@ -468,7 +534,7 @@ async fn one_unreachable_device_does_not_end_the_crawl() {
     assert!(dead.failures[0].reason.contains("127.0.0.3"), "got: {:?}", dead.failures[0]);
 
     let live = crawl("127.0.0.1", creds(), options(port), store, tx, CancellationToken::new()).await;
-    assert_eq!(live.devices.len(), 2, "a later crawl is unaffected");
+    assert_eq!(live.devices.len(), 3, "a later crawl is unaffected");
 }
 
 #[tokio::test]

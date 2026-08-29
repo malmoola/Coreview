@@ -199,6 +199,7 @@ fn parse_entry(block: &str) -> Option<Neighbor> {
         version,
         class,
         discovered_by: Protocol::Cdp,
+            chassis_id: None,
     })
 }
 
