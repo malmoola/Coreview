@@ -55,8 +55,12 @@ export function shortInterface(name: string): string {
     [/^FastEthernet/i, 'Fa'],
     [/^Port-channel/i, 'Po'],
     [/^TenGigE/i, 'Te'],
-    [/^Ethernet/i, 'Et'],
+    // NX-OS writes its own ports as Eth1/1, and on Nexus every port is an
+    // "Ethernet" whatever its speed, so this is the common case rather than
+    // the ancient 10Mb one.
+    [/^Ethernet/i, 'Eth'],
     [/^Vlan/i, 'Vl'],
+    [/^mgmt/i, 'mgmt'],
     [/^Loopback/i, 'Lo'],
   ];
   for (const [pattern, prefix] of forms) {

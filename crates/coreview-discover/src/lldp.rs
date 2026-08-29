@@ -243,6 +243,40 @@ Management Addresses:
 Total entries displayed: 2
 "#;
 
+    /// NX-OS `show lldp neighbors detail`: "Local Port id" rather than
+    /// "Local Intf", and a one-line "Management Address" rather than a
+    /// "Management Addresses" heading with an "IP:" under it.
+    const NXOS: &str = r#"
+Chassis id: 00de.fb12.3456
+Port id: Ethernet1/1
+Local Port id: Eth1/2
+Port Description: Ethernet1/1
+System Name: N9K-LEAF-2
+System Description: Cisco Nexus Operating System (NX-OS) Software 9.3(3)
+
+Time remaining: 103 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.2.2.5
+Management Address IPV6: not advertised
+Vlan ID: 1
+
+Total entries displayed: 1
+"#;
+
+    #[test]
+    fn parses_nxos_lldp_with_its_different_labels() {
+        let all = parse_lldp_detail(NXOS);
+        assert_eq!(all.len(), 1, "{all:?}");
+        let n = &all[0];
+        assert_eq!(n.short_name, "N9K-LEAF-2");
+        assert_eq!(n.local_interface.as_deref(), Some("Eth1/2"));
+        assert_eq!(n.remote_interface.as_deref(), Some("Ethernet1/1"));
+        assert_eq!(n.address(), Some("10.2.2.5"));
+        // Bridge and Router: a switch that also routes is still a switch.
+        assert_eq!(n.class, DeviceClass::Switch);
+    }
+
     #[test]
     fn parses_a_third_party_switch_cdp_would_have_missed() {
         // The reason LLDP is here at all: an Aruba switch is invisible to CDP.

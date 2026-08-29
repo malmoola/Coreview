@@ -14,10 +14,14 @@ Ordered by what makes the app more useful, not by what is easiest.
 - [x] Choose which classes to log in to **before** the run, so a connection
       attempt to a camera never happens by surprise
 - [x] Short-form interface names, full names kept on the link
-- [ ] **Verify against Cisco Nexus (NX-OS)** — parsers were written and tested
-      against IOS and IOS-XE only
+- [x] Cisco Nexus (NX-OS): CDP, LLDP and interface parsing all covered by
+      tests against real NX-OS output, including its different labels
+      ("Local Port id", one-line "Management Address", serial in the device id)
 - [ ] **Verify against Catalyst 9000 / IOS-XE 17** CDP and LLDP output
-- [ ] FortiSwitch over SSH — reachable at 192.168.14.203 for testing
+- [x] FortiSwitch and FortiGate over SSH. They answer SSH and reject every
+      IOS command, so the crawl used to log in and learn nothing but the
+      hostname. Verified against a real FortiSwitch 224E: identity, model,
+      interfaces and its LLDP neighbour table
 - [ ] Merge SNMP-only devices into the topology by neighbour identity, so a
       switch that answers SNMP but refuses SSH still lands in the right place
       rather than as an island
@@ -25,8 +29,9 @@ Ordered by what makes the app more useful, not by what is easiest.
 ## Next — reaching more devices
 
 - [ ] **Backup credentials**: a second username and password tried when the
-      first is rejected, as the reference scripts do. Common where a site is
-      mid-migration between TACACS realms
+      first is rejected, as the reference scripts do. Needed on this very test
+      network — the Cisco takes Coreview/C!sco212 and the FortiSwitch takes
+      Coreview/Cisco123, so one crawl cannot currently reach both
 - [ ] **Telnet transport**: `russh` is SSH-only, so this is a new transport,
       not a flag. Wanted for old gear that has nothing else. Must be opt-in
       per run and say plainly that credentials cross the network in clear text
@@ -64,6 +69,7 @@ Recorded because it is the only evidence that counts.
 | Palo Alto PA-220 (192.168.14.206) | SNMP v2c identity, classified as a firewall |
 | FortiGate (192.168.14.195) | Not answering on 161 — the error now says what to check |
 | FortiAP U431F ×2 | Classified as access points from LLDP platform |
+| FortiSwitch 224E (192.168.14.203) | SSH via the FortiOS command set — classified Switch, platform FortiSwitch-224E, and its LLDP neighbour HOME-MAIN-SW on port24. SNMP v3 identity too |
 
 ## Not doing, and why
 

@@ -24,6 +24,7 @@ pub mod cli;
 pub mod crawl;
 pub mod classify;
 pub mod filter;
+pub mod fortios;
 pub mod hostkeys;
 pub mod interfaces;
 pub mod snmp;

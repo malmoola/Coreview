@@ -440,11 +440,37 @@ async fn visit(
     let brief = device.run("show ip interface brief").await.unwrap_or_default();
     let version = device.run("show version").await.unwrap_or_default();
 
+    // FortiSwitch and FortiGate answer SSH and then reject all of the above
+    // with a parse error. Without this the crawl logs in, takes the hostname
+    // off the prompt and learns nothing else — on hardware that is common in
+    // exactly the networks this is for. Asked second because IOS is the usual
+    // case and this costs a round trip.
+    let forti = if crate::fortios::rejected_command(&version) {
+        let status = device.run("get system status").await.unwrap_or_default();
+        let ifaces = device.run("get system interface").await.unwrap_or_default();
+        let neighbours = device
+            .run("get switch lldp neighbors-summary")
+            .await
+            .unwrap_or_default();
+        Some((
+            crate::fortios::parse_system_status(&status),
+            crate::fortios::parse_system_interface(&ifaces),
+            crate::fortios::parse_lldp_summary(&neighbours),
+        ))
+    } else {
+        None
+    };
+
     device.close().await;
     drop(pump);
 
     let interfaces = parse_ip_interface_brief(&brief);
     let mut addresses = addresses_from(&interfaces, address);
+    if let Some((_, forti_addresses, _)) = &forti {
+        if addresses.is_empty() {
+            addresses = forti_addresses.clone();
+        }
+    }
     if addresses.is_empty() {
         // A platform whose interface table this parser does not understand.
         // The address that worked is still a fact worth keeping.
@@ -455,15 +481,29 @@ async fn visit(
         });
     }
 
-    let neighbors = merge_neighbors(parse_cdp_detail(&cdp), parse_lldp_detail(&lldp));
+    let mut neighbors = merge_neighbors(parse_cdp_detail(&cdp), parse_lldp_detail(&lldp));
+    if let Some((_, _, forti_neighbors)) = &forti {
+        if neighbors.is_empty() {
+            neighbors = forti_neighbors.clone();
+        }
+    }
     let probe_target = options
         .address_preference
         .choose(&addresses)
         .map(|a| a.ip.clone())
         .unwrap_or_else(|| address.to_string());
 
-    let platform = platform_from_version(&version);
-    let class = crate::classify::classify(platform.as_deref(), &[], first_line(&version));
+    // "FortiSwitch-224E" classifies where an IOS version banner would.
+    let forti_status = forti.as_ref().map(|(s, _, _)| s);
+    let platform = match forti_status {
+        Some(s) if s.model.is_some() => s.model.clone(),
+        _ => platform_from_version(&version),
+    };
+    let version_line = match forti_status {
+        Some(s) if s.version.is_some() => s.version.as_deref(),
+        _ => first_line(&version),
+    };
+    let class = crate::classify::classify(platform.as_deref(), &[], version_line);
 
     Ok(Visit {
         device: CrawledDevice {

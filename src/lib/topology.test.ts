@@ -224,6 +224,15 @@ describe('shortInterface', () => {
     expect(shortInterface('Vlan100')).toBe('Vl100');
   });
 
+  it('writes Nexus ports the way NX-OS does', () => {
+    // Every Nexus port is an "Ethernet" whatever its speed, and the switch
+    // itself calls them Eth1/1.
+    expect(shortInterface('Ethernet1/1')).toBe('Eth1/1');
+    expect(shortInterface('Ethernet1/49')).toBe('Eth1/49');
+    expect(shortInterface('port-channel10')).toBe('Po10');
+    expect(shortInterface('mgmt0')).toBe('mgmt0');
+  });
+
   it('does not shorten TenGigabitEthernet to Etn', () => {
     // The Ethernet rule matches inside the longer name if tried first.
     expect(shortInterface('TenGigabitEthernet1/1')).toBe('Te1/1');
