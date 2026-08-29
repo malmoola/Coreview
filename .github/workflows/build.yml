@@ -132,6 +132,15 @@ jobs:
 
       - run: npm ci
 
+      # Signs when a certificate is configured, and quietly does not when it is
+      # not, so forks and pull requests still build.
+      - name: Prepare code signing
+        if: matrix.os == 'windows-latest'
+        uses: ./.github/actions/sign-windows
+        with:
+          certificate: ${{ secrets.WINDOWS_CERTIFICATE }}
+          password: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
       # The Windows installer carries a WebView2 *bootstrapper* rather than the
       # runtime itself: embedding the runtime put it in both the NSIS exe and
       # the MSI and took the artifact past 500 MB, for a 7.8 MB application.
@@ -189,6 +198,12 @@ jobs:
             fs.writeFileSync(p, JSON.stringify(c, null, 2));
           "
           grep -A2 webviewInstallMode src-tauri/tauri.conf.json
+
+      - name: Prepare code signing
+        uses: ./.github/actions/sign-windows
+        with:
+          certificate: ${{ secrets.WINDOWS_CERTIFICATE }}
+          password: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
       - name: Build bundles
         run: npm run tauri build

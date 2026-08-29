@@ -1,0 +1,44 @@
+name: Prepare Windows code signing
+description: >
+  Imports the signing certificate and points the Tauri bundler at it. Does
+  nothing when no certificate secret is configured, so forks and pull requests
+  still build.
+
+inputs:
+  certificate:
+    description: The signing certificate as a base64-encoded PFX. Empty skips signing.
+    required: false
+    default: ''
+  password:
+    description: Password for the PFX.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    # The thumbprint is read back from the imported certificate rather than
+    # kept as a constant, so replacing the certificate needs no change here.
+    - name: Import the signing certificate
+      shell: pwsh
+      env:
+        WINDOWS_CERTIFICATE: ${{ inputs.certificate }}
+        WINDOWS_CERTIFICATE_PASSWORD: ${{ inputs.password }}
+      run: |
+        if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) {
+          Write-Host "No signing certificate configured — the installer will be unsigned."
+          exit 0
+        }
+
+        $pfx = "$env:RUNNER_TEMP\coreview-signing.pfx"
+        [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+        $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+        $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+        # The key is in the store now; the file is not needed and must not be
+        # left on the runner's disk.
+        Remove-Item $pfx -Force
+
+        Write-Host "Imported $($cert.Subject)"
+        Write-Host "Thumbprint $($cert.Thumbprint)"
+
+        node .github/actions/sign-windows/configure.mjs "$($cert.Thumbprint)"

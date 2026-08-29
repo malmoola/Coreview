@@ -61,11 +61,14 @@ Ordered by what makes the app more useful, not by what is easiest.
 
 - [x] Windows installer down from 500 MB to 7 MB (WebView2 bootstrapper)
 - [x] Offline installer as a separate artifact for air-gapped machines
-- [ ] **Authenticode signing.** A certificate exists. Needs: confirmation of
-      whether it chains to a public CA or an internal one, the thumbprint, and
-      the PFX plus its password as GitHub secrets. An internal CA removes the
-      "unknown publisher" text only on machines that trust that CA — it does
-      not clear SmartScreen for anyone else
+- [x] **Authenticode signing wired up.** Both Windows artifacts are signed
+      when `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD` are set,
+      and build unsigned when they are not. See `docs/SIGNING.md`
+- [ ] Add those two secrets. The certificate is issued by COREVIEW-FGT-Root-CA,
+      an internal CA, so this names the publisher and proves the installer is
+      unaltered **on machines that trust that root** — it does not clear
+      SmartScreen for anyone else, and cannot. That needs an OV/EV certificate
+      from a public CA, which since 2023 must be signed from an HSM
 
 ## Verified against real hardware
 
