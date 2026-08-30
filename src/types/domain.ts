@@ -36,6 +36,7 @@ export type DeviceType =
   | 'rounded'
   | 'circle'
   | 'diamond'
+  | 'zone'
   | 'cloud'
   | 'text';
 

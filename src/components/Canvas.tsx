@@ -29,6 +29,13 @@ import type { DeviceNodeData, DeviceType, NoteNodeData } from '../types/domain';
 const nodeTypes = { device: DeviceNode, note: NoteNode };
 const edgeTypes = { live: LiveEdge };
 
+/** How big a shape arrives. A section is an area, so it arrives as one — a
+ *  176x96 section would have to be resized before it could hold anything. */
+function defaultSize(type: DeviceType): { width: number; height: number } {
+  if (type === 'zone') return { width: 420, height: 300 };
+  return { width: 168, height: 92 };
+}
+
 export function makeDeviceNode(type: DeviceType, x: number, y: number): TopoNode {
   const data: DeviceNodeData = {
     label: DEVICE_LABEL[type],
@@ -39,12 +46,13 @@ export function makeDeviceNode(type: DeviceType, x: number, y: number): TopoNode
     maintenance: false,
     showDetails: true,
   };
+  const { width, height } = defaultSize(type);
   return {
     id: uid(),
     type: 'device',
     position: { x, y },
-    width: 168,
-    height: 92,
+    width,
+    height,
     data,
   };
 }
@@ -391,7 +399,10 @@ export function Canvas() {
     () =>
       view.nodes.map((n) => {
         const locked = Boolean((n.data as { locked?: boolean }).locked);
-        return locked ? { ...n, draggable: false } : n;
+        // A section is a backdrop: it has to sit under the devices standing
+        // in it, or it covers them and the diagram is a set of empty boxes.
+        const zIndex = (n.data as { deviceType?: string }).deviceType === 'zone' ? 0 : 1;
+        return locked ? { ...n, draggable: false, zIndex } : { ...n, zIndex };
       }),
     [view.nodes],
   );

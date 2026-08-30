@@ -29,6 +29,9 @@
   --notice-line: #8a6d1f;
   --notice-text: #f2e6c8;
   --label-bg: rgba(10, 14, 19, 0.92);
+  --zone-fill: rgba(78, 168, 240, 0.05);
+  --zone-line: rgba(78, 168, 240, 0.34);
+  --zone-title: rgba(78, 168, 240, 0.13);
 
   --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   --sans: ui-sans-serif, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
@@ -74,6 +77,9 @@
   --notice-bg: #fdf4dc;
   --notice-line: #d9b45a;
   --notice-text: #5a4510;
+  --zone-fill: rgba(22, 104, 196, 0.05);
+  --zone-line: rgba(22, 104, 196, 0.36);
+  --zone-title: rgba(22, 104, 196, 0.12);
 }
 
 .is-contrast {
@@ -1102,3 +1108,32 @@ textarea.cv-input { resize: vertical; }
   position: absolute; inset: 0; width: 100%; height: 100%;
   pointer-events: none; overflow: visible;
 }
+
+/* ------------------------------------------------------------- sections */
+/* A labelled area that holds the devices standing in it.
+ *
+ * It is drawn under everything else — a section that covered its contents
+ * would turn the diagram into a set of empty boxes — and that layering is
+ * also what keeps the devices inside clickable: they sit on top, so a click
+ * on a device reaches the device and a click on bare ground inside the
+ * section reaches the section, which is how it gets selected and dragged. */
+.cv-node.cv-zone {
+  background: var(--zone-fill);
+  border: 1.5px dashed var(--zone-line);
+  border-radius: 10px;
+  align-items: flex-start;
+  padding: 0;
+}
+.cv-node.cv-zone.is-selected { border-style: solid; }
+.cv-node.cv-zone .cv-node-text {
+  background: var(--zone-title);
+  border-bottom-right-radius: 8px;
+  padding: 3px 10px 4px;
+  max-width: 70%;
+}
+.cv-node.cv-zone .cv-node-label { font-size: 12px; letter-spacing: 0.02em; }
+.cv-node.cv-zone .cv-node-detail { display: none; }
+.cv-node.cv-zone .react-flow__handle { display: none; }
+/* A section is an area, not a device: it has no address, nothing probes it,
+   and a health badge on it would be reporting on nothing. */
+.cv-node.cv-zone .cv-status-badge { display: none; }

@@ -7,7 +7,7 @@ import { useStore } from '../../state/store';
 import type { DeviceNodeData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 
-const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text']);
+const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'zone']);
 
 /** Shapes a border and a border-radius cannot draw.
  *
@@ -202,12 +202,15 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
     );
   }
 
+  const isZone = d.deviceType === 'zone';
   const outline = OUTLINES[d.deviceType];
   const strokeColor = selected ? canvasPalette(ground).selection : (d.style?.border ?? color);
 
   return (
     <div
-      className={`cv-node ${isShape ? 'cv-node-shape' : ''} ${selected ? 'is-selected' : ''}`}
+      className={`cv-node ${isShape ? 'cv-node-shape' : ''} ${isZone ? 'cv-zone' : ''} ${
+        selected ? 'is-selected' : ''
+      }`}
       data-shape={d.deviceType}
       style={{
         // A shape with its own outline must not also draw the box's border,

@@ -7,6 +7,7 @@ import { uid } from '../lib/id';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
+import { zoneDeltas } from '../lib/zones';
 import {
   linkStatus as computeLinkStatus,
   nodeStatus as computeNodeStatus,
@@ -236,12 +237,28 @@ function moveGroups(changes: NodeChange<TopoNode>[], before: TopoNode[]): TopoNo
       dy: c.position.y - was.position.y,
     });
   }
-  if (deltas.size === 0) return after;
+  // A section carries whatever is standing in it. Membership is geometric and
+  // recomputed, so nothing has to be re-assigned when a device is dragged into
+  // one — and a device dragged out is simply out.
+  const dragged: { id: string; dx: number; dy: number }[] = [];
+  for (const c of changes) {
+    if (c.type !== 'position' || !c.position) continue;
+    const was = before.find((n) => n.id === c.id);
+    if (!was) continue;
+    dragged.push({
+      id: c.id,
+      dx: c.position.x - was.position.x,
+      dy: c.position.y - was.position.y,
+    });
+  }
+  const fromZones = zoneDeltas(dragged, before);
+
+  if (deltas.size === 0 && fromZones.size === 0) return after;
 
   return after.map((n) => {
     if (movedItself.has(n.id)) return n;
     const groupId = groupOf(n);
-    const d = groupId ? deltas.get(groupId) : undefined;
+    const d = (groupId ? deltas.get(groupId) : undefined) ?? fromZones.get(n.id);
     // A locked companion stays put, the same as it would under its own drag.
     if (!d || (n.data as { locked?: boolean }).locked) return n;
     return { ...n, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } };

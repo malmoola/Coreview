@@ -165,6 +165,12 @@ export const ICONS: Record<DeviceType, (p: P) => JSX.Element> = {
   diamond: S(<path d="M12 3l9 9-9 9-9-9z" />),
   cloud: S(<path d="M7 18a4 4 0 0 1 .6-8 5.5 5.5 0 0 1 10.6 1.6A3.4 3.4 0 0 1 17.5 18z" />),
   text: S(<path d="M5 6h14M12 6v13M9 19h6" />),
+  zone: S(
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" strokeDasharray="3 2" />
+      <path d="M3 9h18" />
+    </>,
+  ),
 };
 
 export const DEVICE_LABEL: Record<DeviceType, string> = {
@@ -194,6 +200,7 @@ export const DEVICE_LABEL: Record<DeviceType, string> = {
   circle: 'Circle',
   diamond: 'Diamond',
   cloud: 'Cloud',
+  zone: 'Section',
   text: 'Text',
 };
 
@@ -218,6 +225,6 @@ export const PALETTE_GROUPS: Array<{ title: string; items: DeviceType[] }> = [
   { title: 'Sites and clouds', items: ['internet', 'private-cloud', 'site', 'generic'] },
   {
     title: 'Shapes',
-    items: ['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'custom-image'],
+    items: ['zone', 'rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'custom-image'],
   },
 ];

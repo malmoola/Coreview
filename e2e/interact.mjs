@@ -1113,6 +1113,77 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("one undo reverses the whole bulk change", !/site-hq/.test(undone), undone.slice(0, 120).replace(/\n/g, " "));
 }
 
+// ---------------------------------------------------------------- sections
+// A labelled area that holds whatever is standing in it. Membership is
+// geometric, so nothing has to be re-assigned when a device is dragged in.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  const before = await nodeCount();
+
+  const item = page.locator(".cv-palette-item", { hasText: "Section" }).first();
+  check("the palette offers a section", (await item.count()) === 1);
+
+  if (await item.count()) {
+    // Dropped over the two devices that are stacked in the fixture, so it
+    // lands holding them.
+    await item.dragTo(page.locator(".react-flow__pane"), {
+      targetPosition: { x: 300, y: 300 },
+    });
+    await page.waitForTimeout(500);
+    check("dropping a section adds one node", (await nodeCount()) === before + 1,
+      `${before} -> ${await nodeCount()}`);
+
+    const zone = page.locator(".cv-zone").first();
+    check("it is drawn as a section", (await zone.count()) === 1);
+
+    // The point of the layering: a device standing in a section must still be
+    // reachable. A section drawn over its contents turns the diagram into a
+    // set of empty boxes.
+    const box = await zone.boundingBox();
+    const held = await page
+      .locator(`.react-flow__node:not(:has(.cv-zone)):not(:has(.cv-note))`)
+      .filter({ hasText: "Bystander" })
+      .first();
+    const heldBox = await held.boundingBox();
+    const overlapping =
+      heldBox &&
+      heldBox.x < box.x + box.width &&
+      heldBox.x + heldBox.width > box.x &&
+      heldBox.y < box.y + box.height &&
+      heldBox.y + heldBox.height > box.y;
+    check("the section was dropped over a device", Boolean(overlapping),
+      `${JSON.stringify(box)} vs ${JSON.stringify(heldBox)}`);
+
+    if (overlapping) {
+      await page.mouse.click(heldBox.x + heldBox.width / 2, heldBox.y + 22);
+      await page.waitForTimeout(350);
+      const title = await page.locator(".cv-inspector-title").first().innerText();
+      check("a device standing in a section is still selectable",
+        /Node/i.test(title), title.replace(/\n/g, " ").slice(0, 60));
+    }
+
+    // Dragging the section carries what is standing in it.
+    const wasAt = await held.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height - 8);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 90, box.y + box.height - 8 + 60, { steps: 14 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+    const nowAt = await held.boundingBox();
+    check("dragging a section carries what is standing in it",
+      nowAt && wasAt && Math.abs(nowAt.x - wasAt.x) > 40,
+      `${Math.round(wasAt?.x ?? 0)} -> ${Math.round(nowAt?.x ?? 0)}`);
+
+    // Removed, so later checks meet the diagram they expect.
+    await zone.click({ position: { x: 6, y: 6 } });
+    await page.waitForTimeout(200);
+    await page.keyboard.press("Delete");
+    await page.waitForTimeout(300);
+    check("the section can be deleted again", (await page.locator(".cv-zone").count()) === 0);
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);
