@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useStore } from '../../state/store';
 import { uid } from '../../lib/id';
@@ -7,6 +7,7 @@ import { DEVICE_LABEL } from '../icons';
 import { STATUS_COLOR } from '../edges/LiveEdge';
 import { describeRule, linkStatus } from '../../health/evaluate';
 import { describeSelection, withTag, withoutTag } from '../../lib/bulkEdit';
+import { buildTimeline, shortDuration, totals } from '../../lib/statusHistory';
 import type {
   DeviceNodeData,
   DeviceType,
@@ -249,6 +250,103 @@ function TriCheck({
       {label}
       {state.kind === 'mixed' && <span className="cv-field-hint"> — mixed</span>}
     </label>
+  );
+}
+
+const WINDOWS: { label: string; ms: number }[] = [
+  { label: '15m', ms: 15 * 60_000 },
+  { label: '1h', ms: 60 * 60_000 },
+  { label: '6h', ms: 6 * 60 * 60_000 },
+];
+
+/**
+ * What this device's status has been, as a strip.
+ *
+ * A single dot says what a device is doing now. It cannot say whether it has
+ * been solid all afternoon or has dropped out four times, and that difference
+ * is usually the whole question. The strip is built from recorded transitions,
+ * so the periods nobody was watching are drawn as unknown rather than filled
+ * in with whatever the device happens to be doing at the moment.
+ */
+function StatusStrip({ nodeId }: { nodeId: string }) {
+  const events = useStore((s) => s.events);
+  const session = useStore((s) => s.session);
+  const status = useStore((s) => s.nodeStatus(nodeId));
+  const [windowMs, setWindowMs] = useState(WINDOWS[1]!.ms);
+  // A single clock for the whole render, so the spans and the axis agree.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, []);
+
+  const spans = useMemo(
+    () =>
+      buildTimeline({
+        events,
+        objectId: nodeId,
+        fromMs: now - windowMs,
+        toMs: now,
+        current: status,
+        sessionStartedAt: session.startedAt,
+      }),
+    [events, nodeId, now, windowMs, status, session.startedAt],
+  );
+
+  const summary = useMemo(() => totals(spans), [spans]);
+  const span = Math.max(1, windowMs);
+
+  return (
+    <div className="cv-history">
+      <div className="cv-history-head">
+        <span className="cv-field-label">Recent status</span>
+        <div className="cv-history-windows">
+          {WINDOWS.map((w) => (
+            <button
+              key={w.label}
+              type="button"
+              className={w.ms === windowMs ? 'is-at' : ''}
+              onClick={() => setWindowMs(w.ms)}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="cv-history-strip"
+        role="img"
+        aria-label={summary
+          .map((t) => `${STATUS_LABEL[t.status]} ${shortDuration(t.ms)}`)
+          .join(', ')}
+      >
+        {spans.map((s) => (
+          <span
+            key={`${s.fromMs}-${s.status}`}
+            style={{
+              width: `${((s.toMs - s.fromMs) / span) * 100}%`,
+              background: STATUS_COLOR[s.status],
+            }}
+            title={`${STATUS_LABEL[s.status]} — ${shortDuration(s.toMs - s.fromMs)}`}
+          />
+        ))}
+      </div>
+
+      <div className="cv-history-legend">
+        {summary.length === 0 ? (
+          <span className="cv-field-hint">Nothing recorded yet.</span>
+        ) : (
+          summary.map((t) => (
+            <span key={t.status} className="cv-history-key">
+              <i style={{ background: STATUS_COLOR[t.status] }} />
+              {STATUS_LABEL[t.status]} {shortDuration(t.ms)}
+            </span>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -581,6 +679,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
         </label>
       </div>
 
+      <StatusStrip nodeId={nodeId} />
       <AddressList nodeId={nodeId} />
       <ProbeList objectKind="node" objectId={nodeId} />
     </>

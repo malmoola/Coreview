@@ -550,6 +550,37 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- history
+// A dot says what a device is doing now. The strip has to say what it has
+// been doing, and must not fill in periods nobody was watching.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  await page.locator(".react-flow__node:not(:has(.cv-note))").first().click();
+  await page.waitForTimeout(300);
+
+  const strip = page.locator(".cv-history-strip");
+  check("a selected device shows a status strip", (await strip.count()) === 1);
+
+  if (await strip.count()) {
+    const bands = await strip.locator("span").count();
+    check("the strip is drawn as bands of status", bands > 0, `${bands} bands`);
+
+    // Validation has never been started in this fixture, so nothing is known
+    // about any of it. Claiming otherwise is the failure this guards.
+    const label = (await strip.getAttribute("aria-label")) ?? "";
+    check("an unwatched period reads as unknown, not healthy",
+      /Unknown/.test(label) && !/Healthy/.test(label), label.slice(0, 80));
+
+    const windows = await page.locator(".cv-history-windows button").allTextContents();
+    check("the window can be changed", windows.join(",") === "15m,1h,6h", windows.join(","));
+    await page.locator(".cv-history-windows button", { hasText: "15m" }).click();
+    await page.waitForTimeout(250);
+    check("choosing a window keeps the strip",
+      (await strip.locator("span").count()) > 0);
+  }
+}
+
 // ---------------------------------------------------------------- csv out
 // CSV import existed and export did not, which made it a one-way door. The
 // check that matters is not that a file appears but that what comes out is

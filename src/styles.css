@@ -964,3 +964,28 @@ textarea.cv-input { resize: vertical; }
   cursor: default; color: var(--text-dim); border-style: dashed;
 }
 .cv-tag.is-partial:hover { border-color: var(--line-strong); color: var(--text-dim); }
+
+/* --------------------------------------------------------- status history */
+.cv-history { margin: 14px 0 6px; display: flex; flex-direction: column; gap: 6px; }
+.cv-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cv-history-windows { display: flex; gap: 2px; }
+.cv-history-windows button {
+  background: none; border: 1px solid transparent; color: var(--text-dim);
+  font-family: var(--mono); font-size: 10px; padding: 1px 6px;
+  border-radius: 4px; cursor: pointer;
+}
+.cv-history-windows button:hover { color: var(--text); }
+.cv-history-windows button.is-at {
+  color: var(--text); border-color: var(--line-strong); background: var(--panel-2);
+}
+.cv-history-strip {
+  display: flex; height: 12px; border-radius: 3px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--panel-2);
+}
+.cv-history-strip span { display: block; height: 100%; min-width: 1px; }
+.cv-history-legend { display: flex; flex-wrap: wrap; gap: 10px; }
+.cv-history-key {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--text-dim);
+}
+.cv-history-key i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
