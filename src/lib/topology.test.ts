@@ -20,6 +20,8 @@ const neighbor = (
   version: null,
   class: 'switch',
   discoveredBy: 'cdp',
+  chassisId: null,
+  vendor: null,
   ...over,
 });
 
@@ -215,6 +217,65 @@ describe('buildTopology', () => {
   });
 });
 
+describe('a device whose only name is a MAC', () => {
+  it('is drawn as its maker rather than as hex', () => {
+    // A chassis id of 7456.3c75.fcae on a switch port tells an operator
+    // nothing. "Ubiquiti device" tells them what they are looking at.
+    const t = buildTopology(
+      {
+        devices: [
+          device('SW', '10.0.0.1', [
+            neighbor('7456.3c75.fcae', 'Gi1/0/7', 'eth0', {
+              shortName: '7456.3c75.fcae',
+              vendor: 'Ubiquiti',
+              class: 'unknown',
+            }),
+          ]),
+        ],
+        notVisited: [],
+      },
+      'p',
+    );
+    expect(labels(t)).toContain('Ubiquiti device');
+  });
+
+  it('still counts two devices from one maker as two devices', () => {
+    // The label changes; the identity must not, or a network full of one
+    // vendor's kit collapses into a single node.
+    const t = buildTopology(
+      {
+        devices: [
+          device('SW', '10.0.0.1', [
+            neighbor('7456.3c75.fcae', 'Gi1/0/7', 'eth0', {
+              shortName: '7456.3c75.fcae', vendor: 'Ubiquiti', class: 'unknown',
+            }),
+            neighbor('7456.3c75.ffff', 'Gi1/0/8', 'eth0', {
+              shortName: '7456.3c75.ffff', vendor: 'Ubiquiti', class: 'unknown',
+            }),
+          ]),
+        ],
+        notVisited: [],
+      },
+      'p',
+    );
+    expect(t.nodes).toHaveLength(3);
+    expect(t.edges).toHaveLength(2);
+  });
+
+  it('leaves a real name alone', () => {
+    const t = buildTopology(
+      {
+        devices: [device('SW', '10.0.0.1', [
+          neighbor('ACC-SW1', 'Gi1/0/1', 'Gi0/1', { vendor: 'Cisco Systems' }),
+        ])],
+        notVisited: [],
+      },
+      'p',
+    );
+    expect(labels(t)).toContain('ACC-SW1');
+  });
+});
+
 describe('re-crawling a diagram that already exists', () => {
   const source = {
     devices: [
@@ -322,6 +383,13 @@ describe('shortInterface', () => {
 describe('identity', () => {
   it('ignores the domain and the case', () => {
     expect(identity('SW1.example.com', '')).toBe(identity('sw1', ''));
+  });
+
+  it('does not cut a MAC at its first dot', () => {
+    // Stripping a domain suffix mangles a Cisco-style MAC: 7456.3c75.fcae
+    // becomes 7456, which every device from that vendor shares.
+    expect(identity('7456.3c75.fcae', '')).not.toBe(identity('7456.3c75.ffff', ''));
+    expect(identity('7456.3c75.fcae', '')).toBe(identity('7456.3C75.FCAE', ''));
   });
 
   it('falls back to the address when there is no usable name', () => {

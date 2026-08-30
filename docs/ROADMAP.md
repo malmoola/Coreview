@@ -44,7 +44,11 @@ Ordered by what makes the app more useful, not by what is easiest.
 - [ ] LLDP-only devices: use chassis-id/port-id when a system name is absent
 - [ ] ARP and MAC-address-table sweep for endpoints that advertise nothing,
       the way the FortiGate reference script does with `get system arp`
-- [ ] MAC OUI lookup to name and classify unmanaged devices
+- [x] **MAC OUI lookup**, from the bundled IEEE registry — a device whose only
+      identity is `7456.3c75.fcae` is drawn as "Ubiquiti device". The maker
+      only: a vendor does not say what a device *is*, and guessing would put
+      wrong glyphs on a diagram with no way to tell they were guessed. Costs
+      1.4 MB of binary, halved by deduplicating the names
 
 ## Status honesty
 

@@ -28,6 +28,9 @@ pub mod filter;
 pub mod fortios;
 pub mod hostkeys;
 pub mod interfaces;
+pub mod oui;
+#[rustfmt::skip]
+mod oui_data;
 pub mod snmp;
 pub mod ssh;
 pub mod lldp;

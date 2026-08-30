@@ -145,6 +145,10 @@ export type Neighbor = {
   version: string | null;
   class: DeviceClassName;
   discoveredBy: 'cdp' | 'lldp';
+  chassisId: string | null;
+  /** Who registered the chassis id's MAC prefix. The maker only — a vendor
+   *  does not say what a device is. */
+  vendor: string | null;
 };
 
 export type CrawledDevice = {

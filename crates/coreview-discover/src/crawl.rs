@@ -702,6 +702,7 @@ mod tests {
             class: DeviceClass::Switch,
             discovered_by: protocol,
             chassis_id: None,
+            vendor: None,
         }
     }
 

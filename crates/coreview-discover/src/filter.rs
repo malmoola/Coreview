@@ -180,6 +180,7 @@ mod tests {
             class,
             discovered_by: Protocol::Cdp,
             chassis_id: None,
+            vendor: None,
         }
     }
 

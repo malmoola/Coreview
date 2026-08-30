@@ -200,6 +200,7 @@ fn parse_entry(block: &str) -> Option<Neighbor> {
         class,
         discovered_by: Protocol::Cdp,
             chassis_id: None,
+            vendor: None,
     })
 }
 

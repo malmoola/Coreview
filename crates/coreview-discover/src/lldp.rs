@@ -136,6 +136,7 @@ fn parse_entry(block: &str) -> Option<Neighbor> {
         version: description,
         class,
         discovered_by: Protocol::Lldp,
+        vendor: chassis_id.as_deref().and_then(crate::oui::vendor).map(str::to_string),
         chassis_id,
     })
 }

@@ -155,6 +155,7 @@ pub fn parse_lldp_summary(out: &str) -> Vec<Neighbor> {
             class: class_from_codes(&capabilities),
             discovered_by: Protocol::Lldp,
             chassis_id: None,
+            vendor: None,
         });
     }
     neighbors

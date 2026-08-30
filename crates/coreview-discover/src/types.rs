@@ -242,6 +242,12 @@ pub struct Neighbor {
     /// lets a neighbour that advertises no address be looked up in the ARP
     /// table of the device that saw it. CDP has no equivalent.
     pub chassis_id: Option<String>,
+    /// Who registered the chassis id's MAC prefix, where there is one.
+    ///
+    /// Only the manufacturer. A vendor does not say what a device is —
+    /// Hewlett Packard makes printers and servers and switches — so this
+    /// names the maker and stops there rather than guessing a glyph.
+    pub vendor: Option<String>,
 }
 
 impl Neighbor {

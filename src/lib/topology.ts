@@ -125,6 +125,12 @@ function edgeSignature(e: TopoEdge, idOf: (nodeId: string) => string): string {
     .join('::');
 }
 
+/** A name that is really just a MAC, which is no name at all on a diagram. */
+function looksLikeMac(name: string): boolean {
+  const hex = name.replace(/[^0-9a-fA-F]/g, '');
+  return hex.length === 12 && /[.:-]/.test(name);
+}
+
 /**
  * The identity two sightings of the same device have to agree on.
  *
@@ -133,7 +139,11 @@ function edgeSignature(e: TopoEdge, idOf: (nodeId: string) => string): string {
  * three times with a third of its links each.
  */
 export function identity(name: string, address: string): string {
-  const short = name.trim().split('.')[0]?.toLowerCase() ?? '';
+  const trimmed = name.trim();
+  // Cutting at the first dot removes a domain suffix — and mangles a MAC.
+  // `7456.3c75.fcae` becomes `7456`, which every device from that vendor
+  // shares, so a network full of one maker's kit collapsed into one node.
+  const short = (looksLikeMac(trimmed) ? trimmed : (trimmed.split('.')[0] ?? '')).toLowerCase();
   // A name that is really a serial or an empty string is no identity at all;
   // the address is the better key then.
   return short && short !== 'unknown' ? `n:${short}` : `a:${address.trim()}`;
@@ -142,6 +152,7 @@ export function identity(name: string, address: string): string {
 interface Entry {
   key: string;
   name: string;
+  vendor?: string | null;
   address: string;
   klass: DeviceClassName;
   platform: string | null;
@@ -182,6 +193,7 @@ export function buildTopology(
       if (!seen.address && e.address) seen.address = e.address;
       if (seen.klass === 'unknown' && e.klass !== 'unknown') seen.klass = e.klass;
       if (!seen.platform && e.platform) seen.platform = e.platform;
+      if (!seen.vendor && e.vendor) seen.vendor = e.vendor;
       seen.depth = Math.min(seen.depth, e.depth);
     }
   };
@@ -202,6 +214,7 @@ export function buildTopology(
   const fromNeighbor = (n: Neighbor, depth: number): Entry => ({
     key: identity(n.shortName || n.deviceId, n.addresses[0]?.ip ?? ''),
     name: n.shortName || n.deviceId,
+    vendor: n.vendor,
     address: n.addresses[0]?.ip ?? '',
     klass: n.class,
     platform: n.platform,
@@ -276,8 +289,12 @@ export function buildTopology(
       }
       const id = uid();
       nodeFor.set(e.key, id);
+      // "Ubiquiti device" beats "7456.3c75.fcae" on a diagram. The identity
+      // key stays the MAC, so two devices from the same maker remain two
+      // devices — only what is drawn changes.
+      const label = looksLikeMac(e.name) && e.vendor ? `${e.vendor} device` : e.name;
       const data: DeviceNodeData = {
-        label: e.name,
+        label,
         deviceType: CLASS_GLYPH[e.klass] ?? 'generic',
         tags: [e.reached ? 'discovered' : 'seen-only'],
         addresses: e.address
@@ -286,7 +303,7 @@ export function buildTopology(
         locked: false,
         maintenance: false,
         showDetails: true,
-        ...(e.platform ? { model: e.platform } : {}),
+        ...(e.platform ? { model: e.platform } : e.vendor ? { model: e.vendor } : {}),
       };
       nodes.push({
         id,
