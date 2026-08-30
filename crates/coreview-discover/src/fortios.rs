@@ -387,6 +387,139 @@ pub fn parse_device_store(out: &str) -> Vec<Endpoint> {
     found
 }
 
+/// A FortiAP as the FortiGate sees it, from `get wireless-controller
+/// wtp-status`.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct AccessPoint {
+    pub name: String,
+    /// Serial, which is what the DHCP lease list calls the AP a client is on.
+    pub serial: Option<String>,
+    pub address: Option<String>,
+    pub mac: Option<String>,
+    pub software_version: Option<String>,
+    pub connected: bool,
+    /// What the AP itself sees on its wired port. This is the AP's uplink —
+    /// a real cable, evidenced by LLDP — and it is often to a switch the
+    /// crawl has no other way of reaching.
+    pub uplink: Option<Neighbor>,
+}
+
+/// The access points a FortiGate manages, and what each one is plugged into.
+///
+/// The tunnel from a FortiGate to a FortiAP is a control relationship over the
+/// network, not a cable, so it is deliberately not returned as a link. The
+/// LLDP block inside each AP's entry is a cable, and on the network this was
+/// built against it is the only evidence of a UniFi switch that speaks nothing
+/// else the crawler can use.
+///
+/// Captured from a FortiGate-60F on 7.6.7 managing three APs.
+pub fn parse_wtp_status(out: &str) -> Vec<AccessPoint> {
+    let mut found: Vec<AccessPoint> = Vec::new();
+    // LLDP fields are indented under the AP they belong to and are collected
+    // separately, because they describe the neighbour and not the AP.
+    let mut lldp: Vec<(String, String)> = Vec::new();
+    let mut in_lldp = false;
+
+    let finish = |ap: &mut AccessPoint, lldp: &mut Vec<(String, String)>| {
+        ap.uplink = uplink_from(lldp);
+        lldp.clear();
+    };
+
+    for line in out.lines() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_prefix("WTP:") {
+            if let Some(last) = found.last_mut() {
+                finish(last, &mut lldp);
+            }
+            in_lldp = false;
+            // "HW_FAP231F_C2FK  0-192.168.14.110:5246" — the name is the
+            // first word; the rest is the control tunnel, not an interface.
+            let name = rest.split_whitespace().next().unwrap_or("").to_string();
+            if name.is_empty() {
+                continue;
+            }
+            found.push(AccessPoint { name, ..AccessPoint::default() });
+            continue;
+        }
+        let Some(ap) = found.last_mut() else {
+            continue;
+        };
+        let Some((label, value)) = t.split_once(':') else {
+            continue;
+        };
+        let label = label.trim();
+        let value = value.trim();
+        if label == "LLDP" {
+            in_lldp = true;
+            continue;
+        }
+        // A radio block ends the LLDP section; so does the next AP.
+        if label.starts_with("Radio") || label == "SNMP" {
+            in_lldp = false;
+            continue;
+        }
+        if in_lldp {
+            lldp.push((label.to_string(), value.to_string()));
+            continue;
+        }
+        match label {
+            "wtp-id" => ap.serial = (!value.is_empty()).then(|| value.to_string()),
+            // Written `local-ip-addr   :` with one space fewer than the rest.
+            "local-ip-addr" => ap.address = (!value.is_empty()).then(|| value.to_string()),
+            "board-mac" => ap.mac = crate::arp::normalise_mac(value),
+            "software-version" => {
+                ap.software_version = (!value.is_empty()).then(|| value.to_string());
+            }
+            "connection-state" => ap.connected = value.eq_ignore_ascii_case("Connected"),
+            _ => {}
+        }
+    }
+    if let Some(last) = found.last_mut() {
+        finish(last, &mut lldp);
+    }
+    found
+}
+
+/// The AP's wired neighbour, built from the LLDP block under it.
+fn uplink_from(fields: &[(String, String)]) -> Option<Neighbor> {
+    let get = |name: &str| {
+        fields
+            .iter()
+            .find(|(l, _)| l == name)
+            .map(|(_, v)| v.trim())
+            .filter(|v| !v.is_empty() && *v != "-")
+    };
+    let name = get("sys name")?;
+    // "mac 74:ac:b9:ec:c4:a8" — the word says what kind of id it is.
+    let chassis = get("chassis id")
+        .and_then(|v| v.split_whitespace().last())
+        .and_then(crate::arp::normalise_mac);
+    Some(Neighbor {
+        device_id: name.to_string(),
+        short_name: name.split('.').next().unwrap_or(name).to_string(),
+        addresses: Vec::new(),
+        local_interface: get("local port").map(str::to_string),
+        // "port description : Port 3" is the human one; "port id : Port" is
+        // not a port number and would label every link identically.
+        remote_interface: get("port description").map(str::to_string),
+        platform: get("sys description").map(str::to_string),
+        capabilities: get("capability")
+            .map(|c| c.split_whitespace().map(str::to_string).collect())
+            .unwrap_or_default(),
+        version: None,
+        class: crate::classify::classify(
+            get("sys description"),
+            &get("capability")
+                .map(|c| c.split_whitespace().map(str::to_string).collect::<Vec<_>>())
+                .unwrap_or_default(),
+            None,
+        ),
+        discovered_by: Protocol::Lldp,
+        chassis_id: chassis.clone(),
+        vendor: chassis.as_deref().and_then(crate::oui::vendor).map(str::to_string),
+    })
+}
+
 /// FortiSwitches this FortiGate manages, from `show switch-controller
 /// managed-switch`.
 ///
@@ -915,5 +1048,175 @@ end
     fn other_configuration_is_not_read_as_switches() {
         let other = "config system interface\n    edit \"wan1\"\n    next\nend\n";
         assert!(parse_managed_switches(other).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod wtp_status_tests {
+    use super::*;
+
+    /// Verbatim from a FortiGate-60F on 7.6.7 managing three APs — two with an
+    /// LLDP block, one without.
+    const WTP: &str = r#"WTP: HW_FAP231F_C2FK  0-192.168.14.110:5246
+    vdom             : root
+    vap in user      : no
+    wtp-id           : FP231FTF2309C2FK
+    region-code      : A 
+    name             : HW_FAP231F_C2FK
+    mgmt_vlanid      : 0
+    data-chan-sec    : clear-text
+    mesh-uplink      : ethernet
+    mesh-hop-count   : 0
+    parent-wtp-id    : 
+    software-version : FP231F-v7.4.6-build0771
+    local-ip-addr   : 192.168.14.110
+    board-mac        : 74:78:a6:44:02:68
+    ble-mac          : f4:78:a6:44:02:6f
+    join-time        : Tue Aug 18 22:05:16 2026
+    connection-state : Connected
+    image-download-progress: 0
+    last-failure     : 20 -- ECHO REQ is missing
+    last-failure-param: N/A
+    last-failure-time: Tue Aug 18 22:04:43 2026
+  LLDP               : enabled (total 1)
+    local port       : lan1
+    chassis id       : mac 74:ac:b9:ec:c4:a8
+    sys name         : Laundry-SW
+    sys description  : UBNT-USL8L
+    capability       : Bridge 
+    port id          : Port
+    port description : Port 3
+    MAU oper type    : 
+    ip               : fe80::76ac:b9ff
+WTP: Moe-Office-AP-Prod  0-192.168.14.114:15246
+    vdom             : root
+    vap in user      : no
+    wtp-id           : PU431F5E19002618
+    region-code      : A 
+    name             : Moe-Office-AP-Prod
+    mgmt_vlanid      : 0
+    data-chan-sec    : clear-text
+    mesh-uplink      : ethernet
+    mesh-hop-count   : 0
+    parent-wtp-id    : 
+    software-version : PU431F-v7.0.6-build0159
+    local-ip-addr   : 192.168.14.114
+    board-mac        : 00:0c:e6:87:b7:a0
+    ble-mac          : 00:00:00:00:00:00
+    join-time        : Tue Aug 18 22:05:42 2026
+    connection-state : Connected
+    image-download-progress: 0
+WTP: LRM_PU431F_2642  0-192.168.14.141:5246
+    vdom             : root
+    vap in user      : no
+    wtp-id           : PU431F5E19002642
+    region-code      : A 
+    name             : LRM_PU431F_2642
+    mgmt_vlanid      : 0
+    data-chan-sec    : clear-text
+    mesh-uplink      : ethernet
+    mesh-hop-count   : 0
+    parent-wtp-id    : 
+    software-version : PU431F-v7.0.6-build0159
+    local-ip-addr   : 192.168.14.141
+    board-mac        : 00:0c:e6:87:bd:a0
+    ble-mac          : 00:00:00:00:00:00
+    join-time        : Tue Aug 18 22:06:21 2026
+    connection-state : Connected
+    image-download-progress: 0
+    last-failure     : 20 -- ECHO REQ is missing
+    last-failure-param: N/A
+    last-failure-time: Tue Aug 18 22:04:59 2026
+  LLDP               : enabled (total 1)
+    local port       : eth1
+    chassis id       : mac 74:ac:b9:ec:c4:a8
+    sys name         : Laundry-SW
+    sys description  : UBNT-USL8L
+    capability       : Bridge 
+    port id          : Port
+    port description : Port 2
+    MAU oper type    : 
+    ip               : fe80::76ac:b9ff
+    vlan id          : 0
+  SNMP               : disabled
+  Temperature in Celsius: 1 (68)
+"#;
+
+    #[test]
+    fn finds_every_access_point() {
+        let aps = parse_wtp_status(WTP);
+        assert_eq!(
+            aps.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(),
+            ["HW_FAP231F_C2FK", "Moe-Office-AP-Prod", "LRM_PU431F_2642"]
+        );
+    }
+
+    #[test]
+    fn reads_the_address_the_ap_is_actually_on() {
+        // The address after the name is the control tunnel endpoint with a
+        // port on it; `local-ip-addr` is the AP itself.
+        let aps = parse_wtp_status(WTP);
+        assert_eq!(aps[0].address.as_deref(), Some("192.168.14.110"));
+        assert_eq!(aps[2].address.as_deref(), Some("192.168.14.141"));
+    }
+
+    #[test]
+    fn reads_the_serial_and_state() {
+        let aps = parse_wtp_status(WTP);
+        assert_eq!(aps[0].serial.as_deref(), Some("FP231FTF2309C2FK"));
+        assert!(aps[0].connected);
+        assert_eq!(aps[0].software_version.as_deref(), Some("FP231F-v7.4.6-build0771"));
+    }
+
+    #[test]
+    fn finds_what_the_ap_is_plugged_into() {
+        // This is the only evidence of that switch anywhere in the crawl: it
+        // speaks no CDP, and the account cannot run diagnose.
+        let up = parse_wtp_status(WTP)[0].uplink.clone().expect("an uplink");
+        assert_eq!(up.short_name, "Laundry-SW");
+        assert_eq!(up.local_interface.as_deref(), Some("lan1"));
+        assert_eq!(up.platform.as_deref(), Some("UBNT-USL8L"));
+    }
+
+    #[test]
+    fn labels_the_link_with_the_port_a_human_can_find() {
+        // "port id : Port" is not a port number and would label every link on
+        // the switch identically; "port description : Port 3" is the socket.
+        let up = parse_wtp_status(WTP)[0].uplink.clone().expect("an uplink");
+        assert_eq!(up.remote_interface.as_deref(), Some("Port 3"));
+        let other = parse_wtp_status(WTP)[2].uplink.clone().expect("an uplink");
+        assert_eq!(other.remote_interface.as_deref(), Some("Port 2"));
+    }
+
+    #[test]
+    fn the_uplink_mac_is_kept_so_arp_can_resolve_it() {
+        let up = parse_wtp_status(WTP)[0].uplink.clone().expect("an uplink");
+        assert_eq!(up.chassis_id, crate::arp::normalise_mac("74:ac:b9:ec:c4:a8"));
+        assert_eq!(up.vendor.as_deref(), Some("Ubiquiti"));
+    }
+
+    #[test]
+    fn an_ap_with_no_lldp_reports_no_uplink() {
+        // Claiming one would invent a cable. The AP is still a real device
+        // with a real address and belongs on the diagram.
+        let aps = parse_wtp_status(WTP);
+        assert_eq!(aps[1].uplink, None);
+        assert_eq!(aps[1].address.as_deref(), Some("192.168.14.114"));
+    }
+
+    #[test]
+    fn one_aps_uplink_does_not_leak_into_the_next() {
+        // The LLDP block is indented under its AP and there is no marker
+        // closing it. The AP between the two that have one is the test.
+        let aps = parse_wtp_status(WTP);
+        assert!(aps[0].uplink.is_some());
+        assert!(aps[1].uplink.is_none());
+        assert!(aps[2].uplink.is_some());
+    }
+
+    #[test]
+    fn no_access_points_is_not_a_panic() {
+        assert!(parse_wtp_status("").is_empty());
+        assert!(parse_wtp_status("WTP: \n").is_empty());
     }
 }

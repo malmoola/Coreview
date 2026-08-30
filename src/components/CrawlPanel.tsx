@@ -63,7 +63,7 @@ type Row = {
   platform: string | null;
   reached: boolean;
   /** How the device answered, so the table never overstates what is known. */
-  via: 'ssh' | 'snmp' | null;
+  via: 'ssh' | 'snmp' | 'reported' | null;
   picked: boolean;
 };
 
@@ -747,7 +747,9 @@ export function CrawlPanel({
                       ? 'Logged in'
                       : r.via === 'snmp'
                         ? 'SNMP only'
-                        : 'Seen by a neighbour'}
+                        : r.via === 'reported'
+                          ? 'Described by its controller'
+                          : 'Seen by a neighbour'}
                   </td>
                 </tr>
               ))}

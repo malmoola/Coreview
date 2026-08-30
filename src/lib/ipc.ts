@@ -180,7 +180,7 @@ export type CrawledDevice = {
   hops: number;
   /** How the device answered. SSH gives neighbours and interfaces; SNMP gives
    *  a name and nothing about what it connects to. */
-  reachedBy: 'ssh' | 'snmp';
+  reachedBy: 'ssh' | 'snmp' | 'reported';
   attached: AttachedDevice[];
 };
 

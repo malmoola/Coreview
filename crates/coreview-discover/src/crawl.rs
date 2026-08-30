@@ -105,6 +105,12 @@ impl Default for CrawlOptions {
 pub enum ReachedBy {
     Ssh,
     Snmp,
+    /// Never logged into, but described in full by a device that was —
+    /// including that device's own neighbours. A FortiAP is the case this
+    /// exists for: the FortiGate knows its name, address, serial and what its
+    /// wired port is plugged into. Presenting it as reached would claim we
+    /// verified it ourselves.
+    Reported,
 }
 
 /// A device the crawl identified.
@@ -203,6 +209,9 @@ pub struct CrawlResult {
 struct Visit {
     device: CrawledDevice,
     neighbors: Vec<Neighbor>,
+    /// Devices this one described well enough to place on a diagram, without
+    /// the crawl ever connecting to them.
+    reported: Vec<CrawledDevice>,
 }
 
 /// How to reach a device's command line.
@@ -422,6 +431,25 @@ pub async fn crawl(
                     .send(CrawlEvent::Reached(Box::new(visit.device.clone())))
                     .await;
                 result.devices.push(visit.device);
+
+                // Devices described by the one just visited. They are not
+                // queued for connection: nobody asked to log into an access
+                // point, and trying would put failed authentications in a
+                // security log for no gain.
+                for reported in visit.reported {
+                    if !seen_hostnames.insert(reported.hostname.clone()) {
+                        continue;
+                    }
+                    for neighbor in &reported.neighbors {
+                        pending_neighbors
+                            .entry(neighbor.short_name.clone())
+                            .or_insert_with(|| neighbor.clone());
+                    }
+                    let _ = events
+                        .send(CrawlEvent::Reached(Box::new(reported.clone())))
+                        .await;
+                    result.devices.push(reported);
+                }
             }
         }
     }
@@ -648,6 +676,15 @@ async fn visit(
                 .await
                 .unwrap_or_default(),
         );
+        // Each managed AP reports what its own wired port is plugged into.
+        // That is a cable, and on this network it is the only evidence of a
+        // switch that speaks nothing else the crawler can use.
+        let access_points = crate::fortios::parse_wtp_status(
+            &device
+                .run("get wireless-controller wtp-status")
+                .await
+                .unwrap_or_default(),
+        );
         // A FortiGate's own ARP table, which a FortiSwitch does not have.
         let forti_arp =
             crate::arp::parse_arp_table(&device.run("get system arp").await.unwrap_or_default());
@@ -671,6 +708,7 @@ async fn visit(
             neighbors: forti_neighbors,
             arp: forti_arp,
             endpoints,
+            access_points,
             status,
         })
     } else {
@@ -815,7 +853,13 @@ async fn visit(
         merge_endpoints(&mut attached, &f.endpoints);
     }
 
+    let reported = forti
+        .as_ref()
+        .map(|f| reported_access_points(&f.access_points))
+        .unwrap_or_default();
+
     Ok(Visit {
+        reported,
         device: CrawledDevice {
             hostname,
             address: address.to_string(),
@@ -840,6 +884,7 @@ struct FortiFacts {
     neighbors: Vec<Neighbor>,
     arp: std::collections::HashMap<String, String>,
     endpoints: Vec<crate::fortios::Endpoint>,
+    access_points: Vec<crate::fortios::AccessPoint>,
 }
 
 /// How many times to answer the pager before giving up.
@@ -874,6 +919,44 @@ async fn read_device_store(device: &mut Session) -> Vec<crate::fortios::Endpoint
         }
     }
     crate::fortios::parse_device_store(&out)
+}
+
+/// Turns the access points a FortiGate manages into devices for the diagram.
+///
+/// The tunnel from the FortiGate to an AP runs over the network and is not a
+/// cable, so no link to the FortiGate is produced. The AP's own LLDP is a
+/// cable, and it becomes the AP's neighbour — which is how a switch that
+/// answers nothing else ends up correctly drawn, attached to the right port.
+fn reported_access_points(aps: &[crate::fortios::AccessPoint]) -> Vec<CrawledDevice> {
+    aps.iter()
+        .filter_map(|ap| {
+            // Without an address there is nothing to probe and nothing to
+            // fold against; the name alone would make a node that cannot be
+            // checked or matched.
+            let address = ap.address.clone()?;
+            Some(CrawledDevice {
+                hostname: ap.name.clone(),
+                addresses: vec![DeviceAddress {
+                    ip: address.clone(),
+                    interface: None,
+                    is_management: true,
+                }],
+                probe_target: address.clone(),
+                address,
+                class: DeviceClass::AccessPoint,
+                platform: ap
+                    .software_version
+                    .as_deref()
+                    .and_then(|v| v.split('-').next())
+                    .map(str::to_string),
+                version: ap.software_version.clone(),
+                neighbors: ap.uplink.clone().into_iter().collect(),
+                hops: 0,
+                reached_by: ReachedBy::Reported,
+                attached: Vec::new(),
+            })
+        })
+        .collect()
 }
 
 /// Folds a second list of endpoints into the first, matching on MAC.
