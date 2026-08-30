@@ -153,6 +153,11 @@ export interface LinkData extends Record<string, unknown> {
   maintenance: boolean;
   notes?: string;
   healthRule: LinkHealthRule;
+  /** Keep this link on the sides it is drawn on, instead of letting it swing
+   *  round as the devices move. Off by default: a link that stays attached to
+   *  the bottom of a device after that device has been moved above its
+   *  neighbour is drawn wrong, and nobody wants to correct that by hand. */
+  pinnedSides?: boolean;
 }
 
 export interface ProjectMeta {

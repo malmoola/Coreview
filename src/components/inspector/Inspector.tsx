@@ -1184,6 +1184,18 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
           />
           Maintenance — suppress status
         </label>
+        <label className="cv-check">
+          <input
+            type="checkbox"
+            checked={Boolean(d.pinnedSides)}
+            onChange={(e) => update(edgeId, { pinnedSides: e.target.checked })}
+          />
+          Hold this link to the sides it is on now
+        </label>
+        <span className="cv-field-hint">
+          Links normally swing round to face wherever their devices have been moved. Hold one when
+          you have deliberately drawn it the long way round.
+        </span>
       </div>
 
       <Field label="Notes">

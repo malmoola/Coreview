@@ -18,6 +18,7 @@ import { EdgeMarkerDefs, LiveEdge, STATUS_COLOR } from './edges/LiveEdge';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
+import { routeForView } from '../lib/routeLinks';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
@@ -294,14 +295,14 @@ export function Canvas() {
         },
       },
       {
-        label: 'Re-route the links',
+        label: 'Let every link follow its devices',
         onSelect: () => {
-          const moved = store.routeLinks();
+          const freed = store.unpinLinks();
           store.setStatusMessage(
-            moved === 0
-              ? 'Every link already leaves the sensible side.'
-              : `Re-routed ${moved} link${moved === 1 ? '' : 's'} to leave the nearer side. ` +
-                'Devices side by side now link across rather than under.',
+            freed === 0
+              ? 'Every link already follows its devices.'
+              : `${freed} link${freed === 1 ? '' : 's'} released. They will swing round to the ` +
+                'nearer side as you move things.',
           );
         },
       },
@@ -368,10 +369,12 @@ export function Canvas() {
   // on the node itself. `locked` lives in `data`, which it never looks at, so
   // "Lock position" hid the resize handles — the one part DeviceNode reads
   // directly — and left the node as draggable as before.
-  const view = useMemo(
-    () => collapseView(doc.nodes, doc.edges, folded),
-    [doc.nodes, doc.edges, folded],
-  );
+  const view = useMemo(() => {
+    const folded_ = collapseView(doc.nodes, doc.edges, folded);
+    // Routed after folding, so a link redrawn to a folded box leaves the side
+    // of the box that faces where it is going.
+    return { nodes: folded_.nodes, edges: routeForView(folded_.nodes, folded_.edges) };
+  }, [doc.nodes, doc.edges, folded]);
 
   const nodes = useMemo(
     () =>

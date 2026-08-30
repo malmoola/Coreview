@@ -131,13 +131,17 @@ Ordered by what makes the app more useful, not by what is easiest.
       reports; drawing stays the operator's decision. Driven end to end by
       `e2e/change.mjs`, which stubs the Tauri bridge and delivers a crawl
       result the way the backend does
-- [x] **Links leave the nearer side of a device.** Everything a crawl drew
-      left the bottom and arrived at the top, which is right for a tier above
-      a tier and wrong for two devices side by side — that link dived below
-      both and climbed back. A node emits from its right and bottom only, so
-      there are two legal pairs and the router picks the better one rather
-      than the ideal one. On the canvas menu, and applied when a crawl merges
-      into a diagram that has been arranged by hand
+- [x] **Links swing round as devices move.** Everything a crawl drew left the
+      bottom and arrived at the top, and stayed there: move the lower device
+      out to the side and its link still dived off the bottom and climbed
+      back. Now the side is chosen on every render, so a link faces wherever
+      its devices have been dragged to, and swings back when they are dragged
+      back. A node emits from its right and bottom only, so there are two
+      legal pairs and the router picks the better one rather than the ideal
+      one. It is a view — nothing is written while a node is being dragged, so
+      the undo history does not fill with one entry per frame. A single link
+      can be held to the sides it is on when it has been drawn the long way
+      round on purpose
 - [x] **Edit a whole selection at once.** A crawl puts dozens of devices down
       in one go. A value the selection disagrees on reads "mixed" rather than
       showing the first one, tags are split into those everything carries and

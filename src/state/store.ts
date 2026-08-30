@@ -111,6 +111,8 @@ interface Store {
   groupBySubnet: () => { groups: number; ungrouped: number };
   tidyLayout: () => { moved: number; rows: number; locked: number };
   routeLinks: () => number;
+  /** Releases every link somebody pinned, so they all follow again. */
+  unpinLinks: () => number;
   onEdgesChange: (changes: EdgeChange<TopoEdge>[]) => void;
   addNode: (node: TopoNode) => void;
   addEdge: (edge: TopoEdge) => void;
@@ -495,6 +497,25 @@ export const useStore = create<Store>((set, get) => ({
       dirty: true,
     }));
     return changed.length;
+  },
+
+  unpinLinks() {
+    const pinned = get().doc.edges.filter(
+      (e) => (e.data as { pinnedSides?: boolean } | undefined)?.pinnedSides,
+    );
+    if (pinned.length === 0) return 0;
+    const ids = new Set(pinned.map((e) => e.id));
+    get().commit('Release links');
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        edges: state.doc.edges.map((e) =>
+          ids.has(e.id) ? ({ ...e, data: { ...e.data, pinnedSides: false } } as TopoEdge) : e,
+        ),
+      },
+      dirty: true,
+    }));
+    return pinned.length;
   },
 
   groupMembers(nodeId) {

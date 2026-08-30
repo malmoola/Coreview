@@ -46,6 +46,38 @@ export function chooseHandles(source: TopoNode, target: TopoNode): Handles {
 }
 
 /**
+ * The edges as they should be drawn right now.
+ *
+ * Called on every render, so a link swings round to the nearer side while a
+ * device is being dragged rather than staying attached to the side it was
+ * drawn on. That is the difference between a diagram that stays right as it
+ * is rearranged and one that has to be tidied up afterwards.
+ *
+ * This is a view. The stored handles are left alone, so a link that is pinned
+ * still has somewhere to go back to, and nothing is written to the document
+ * while someone drags a node around.
+ */
+export function routeForView(nodes: TopoNode[], edges: TopoEdge[]): TopoEdge[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  let changed = false;
+  const out = edges.map((edge) => {
+    if ((edge.data as { pinnedSides?: boolean } | undefined)?.pinnedSides) return edge;
+    const source = byId.get(edge.source);
+    const target = byId.get(edge.target);
+    if (!source || !target) return edge;
+    const want = chooseHandles(source, target);
+    if (edge.sourceHandle === want.sourceHandle && edge.targetHandle === want.targetHandle) {
+      return edge;
+    }
+    changed = true;
+    return { ...edge, ...want };
+  });
+  // The same array when nothing moved, so React Flow is not handed a new
+  // list of edges on every unrelated render.
+  return changed ? out : edges;
+}
+
+/**
  * Re-routes every link whose ends have moved, leaving the rest alone.
  *
  * Returns only what changed, so nothing is written for a diagram that is

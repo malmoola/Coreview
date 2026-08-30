@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { chooseHandles, routeLinks } from './routeLinks';
+import { chooseHandles, routeForView, routeLinks } from './routeLinks';
 import type { TopoEdge, TopoNode } from '../state/store';
 
 const at = (id: string, x: number, y: number): TopoNode =>
@@ -97,5 +97,61 @@ describe('routeLinks', () => {
     expect(routeLinks(nodes, [link('e', 'a', 'b')])).toEqual([
       { id: 'e', sourceHandle: 'r', targetHandle: 'l' },
     ]);
+  });
+});
+
+describe('routeForView', () => {
+  const pinned = (id: string, source: string, target: string): TopoEdge =>
+    ({
+      id, source, target, sourceHandle: 'b', targetHandle: 't',
+      data: { pinnedSides: true },
+    }) as TopoEdge;
+
+  it('swings a link round when a device moves to the side', () => {
+    // The whole point: drag the lower device out to the right and the link
+    // should leave the right of the upper one, not still dive off its bottom.
+    const below = [at('a', 0, 0), at('b', 0, 400)];
+    const beside = [at('a', 0, 0), at('b', 700, 0)];
+    const edges = [link('e', 'a', 'b', 'b', 't')];
+
+    expect(routeForView(below, edges)[0]!.sourceHandle).toBe('b');
+    expect(routeForView(beside, edges)[0]!.sourceHandle).toBe('r');
+    expect(routeForView(beside, edges)[0]!.targetHandle).toBe('l');
+  });
+
+  it('swings back when the device is moved back', () => {
+    const edges = [link('e', 'a', 'b', 'r', 'l')];
+    const below = [at('a', 0, 0), at('b', 0, 400)];
+    expect(routeForView(below, edges)[0]!.sourceHandle).toBe('b');
+  });
+
+  it('leaves a held link exactly where it was drawn', () => {
+    // Someone drew this the long way round on purpose.
+    const beside = [at('a', 0, 0), at('b', 700, 0)];
+    const routed = routeForView(beside, [pinned('e', 'a', 'b')]);
+    expect(routed[0]!.sourceHandle).toBe('b');
+    expect(routed[0]!.targetHandle).toBe('t');
+  });
+
+  it('hands back the same array when nothing needs moving', () => {
+    // Rendering gives React Flow a new edge list on every unrelated render
+    // otherwise, which makes it redraw every link for no reason.
+    const nodes = [at('a', 0, 0), at('b', 0, 400)];
+    const edges = [link('e', 'a', 'b', 'b', 't')];
+    expect(routeForView(nodes, edges)).toBe(edges);
+  });
+
+  it('does not change the edges it was given', () => {
+    // It is a view. Writing through to the document during a drag would fill
+    // the undo history with one entry per frame.
+    const beside = [at('a', 0, 0), at('b', 700, 0)];
+    const edges = [link('e', 'a', 'b', 'b', 't')];
+    routeForView(beside, edges);
+    expect(edges[0]!.sourceHandle).toBe('b');
+  });
+
+  it('leaves a link alone when one end is not on the diagram', () => {
+    const routed = routeForView([at('a', 0, 0)], [link('e', 'a', 'missing', 'b', 't')]);
+    expect(routed[0]!.sourceHandle).toBe('b');
   });
 });

@@ -668,33 +668,76 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
-// ---------------------------------------------------------------- routing
-// Links must leave the nearer side of a device. The fixture has one link
-// wired right-to-left between two devices that are stacked, which is exactly
-// the case re-routing exists to correct.
+// ---------------------------------------------------------------- swinging
+// A link must face wherever its devices have been moved to, not stay attached
+// to the side it happened to be drawn on.
+{
+  const dev = ".react-flow__node:not(:has(.cv-note))";
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+
+  /** Which way the link sets off from its source.
+   *
+   *  Checking that the path's start point moved would prove nothing — moving
+   *  a node moves the end of its link whatever side it is attached to. The
+   *  direction of the first segment is the side: a link on the bottom handle
+   *  sets off downwards, one on the right handle sets off to the right. */
+  const leavesTowards = async () => {
+    const d = await page.locator(".react-flow__edge-path").first().getAttribute("d");
+    const nums = (d ?? "").match(/-?[\d.]+/g)?.map(Number) ?? [];
+    if (nums.length < 4) return null;
+    const [x0, y0] = [nums[0], nums[1]];
+    // The first point that is actually somewhere else.
+    for (let i = 2; i + 1 < nums.length; i += 2) {
+      const dx = nums[i] - x0;
+      const dy = nums[i + 1] - y0;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+      if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "right" : "left";
+      return dy > 0 ? "down" : "up";
+    }
+    return null;
+  };
+
+  const before = await leavesTowards();
+  check("a link stacked above its neighbour sets off downwards", before === "down", String(before));
+
+  // Addressed by name. React Flow moves a dragged node to the end of the DOM
+  // for z-order, so an index stops pointing at the same device after a drag.
+  const lower = page.locator(".react-flow__node", { hasText: "Access switch" }).first();
+  // Grabbed near its left edge and not shoved so far right that it ends up
+  // underneath the inspector panel, where the next grab would hit the panel.
+  const shove = async (dx, dy) => {
+    const b = await lower.boundingBox();
+    await page.mouse.move(b.x + 40, b.y + 22);
+    await page.mouse.down();
+    await page.mouse.move(b.x + 40 + dx, b.y + 22 + dy, { steps: 16 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+  };
+
+  await shove(430, -260);
+  check("moved beside it, the link sets off sideways instead",
+    (await leavesTowards()) === "right", String(await leavesTowards()));
+
+  // And back: this is not a one-way change.
+  await shove(-430, 260);
+  check("moved back below, it sets off downwards again",
+    (await leavesTowards()) === "down", String(await leavesTowards()));
+}
+
+// ---------------------------------------------------------------- holding
+// A link can be held in place deliberately, and there has to be a way back.
 {
   await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
   await page.waitForTimeout(250);
-  const item = page.locator(".cv-menu button", { hasText: "Re-route the links" });
-  check("the canvas menu offers re-routing", (await item.count()) === 1);
+  const item = page.locator(".cv-menu button", { hasText: "Let every link follow its devices" });
+  check("the canvas menu offers releasing held links", (await item.count()) === 1);
   if (await item.count()) {
-    const edgesBefore = await page.locator(".react-flow__edge").count();
     await item.click();
-    await page.waitForTimeout(400);
-    const said = (await page.locator(".cv-panel-message").first().textContent()) ?? "";
-    check("re-routing reports what it moved", /Re-routed \d+ link/.test(said), said.slice(0, 90));
-    check("re-routing adds and removes no links",
-      (await page.locator(".react-flow__edge").count()) === edgesBefore);
-
-    // Doing it again must find nothing. A router that keeps changing its mind
-    // would put an undo step on the stack every time it is pressed.
-    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
-    await page.waitForTimeout(250);
-    await page.locator(".cv-menu button", { hasText: "Re-route the links" }).click();
     await page.waitForTimeout(350);
-    const again = (await page.locator(".cv-panel-message").first().textContent()) ?? "";
-    check("re-routing twice changes nothing the second time",
-      /already leaves the sensible side/.test(again), again.slice(0, 90));
+    const said = (await page.locator(".cv-panel-message").first().textContent()) ?? "";
+    check("with none held it says so rather than pretending to work",
+      /already follows/.test(said), said.slice(0, 90));
   }
 }
 
