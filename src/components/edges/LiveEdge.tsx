@@ -12,15 +12,11 @@ import type { HealthStatus, LinkData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 import { useStore } from '../../state/store';
 import { describeRule, shouldAnimate } from '../../health/evaluate';
+import { STATUS_COLOR_DARK, readableOn, statusColors } from '../../theme';
 
-export const STATUS_COLOR: Record<HealthStatus, string> = {
-  unknown: '#5b6b7c',
-  healthy: '#2fbf6b',
-  warning: '#e8a33d',
-  down: '#e4564a',
-  disabled: '#3d4a58',
-  maintenance: '#8b7ff0',
-};
+/** Kept as a named export because the diagram exporter and several panels
+ *  import it. The canvas uses the ground-aware set instead. */
+export const STATUS_COLOR = STATUS_COLOR_DARK;
 
 /**
  * How far along a link its port labels sit, as a fraction from each end.
@@ -117,13 +113,18 @@ function LiveEdgeInner(props: EdgeProps) {
     ],
   );
 
-  const color = STATUS_COLOR[status];
+  const ground = useStore((s) => s.settings.ground);
+  const color = statusColors(ground)[status];
   // The line can be given a colour of its own — a fibre run, a carrier
   // circuit, a VLAN — without the link ceasing to be a live one. Everything
   // that reports health keeps the status colour: the travelling dots, the
   // halo, the arrowheads and the dash pattern. Only the line itself changes,
   // so a red link that is up still reads as up.
-  const lineColor = data.colorMode === 'fixed' && data.color ? data.color : color;
+  // A colour someone picked to stand out on black is invisible on white, so
+  // it is darkened just enough to be seen rather than overridden, which would
+  // lose the choice entirely.
+  const lineColor =
+    data.colorMode === 'fixed' && data.color ? readableOn(data.color, ground) : color;
   const animate = shouldAnimate(status, reduceMotion);
   const duration = SPEED_SECONDS[status] ?? 3;
   const direction = data.direction ?? 'forward';

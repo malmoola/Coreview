@@ -45,6 +45,8 @@ export interface ProjectDocument {
 export interface AppSettings {
   reduceMotion: boolean;
   highContrast: boolean;
+  /** 'light' draws the diagram on white, for a document or a projector. */
+  ground: 'dark' | 'light';
   /** Where configuration backups are written. Chosen by the user, and kept
    *  well away from exports: a running-config holds SNMP communities and
    *  hashed passwords, and must not travel inside a project someone shares. */
@@ -270,6 +272,7 @@ export const useStore = create<Store>((set, get) => ({
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
     highContrast: false,
+    ground: 'dark',
     backupFolder: null,
     exportFolder: null,
   },

@@ -15,7 +15,8 @@ import '@xyflow/react/dist/style.css';
 
 import { DeviceNode } from './nodes/DeviceNode';
 import { NoteNode } from './nodes/NoteNode';
-import { EdgeMarkerDefs, LiveEdge, STATUS_COLOR } from './edges/LiveEdge';
+import { EdgeMarkerDefs, LiveEdge } from './edges/LiveEdge';
+import { STATUS_COLOR_DARK, canvasPalette } from '../theme';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
@@ -74,6 +75,9 @@ interface MenuState {
 export function Canvas() {
   const wrapper = useRef<HTMLDivElement>(null);
   const rf = useReactFlow();
+  const ground = useStore((s) => s.settings.ground);
+  const palette = canvasPalette(ground);
+
   const [finding, setFinding] = useState(false);
   // A view, not a document change: folding a site must not touch what is
   // saved, so expanding restores exactly what was there.
@@ -104,7 +108,9 @@ export function Canvas() {
           pathType: 'smoothstep',
           direction: 'forward',
           width: 2,
-          color: STATUS_COLOR.unknown,
+          // A stored default, not a drawn one: what is saved in the document
+          // must not depend on which ground the person who drew it was using.
+          color: STATUS_COLOR_DARK.unknown,
           enabled: true,
           maintenance: false,
           healthRule: { type: 'both-endpoints' },
@@ -447,7 +453,7 @@ export function Canvas() {
         defaultEdgeOptions={{ type: 'live' }}
       >
         {doc.canvas.gridEnabled && (
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#1d2733" />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={palette.grid} />
         )}
         <Controls showInteractive={false} />
         {doc.canvas.minimap && (
@@ -455,8 +461,8 @@ export function Canvas() {
             pannable
             zoomable
             className="cv-minimap"
-            nodeColor={(n) => (n.type === 'note' ? '#37475a' : '#48607a')}
-            maskColor="rgba(8,12,17,0.75)"
+            nodeColor={(n) => (n.type === 'note' ? palette.minimapNote : palette.minimapNode)}
+            maskColor={palette.minimapMask}
           />
         )}
       </ReactFlow>

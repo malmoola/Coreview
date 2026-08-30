@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { NodeResizer, type NodeProps } from '@xyflow/react';
 
 import { useStore } from '../../state/store';
+import { canvasPalette } from '../../theme';
 import type { NoteNodeData } from '../../types/domain';
 
 /** Very small Markdown subset: headings, bullets, checkboxes, bold, code. */
@@ -37,13 +38,14 @@ function inline(text: string) {
 function NoteNodeInner({ data, selected }: NodeProps) {
   const d = data as NoteNodeData;
   const reduceMotion = useStore((s) => s.settings.reduceMotion);
+  const ground = useStore((s) => s.settings.ground);
   return (
     <div
       className={`cv-note ${d.variant === 'change' ? 'is-change' : ''} ${selected ? 'is-selected' : ''}`}
       style={{
         background: d.background,
         color: d.textColor,
-        borderColor: selected ? '#5eb8ff' : d.borderColor,
+        borderColor: selected ? canvasPalette(ground).selection : d.borderColor,
         fontSize: d.fontSize,
         transition: reduceMotion ? 'none' : undefined,
       }}

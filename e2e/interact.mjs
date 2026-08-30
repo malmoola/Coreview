@@ -751,6 +751,57 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     (await leavesTowards()) === "down", String(await leavesTowards()));
 }
 
+// ---------------------------------------------------------------- ground
+// A white ground for a document or a projector. The test that matters is not
+// that the background changed but that everything drawn on it changed with
+// it — a colour picked to glow on near-black is invisible on white.
+{
+  const luminance = (css) => {
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(css ?? "");
+    if (!m) return null;
+    return (0.299 * Number(m[1]) + 0.587 * Number(m[2]) + 0.114 * Number(m[3])) / 255;
+  };
+  const sample = () =>
+    page.evaluate(() => {
+      const label = document.querySelector(".cv-glyph-label, .cv-node-label");
+      const app = document.querySelector(".cv-app");
+      const edge = document.querySelector(".react-flow__edge-path");
+      return {
+        text: label ? getComputedStyle(label).color : null,
+        ground: app ? getComputedStyle(app).backgroundColor : null,
+        edge: edge ? edge.style.stroke : null,
+      };
+    });
+
+  const dark = await sample();
+  const toggle = page.locator("button", { hasText: /background$/ }).first();
+  check("the top bar offers the other ground", (await toggle.count()) === 1);
+
+  if (await toggle.count()) {
+    await toggle.click();
+    await page.waitForTimeout(600);
+    const light = await sample();
+
+    check("the ground turns white",
+      (luminance(light.ground) ?? 0) > 0.9, String(light.ground));
+    check("the text turns dark with it",
+      (luminance(light.text) ?? 1) < 0.3 && (luminance(dark.text) ?? 0) > 0.6,
+      `${dark.text} -> ${light.text}`);
+    // The link colour has to change too. Leaving it is what makes a diagram
+    // unreadable in a document, which is the whole reason for the option.
+    check("a healthy link darkens rather than staying as it was",
+      light.edge !== dark.edge && (luminance(light.edge) ?? 1) < (luminance(dark.edge) ?? 0),
+      `${dark.edge} -> ${light.edge}`);
+
+    await toggle.click();
+    await page.waitForTimeout(600);
+    const back = await sample();
+    check("switching back restores the dark ground",
+      back.text === dark.text && back.edge === dark.edge,
+      `${JSON.stringify(back)}`);
+  }
+}
+
 // ---------------------------------------------------------------- colour
 // A link can be given a colour of its own — a fibre run, a carrier circuit —
 // without ceasing to be a live link. The line changes; everything that

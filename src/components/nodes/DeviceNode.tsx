@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 
 import { ICONS } from '../icons';
-import { STATUS_COLOR } from '../edges/LiveEdge';
+import { canvasPalette, statusColors } from '../../theme';
 import { useStore } from '../../state/store';
 import type { DeviceNodeData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
@@ -112,10 +112,11 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   );
   const runtime = useStore((s) => s.runtime);
   const nodeStyle = useStore((s) => s.doc.canvas.nodeStyle ?? 'glyph');
+  const ground = useStore((s) => s.settings.ground);
   const rename = useStore((s) => s.updateNodeData);
 
   const Icon = ICONS[d.deviceType] ?? ICONS.generic;
-  const color = STATUS_COLOR[status];
+  const color = statusColors(ground)[status];
   const primary = probes.find((p) => p.isPrimary && p.enabled) ?? probes.find((p) => p.enabled);
   const live = primary ? runtime.get(primary.id) : undefined;
   const address =
@@ -202,7 +203,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   }
 
   const outline = OUTLINES[d.deviceType];
-  const strokeColor = selected ? '#5eb8ff' : (d.style?.border ?? color);
+  const strokeColor = selected ? canvasPalette(ground).selection : (d.style?.border ?? color);
 
   return (
     <div

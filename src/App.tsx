@@ -13,6 +13,7 @@ import { useStore } from './state/store';
 export default function App() {
   const meta = useStore((s) => s.meta);
   const highContrast = useStore((s) => s.settings.highContrast);
+  const ground = useStore((s) => s.settings.ground);
   const applyEngineEvent = useStore((s) => s.applyEngineEvent);
   // Read above the early return: a hook after one is called conditionally,
   // which React rejects and which broke the move from the launcher into a
@@ -43,7 +44,7 @@ export default function App() {
 
   if (!meta) {
     return (
-      <div className={`cv-app ${highContrast ? 'is-contrast' : ''}`}>
+      <div className={`cv-app ${highContrast ? 'is-contrast' : ''} ${ground === 'light' ? 'is-light' : ''}`}>
         {!isDesktop && (
           <div className="cv-browser-banner">
             Running in a browser. Projects are kept in browser storage and no probing is possible —
@@ -57,7 +58,7 @@ export default function App() {
 
   return (
     <ReactFlowProvider>
-      <div className={`cv-app cv-workspace ${highContrast ? 'is-contrast' : ''}`}>
+      <div className={`cv-app cv-workspace ${highContrast ? 'is-contrast' : ''} ${ground === 'light' ? 'is-light' : ''}`}>
         <TopBar onExit={() => undefined} />
         {/* The narrow layouts show the palette or the inspector, not both,
             and which one depends on whether there is something to inspect. */}

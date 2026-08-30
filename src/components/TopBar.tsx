@@ -301,6 +301,17 @@ export function TopBar({ onExit }: { onExit: () => void }) {
           </div>
         </details>
 
+        <button
+          type="button"
+          className="cv-btn"
+          title="Draw on white — for a document, a projector, or daylight. Every colour is chosen against the ground it is on, not inverted."
+          onClick={() =>
+            store.setSettings({ ground: settings.ground === 'light' ? 'dark' : 'light' })
+          }
+        >
+          {settings.ground === 'light' ? 'Dark background' : 'White background'}
+        </button>
+
         <label className="cv-check cv-check-inline" title="Stops all packet-dot animation">
           <input
             type="checkbox"
