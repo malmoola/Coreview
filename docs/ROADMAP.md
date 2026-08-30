@@ -63,13 +63,6 @@ variables that were meant.
 
 *Accepted, not started.*
 
-### LT-037 — Smart guides: Alt disables
-**Source:** asked 2026-08-30 (Item D1). Guides and snapping already exist
-(LT-001-era work); the missing half is holding Alt to disable them during a
-drag.
-**Acceptance:** alignment lines + snap when a dragged node lines up with a
-neighbour's edge or centre; hold Alt to disable.
-
 ### LT-038 — Align/distribute on the keyboard
 **Source:** asked 2026-08-30 (Item D2). The context-menu half already exists.
 **Acceptance:** align left/right/top/bottom and distribute
@@ -288,6 +281,12 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-037 — Smart guides: Alt disables — 2026-08-30
+Shipped: Alt held during a drag stands the guides and the snap down and clears
+any guide already shown. Tracked in a ref so a keypress does not re-render the
+canvas. Verified: a device dragged to 3px off a neighbour's edge snaps without
+Alt and stays deliberately off-line with it.
 
 ### LT-034 — Light chrome must not be white — 2026-08-30
 Shipped: `--desk #E4E4E4`, `--chrome #F1F1F1`, `--chrome-edge #D6D6D6`, page

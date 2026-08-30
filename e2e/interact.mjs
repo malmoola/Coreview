@@ -1258,6 +1258,23 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
 
   const gap = Math.abs((await leftOf("Bystander")) - (await leftOf("Core switch")));
   check("the device lands exactly in line", gap < 2, `${gap.toFixed(1)}px out`);
+
+  // Alt refuses the snap: sometimes a device has to sit deliberately a few
+  // pixels off, and a snap that cannot be refused is one that gets fought.
+  {
+    const m2 = await named("Bystander").boundingBox();
+    await page.keyboard.down("Alt");
+    await page.mouse.move(m2.x + 30, m2.y + 22);
+    await page.mouse.down();
+    await page.mouse.move(m2.x + 30 + 57, m2.y + 22 + 3, { steps: 10 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await page.waitForTimeout(350);
+    const offBy = Math.abs((await leftOf("Bystander")) - (await leftOf("Core switch")));
+    check("holding Alt lets it sit off-line on purpose", offBy > 10, `${offBy.toFixed(1)}px off`);
+    check("and no guide is shown for a refused snap",
+      (await page.locator(".cv-guide").count()) === 0);
+  }
 }
 
 // ---------------------------------------------------------------- spacing

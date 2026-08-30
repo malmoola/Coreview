@@ -98,6 +98,11 @@ export function Canvas() {
   const [guides, setGuides] = useState<Guide[]>([]);
   /** Space held: the pointer becomes a hand and drags the diagram. */
   const [panning, setPanning] = useState(false);
+  /** Alt held: the guides stand down and the drag is free-hand. Sometimes a
+   *  device has to sit deliberately two pixels off, and a snap that cannot be
+   *  refused is a snap that gets fought. A ref, not state — it is read inside
+   *  the drag path and must not re-render the canvas per keypress. */
+  const altDown = useRef(false);
   const panFrom = useRef<{
     from: { x: number; y: number; zoom: number };
     startX: number;
@@ -476,6 +481,7 @@ export function Canvas() {
       );
     };
     const down = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') altDown.current = true;
       if (e.code !== 'Space' || e.repeat || typing(e.target)) return;
       // Space scrolls the page otherwise, which on a canvas means nothing
       // visible happens and the diagram jumps.
@@ -483,11 +489,15 @@ export function Canvas() {
       setPanning(true);
     };
     const up = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') altDown.current = false;
       if (e.code === 'Space') setPanning(false);
     };
     // Releasing space while the window is not focused would otherwise leave
     // the canvas stuck in panning.
-    const blur = () => setPanning(false);
+    const blur = () => {
+      altDown.current = false;
+      setPanning(false);
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', blur);
@@ -623,7 +633,8 @@ export function Canvas() {
       // Defaulted on. A document saved before this existed has no value here,
       // and reading that as "off" quietly disabled guides for every diagram
       // already drawn.
-      if (!(doc.canvas.snapEnabled ?? true)) {
+      if (!(doc.canvas.snapEnabled ?? true) || altDown.current) {
+        if (altDown.current) setGuides([]);
         store.onNodesChange(changes);
         return;
       }
