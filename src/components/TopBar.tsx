@@ -23,6 +23,7 @@ const SESSION_LABEL: Record<string, string> = {
 export function TopBar({ onExit }: { onExit: () => void }) {
   const meta = useStore((s) => s.meta);
   const dirty = useStore((s) => s.dirty);
+  const recovery = useStore((s) => s.recovery);
   const lastSavedAt = useStore((s) => s.lastSavedAt);
   const session = useStore((s) => s.session);
   const settings = useStore((s) => s.settings);
@@ -277,8 +278,6 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       'application/json',
     );
   };
-
-  const recovery = useStore((s) => s.recovery);
 
   return (
     <div className="cv-topbar-wrap">
