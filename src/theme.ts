@@ -221,3 +221,73 @@ export const NOTE_LIGHT: Record<'plain' | 'change', NotePalette> = {
 export function notePalette(variant: 'plain' | 'change', ground: Ground): NotePalette {
   return (ground === 'light' ? NOTE_LIGHT : NOTE_DARK)[variant] ?? NOTE_LIGHT.plain;
 }
+
+/** Distinct hues, ordered so neighbours in the list do not look alike. */
+export const GROUP_WHEEL_DARK = [
+  '#4ea8f0', '#f59e0b', '#34d399', '#f472b6', '#a78bfa', '#22d3ee',
+  '#fb923c', '#a3e635', '#fb7185', '#38bdf8', '#facc15', '#c084fc',
+];
+
+export const GROUP_WHEEL_LIGHT = [
+  '#0b5fce', '#a15c00', '#067a4a', '#b8206b', '#5b32b8', '#0e7490',
+  '#c2410c', '#4d7c0f', '#be123c', '#0369a1', '#8a6d00', '#7e22ce',
+];
+
+export interface Sheet {
+  ground: Ground;
+  paper: string;
+  ink: string;
+  inkDim: string;
+  surface: string;
+  line: string;
+  header: string;
+  onStatus: string;
+}
+
+export function sheetFor(ground: Ground): Sheet {
+  return ground === 'light'
+    ? {
+        ground,
+        paper: '#ffffff',
+        ink: '#0d1722',
+        inkDim: '#41536a',
+        surface: '#f4f7fa',
+        line: '#ccd6e0',
+        header: '#eef3f8',
+        onStatus: '#ffffff',
+      }
+    : {
+        ground,
+        paper: '#0a0e13',
+        ink: '#e6eef7',
+        inkDim: '#8ea2b5',
+        surface: '#111823',
+        line: '#2a3644',
+        header: '#0e141b',
+        onStatus: '#07110c',
+      };
+}
+
+/** The tint a section is drawn in on an exported sheet. */
+export const SHEET_SECTION_TINT: Record<Ground, string> = {
+  light: '#0b5fce',
+  dark: '#4ea8f0',
+};
+
+/**
+ * Colours used away from the canvas — the export sheet, the samples, a default
+ * written into a new object.
+ *
+ * Here rather than at the point of use so that one file answers "what colour
+ * is anything", which is the only way a change of palette can be made without
+ * hunting. A literal anywhere else in `src/` is a bug.
+ */
+export const DEFAULTS = {
+  /** A link with no colour of its own. Stored in the document, so it must not
+   *  depend on which ground the person drawing it happened to be using. */
+  linkColor: STATUS_COLOR_DARK.unknown,
+  /** The accent, for a picker that needs somewhere to start. */
+  accent: DEVICE_TINT_DARK.router,
+  /** The paper an exported sheet is printed on when nothing says otherwise. */
+  exportPaper: '#0a0e13',
+} as const;

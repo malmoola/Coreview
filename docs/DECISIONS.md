@@ -185,3 +185,16 @@ which means anything is a bar on how a fix is confirmed, because the failures
 that survive are the ones where the fix looked obviously right — hidden
 handles that still took the pointer, a document that saved but dropped a
 field, an eight-digit hex that renders black. Each of those compiled.
+
+### D-021 — The page is drawn in the viewport, not added to the document — 2026-08-30
+**Decision:** the page is a div rendered through React Flow's `ViewportPortal`
+in flow coordinates, with `z-index: -1`.
+**Rejected:** a `page` node type in `doc.nodes`, which is how it was asked for.
+**Why:** a node would have to be kept out of the monitored-objects table, out
+of exports, out of the save payload, out of select-all, out of the crawl merge
+and out of every count — six places to remember and one to forget, and the
+failure mode is a phantom object in someone's inventory. Nothing here is in
+`doc.nodes`, so there is nothing to filter and no boundary to get wrong. It
+scales and pans with the diagram exactly as a node would.
+**Consequence:** `Fit view` had to learn about the page, because React Flow's
+`fitView` only knows about nodes and was putting the page edge off-screen.

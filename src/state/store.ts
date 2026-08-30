@@ -43,6 +43,9 @@ export interface ProjectDocument {
     /** Little hops where one link crosses another. On by default: two lines
      *  meeting at a point look exactly like two lines joined at a point. */
     lineJumps?: boolean;
+    /** The sheet the diagram is drawn on. On by default; turning it off gives
+     *  back the endless desk for a diagram that is not going on paper. */
+    page?: boolean;
     /** The views this document is drawn in. A network is documented more than
      *  once — physical, logical, the change on Saturday — and three files that
      *  disagree within a fortnight is what this exists to avoid. */

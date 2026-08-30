@@ -9,6 +9,7 @@
  * demonstrable without touching anyone's network.
  */
 import type { ProjectDocument, TopoEdge, TopoNode } from '../state/store';
+import { DEFAULTS } from '../theme';
 import { emptyDocument } from '../state/store';
 import { uid } from './id';
 import { PROBE_DEFAULTS, type DeviceType, type LinkHealthRuleType, type Probe } from '../types/domain';
@@ -96,7 +97,7 @@ function build(nodes: Spec[], links: LinkSpec[], noteBody: string): ProjectDocum
         pathType: 'smoothstep',
         direction: 'both',
         width: 2,
-        color: '#5b6b7c',
+        color: DEFAULTS.linkColor,
         enabled: true,
         maintenance: false,
         healthRule: { type: l.rule ?? 'both-endpoints' },
@@ -116,9 +117,8 @@ function build(nodes: Spec[], links: LinkSpec[], noteBody: string): ProjectDocum
       body: noteBody,
       variant: 'change',
       fontSize: 12,
-      textColor: '#f2e6c8',
-      background: '#2a2313',
-      borderColor: '#8a6d1f',
+      // Left unset so the sample note follows the ground like any other,
+      // rather than arriving as a dark block on a white page.
       locked: false,
     },
   });

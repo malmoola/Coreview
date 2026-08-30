@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DEFAULTS } from '../theme';
 
 import { useStore, type TopoEdge } from '../state/store';
 import { ipc, isDesktop } from '../lib/ipc';
@@ -114,7 +115,7 @@ export function CsvImportPanel() {
         pathType: 'smoothstep',
         direction: 'forward',
         width: 2,
-        color: '#5b6b7c',
+        color: DEFAULTS.linkColor,
         enabled: true,
         maintenance: false,
         healthRule: { type: r.healthRule },

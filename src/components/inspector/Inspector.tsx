@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { DEFAULTS } from '../../theme';
 
 import { useStore } from '../../state/store';
 import { uid } from '../../lib/id';
@@ -1398,7 +1399,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
             <input
               className="cv-color"
               type="color"
-              value={d.color || '#4ea8f0'}
+              value={d.color || DEFAULTS.accent}
               onChange={(e) => update(edgeId, { color: e.target.value })}
             />
           </Field>

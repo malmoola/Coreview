@@ -12,6 +12,7 @@
  * a network or a browser.
  */
 import type { AttachedDevice, CrawledDevice, DeviceClassName, Neighbor } from './ipc';
+import { DEFAULTS } from '../theme';
 import { chooseHandles } from './routeLinks';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type { DeviceNodeData, DeviceType, LinkData } from '../types/domain';
@@ -422,7 +423,7 @@ export function buildTopology(
         pathType: 'smoothstep',
         direction: 'none',
         width: 1,
-        color: '#5b6b7c',
+        color: DEFAULTS.linkColor,
         enabled: true,
         maintenance: false,
         healthRule: { type: 'follow-source' },
@@ -463,7 +464,7 @@ export function buildTopology(
       pathType: 'smoothstep',
       direction: 'none',
       width: 2,
-      color: '#5b6b7c',
+      color: DEFAULTS.linkColor,
       enabled: true,
       maintenance: false,
       healthRule: { type: 'both-endpoints' },

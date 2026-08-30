@@ -31,39 +31,17 @@ bar rather than a piece of work, and does not count against that.*
 **Known bugs, open:** LT-003 (custom shapes import scrambled, transforms
 dropped, "Untitled Drawing"), LT-004 (selection draws a box round a round
 shape), LT-005 (icon library cannot be cleared).
-**Known bugs, closed:** LT-030.
+**Known bugs, closed:** LT-030, LT-031.
 
-### LT-001 — Neutral desk, white page, one colour token file
-**Source:** asked 2026-08-30.
-**Acceptance:**
-- Canvas viewport is a neutral grey "desk"; the drawing surface is a real white
-  "page" floating on it with a border and a soft shadow. "Visio and Lucidchart
-  do NOT paint the viewport white."
-- The palette is hue-neutral — "no blue shift anywhere". Tokens: `--desk
-  #EDEDED`, `--page #FFFFFF`, `--page-border #D4D4D4`, `--grid-minor #EAEAEA`,
-  `--grid-major #DCDCDC`, `--chrome #FAFAFA`, `--chrome-edge #E2E2E2`, `--ink
-  #1A1A1A`, `--ink-muted #6B6B6B`, accent keeps the existing brand blue.
-- Toolbar, palette and inspector read as chrome: `--chrome` background, 1px
-  `--chrome-edge` divider, no drop shadows, and "slightly DARKER in value than
-  the page, never lighter".
-- Inspector inputs: `--page` background, 1px `--chrome-edge`, `--ink` text.
-- Node names in `--ink`, status and secondary text in `--ink-muted`.
-- The existing "Dark background" toggle keeps working by overriding the same
-  tokens, not by a parallel set of hardcoded colours.
-- `rg '#[0-9a-fA-F]{6}' src/` returns hits only in the token definition file.
-
-**Audit already done (2026-08-30), for whoever picks this up:**
-- No Tailwind. Styling is `src/styles.css` (85 hex literals) with CSS custom
-  properties on `.cv-app`, plus `src/theme.ts` which holds the JS-side colours
-  the canvas paints with.
-- 162 hex literals across `src/**/*.ts(x)`. Outside `theme.ts` they are in
-  `lib/diagram.ts`, `lib/tinting.ts`, `lib/topology.ts`, `lib/samples.ts`,
-  `lib/exports.ts`, `components/inspector/Inspector.tsx`,
-  `components/CsvImportPanel.tsx`.
-- The blue-tinted off-white being complained about is `--bg: #f4f7fa` in the
-  `.is-light` block of `src/styles.css`.
-- The canvas background is painted by `.cv-app { background: var(--bg) }` and
-  the grid by React Flow's `<Background>` in `src/components/Canvas.tsx`.
+### LT-031 — **bug** Three CSS variables that were never defined — 2026-08-30
+**Source:** found while doing LT-001, not reported.
+**Was:** `.cv-muted`, `.cv-warn` and `.cv-link` read `var(--cv-text-dim, …)`,
+`var(--cv-warn, …)` and `var(--cv-accent, …)`. No such variables exist anywhere
+in the project and never have, so all three always fell through to the
+hardcoded fallback — which meant three pieces of the interface ignored the
+ground entirely and stayed dark-theme coloured on a white page.
+**Fixed:** they read `--text-dim`, `--warning` and `--accent`, which are the
+variables that were meant.
 
 ### LT-002 — Cisco PPTX stencil pipeline
 **Source:** asked 2026-08-30. Supersedes the naive path in LT-020.
@@ -138,25 +116,6 @@ cleared with it.
 - The one `Group` ("Master.79") is expanded per Object or skipped entirely —
   "do NOT flatten it into a single unreadable blob".
 - The 5 bare unit rectangles are skipped.
-
-### LT-007 — Grid clipped to the page
-**Source:** asked 2026-08-30 as part of the canvas redesign; kept separate
-because it can ship independently of the tokens.
-**Acceptance:** the grid is an SVG pattern inside the page so it stops at the
-page edge rather than covering the desk. Minor lines every 12px in
-`--grid-minor`, major every 60px in `--grid-major`. The current `<Background>`
-component is removed if it paints the viewport.
-
-### LT-008 — The page is not an object
-**Source:** asked 2026-08-30 as part of the canvas redesign.
-**Acceptance:** the page node is non-draggable, non-selectable,
-non-connectable, `zIndex -1`, at 0,0, default 1584x1224 (11x8.5in @ 144dpi),
-and never appears in the Monitored Objects table, exports, or save payloads —
-filtered at each of those boundaries.
-
----
-
-## Blocked
 
 ### LT-009 — Draw a port-channel as one link
 **Source:** asked 2026-08-29.
@@ -247,6 +206,36 @@ invisible connection handles were keeping their hit area and swallowing clicks
 meant for neighbours; left-drag on bare canvas rubber-band selects and the
 catch moves together; space held drags the whole diagram; double-click on bare
 canvas writes borderless text that moves and groups like any other object.
+
+### LT-001 — Neutral desk, white page, one colour token file — 2026-08-30
+Shipped: the viewport is `--desk #EDEDED` and the drawing surface is a real
+white page floating on it with a `--page-border` edge and the specified shadow.
+The whole palette is hue-neutral. Chrome is `--chrome #FAFAFA` with
+`--chrome-edge` dividers and no shadows, measured darker than the page.
+Inspector fields sit on `--page`. The dark toggle moves the same tokens.
+`rg '#[0-9a-fA-F]{6}' src/` now finds nothing outside `src/theme.ts` and the
+three token blocks in `src/styles.css`.
+**Differs from the ask in one place:** the page is drawn through React Flow's
+viewport portal rather than as a node type — see D-021. Everything the ask
+wanted from `zIndex -1` and the exclusions it listed comes for free that way.
+**Found while doing it:** the page painted over the links until it was given
+`z-index: -1`; the devices still drew, which made it look as though the links
+had gone. And `--cv-text-dim`, `--cv-warn` and `--cv-accent` were being read in
+three rules and have never been defined anywhere — every one of them was
+silently falling back to a hardcoded hex.
+
+### LT-007 — Grid clipped to the page — 2026-08-30
+Shipped with LT-001: an SVG pattern inside the page, minor every 12px in
+`--grid-minor`, major every 60px in `--grid-major`. React Flow's `<Background>`
+is gone.
+
+### LT-008 — The page is not an object — 2026-08-30
+Shipped with LT-001, by construction rather than by filtering: the page is not
+in `doc.nodes` at all, so there is nothing to keep out of the monitored-objects
+table, the exports, the save payload, select-all, the crawl merge or any count.
+Fit view fits the sheet rather than only what is on it, because fitting to the
+devices puts the page edge off-screen and the edge is the thing that says where
+the drawing surface is.
 
 ### LT-030 — **bug** A click in the middle of a device did nothing — 2026-08-30
 **Source:** flagged 2026-08-30 — "clicking a node's centre selected nothing — a

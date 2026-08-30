@@ -1,4 +1,20 @@
+/* Colour lives in exactly three blocks in this file and nowhere else: `:root`
+   for the dark ground, `.is-light` for the white one, and the `@media print`
+   block near the bottom for paper. A hex anywhere else in this file, or
+   anywhere in `src/` outside `src/theme.ts`, is a bug. */
 :root {
+  /* The same named palette on the dark ground, so every rule below is written
+     once against the names and neither ground has a set of its own. */
+  --desk: #0a0e13;
+  --page: #0f151d;
+  --page-border: #2b3a4b;
+  --grid-minor: #151d27;
+  --grid-major: #1d2733;
+  --chrome: #121a24;
+  --chrome-edge: #1f2b38;
+  --ink: #dce6f0;
+  --ink-muted: #7d90a4;
+
   --bg: #0a0e13;
   --bg-raised: #0f151d;
   --panel: #121a24;
@@ -35,64 +51,75 @@
   --guide: #f0abfc;
   --callout-bg: rgba(234, 179, 8, 0.10);
   --callout-line: rgba(234, 179, 8, 0.45);
+  --welcome-glow: #12202e;
 
   --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   --sans: ui-sans-serif, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --radius: 6px;
 }
 
-/* The white ground, for a document, a projector, or daylight.
+/* The white ground.
  *
- * Not an inversion. Every value is chosen against white: the lines are darker
- * rather than lighter-of-dark, the panels sit slightly below the page so they
- * read as panels, and the text is a deep slate rather than black, which is
- * harsh at this size. */
+ * Not an inversion, and not a white viewport either. Visio and Lucidchart
+ * paint a neutral desk and float a real page on it; that contrast is what
+ * makes white look white. Painting the whole viewport white is what made the
+ * first attempt read as one flat sheet with nothing on it.
+ *
+ * Hue-neutral on purpose. The greys here have no blue in them: a blue-tinted
+ * off-white next to a true white page makes the page look yellow. */
 .is-light {
-  --label-bg: rgba(255, 255, 255, 0.94);
-  /* The ground is a hair off white and the surfaces are pure white. That way
-     a device reads as a card sitting on a page rather than as an outline
-     floating on the same colour as itself — the thing that made the first
-     attempt at this look washed out. */
-  --bg: #f4f7fa;
-  --bg-raised: #ffffff;
-  --panel: #ffffff;
-  --panel-2: #e9eff5;
-  --line: #ccd6e0;
-  --line-strong: #93a5b8;
-  --text: #0d1722;
-  --text-dim: #3d4e63;
-  --text-faint: #5b6b7e;
+  /* The named palette. Everything below is expressed in these. */
+  --desk: #ededed;
+  --page: #ffffff;
+  --page-border: #d4d4d4;
+  --grid-minor: #eaeaea;
+  --grid-major: #dcdcdc;
+  --chrome: #fafafa;
+  --chrome-edge: #e2e2e2;
+  --ink: #1a1a1a;
+  --ink-muted: #6b6b6b;
+
+  /* The rest of the interface, in terms of those. Chrome is a shade below the
+     page so panels read as chrome and never as drawing surface. */
+  --bg: var(--desk);
+  --bg-raised: var(--page);
+  --panel: var(--chrome);
+  --panel-2: #efefef;
+  --line: var(--chrome-edge);
+  --line-strong: #b8b8b8;
+  --text: var(--ink);
+  --text-dim: #4d4d4d;
+  --text-faint: var(--ink-muted);
   --accent: #0b5fce;
 
-  /* Full-strength colours, not the dark palette dimmed. Each is dark enough
-     to read as itself on white at a 1.5px stroke, which is how thin a link
-     actually is. */
   --healthy: #0a8a3f;
   --warning: #b45c00;
   --down: #c81e1e;
-  --unknown: #44576e;
-  --disabled: #7d8ea1;
+  --unknown: #5a5a5a;
+  --disabled: #949494;
   --maintenance: #5323b8;
 
-  --hover: #dde5ee;
+  --hover: #e6e6e6;
   --danger-line: #d99b95;
   --danger-hover: #fbeceb;
-  /* Text sitting on a status-coloured disc. The discs stay saturated on both
-     grounds, so what reads on them is white here, not near-black. */
+  /* Text on a status-coloured disc. The discs stay saturated on both grounds,
+     so what reads on them is white here. */
   --on-status: #ffffff;
-  --shadow: rgba(15, 32, 51, 0.14);
-  --shadow-deep: rgba(15, 32, 51, 0.22);
-  --scrim: rgba(238, 243, 248, 0.8);
-  --code-bg: rgba(13, 23, 34, 0.07);
+  --shadow: rgba(0, 0, 0, 0.14);
+  --shadow-deep: rgba(0, 0, 0, 0.2);
+  --scrim: rgba(237, 237, 237, 0.8);
+  --code-bg: rgba(26, 26, 26, 0.07);
   --notice-bg: #fdf3d6;
   --notice-line: #c9a03d;
   --notice-text: #4d3b06;
+  --label-bg: rgba(255, 255, 255, 0.96);
   --zone-fill: rgba(11, 95, 206, 0.045);
   --zone-line: rgba(11, 95, 206, 0.4);
   --zone-title: rgba(11, 95, 206, 0.13);
   --guide: #a21caf;
   --callout-bg: #fdf6e0;
   --callout-line: #cfa53c;
+  --welcome-glow: #f3f3f3;
 }
 
 .is-contrast {
@@ -137,8 +164,11 @@ body {
    inherited its text colour that way and stayed pale on white. */
 .cv-app {
   height: 100%; display: flex; flex-direction: column;
-  color: var(--text); background: var(--bg);
+  color: var(--ink); background: var(--desk);
 }
+/* The desk. The page floats on this, and the difference between the two is
+   what tells you where the drawing surface is. */
+.cv-canvas, .react-flow__pane { background: var(--desk); }
 .cv-workspace { overflow: hidden; }
 
 .cv-main {
@@ -225,8 +255,8 @@ body {
 .cv-topbar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 8px 12px;
-  background: var(--bg-raised);
-  border-bottom: 1px solid var(--line);
+  background: var(--chrome);
+  border-bottom: 1px solid var(--chrome-edge);
   flex-wrap: wrap;
 }
 .cv-topbar-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
@@ -282,8 +312,8 @@ body {
 .cv-btn-stop { border-color: color-mix(in srgb, var(--down) 55%, transparent); color: var(--down); }
 
 .cv-input {
-  width: 100%; background: var(--bg); color: var(--text);
-  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  width: 100%; background: var(--page); color: var(--ink);
+  border: 1px solid var(--chrome-edge); border-radius: var(--radius);
   padding: 5px 8px; font-size: 12px; font-family: inherit;
   /* An input's own idea of how wide it should be is about 180px, and that
      beats a flex parent's `min-width: 0` — which is why three fields in a row
@@ -333,7 +363,7 @@ textarea.cv-input { resize: vertical; }
 /* --------------------------------------------------------------- palette */
 
 .cv-palette {
-  background: var(--panel); border-right: 1px solid var(--line);
+  background: var(--chrome); border-right: 1px solid var(--chrome-edge);
   padding: 10px; overflow-y: auto;
 }
 .cv-palette-search { margin-bottom: 10px; }
@@ -461,7 +491,7 @@ textarea.cv-input { resize: vertical; }
 /* -------------------------------------------------------------- inspector */
 
 .cv-inspector {
-  background: var(--panel); border-left: 1px solid var(--line);
+  background: var(--chrome); border-left: 1px solid var(--chrome-edge);
   padding: 12px; overflow-y: auto;
   /* Never sideways. If something cannot fit it has to wrap or shrink; a panel
      you have to drag left and right to see a field is a panel whose fields
@@ -498,7 +528,7 @@ textarea.cv-input { resize: vertical; }
 /* ------------------------------------------------------------------ panel */
 
 .cv-panel {
-  background: var(--panel); border-top: 1px solid var(--line);
+  background: var(--chrome); border-top: 1px solid var(--chrome-edge);
   display: flex; flex-direction: column;
   /* Capped against the viewport as well as fixed, so a short window keeps a
      usable canvas instead of being all panel. */
@@ -519,7 +549,7 @@ textarea.cv-input { resize: vertical; }
   padding: 6px 10px; border-bottom: 1px solid var(--line);
 }
 .cv-panel-search { max-width: 320px; }
-.cv-panel-message { padding: 6px 12px; background: #17222e; color: var(--text-dim); font-size: 11px; }
+.cv-panel-message { padding: 6px 12px; background: var(--panel-2); color: var(--text-dim); font-size: 11px; }
 .cv-panel-body { flex: 1; overflow: auto; }
 .cv-tabs { display: flex; gap: 4px; }
 .cv-tabs button {
@@ -540,7 +570,7 @@ textarea.cv-input { resize: vertical; }
 
 /* ---------------------------------------------------------------- welcome */
 
-.cv-welcome { flex: 1; overflow-y: auto; background: radial-gradient(1100px 500px at 50% -10%, #12202e 0%, var(--bg) 62%); }
+.cv-welcome { flex: 1; overflow-y: auto; background: radial-gradient(1100px 500px at 50% -10%, var(--welcome-glow) 0%, var(--desk) 62%); }
 .cv-welcome-inner { max-width: 900px; margin: 0 auto; padding: 56px 24px 64px; }
 .cv-welcome-head h1 { font-size: 30px; letter-spacing: 0.02em; margin: 0 0 8px; }
 .cv-welcome-head p { color: var(--text-dim); max-width: 620px; line-height: 1.6; margin: 0; }
@@ -636,18 +666,18 @@ textarea.cv-input { resize: vertical; }
 }
 
 .cv-muted {
-  color: var(--cv-text-dim, #7c8b9a);
+  color: var(--text-dim);
 }
 
 .cv-warn {
-  color: var(--cv-warn, #e0a458);
+  color: var(--warning);
 }
 
 .cv-link {
   background: none;
   border: 0;
   padding: 0;
-  color: var(--cv-accent, #5eb8ff);
+  color: var(--accent);
   cursor: pointer;
   font: inherit;
   text-decoration: underline;
@@ -1104,7 +1134,7 @@ textarea.cv-input { resize: vertical; }
   background: var(--panel-2); border: 1px solid var(--line-strong);
   border-radius: 10px; padding: 2px 8px; cursor: pointer;
 }
-.cv-tag:hover { border-color: var(--down); color: #f0938a; }
+.cv-tag:hover { border-color: var(--down); color: var(--down); }
 .cv-tag.is-partial {
   cursor: default; color: var(--text-dim); border-style: dashed;
 }
@@ -1318,3 +1348,20 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   position: absolute; inset: 0; z-index: 20; cursor: grab;
 }
 .cv-pan-sheet:active { cursor: grabbing; }
+
+/* ----------------------------------------------------------------- page */
+/* The sheet the diagram is drawn on, floating on the desk. The border and the
+   shadow are the whole point: without an edge, white is just the absence of
+   anything. */
+.cv-page {
+  /* Behind everything. The viewport portal appends after the edge layer, so
+     without this the page painted over the links — the devices still showed,
+     because they are rendered later still, which made it look like the links
+     had simply gone. */
+  z-index: -1;
+  background: var(--page);
+  border: 1px solid var(--page-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 10px 28px rgba(0, 0, 0, 0.05);
+  pointer-events: none;
+}
+.cv-page-grid { position: absolute; inset: 0; }

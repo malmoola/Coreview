@@ -6,6 +6,7 @@ import { ipc } from '../lib/ipc';
 import { buildMarkdownReport, saveExport, slug, svgToPng } from '../lib/exports';
 import { renderDiagramSvg } from '../lib/diagram';
 import { isVisible, layersOf } from '../lib/layers';
+import { PAGE_HEIGHT, PAGE_WIDTH } from './Page';
 import { PAPERS, describePage, paperById, sheetSize, sheetsFor } from '../lib/paper';
 import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
 import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
@@ -298,7 +299,18 @@ export function TopBar({ onExit }: { onExit: () => void }) {
         <button type="button" className="cv-btn" onClick={store.redo} title="Ctrl+Y">
           Redo
         </button>
-        <button type="button" className="cv-btn" onClick={() => rf.fitView({ padding: 0.2 })}>
+        <button
+          type="button"
+          className="cv-btn"
+          /* Fits the sheet, not only what is on it: fitting to the devices
+             alone puts the page edge off-screen, and the edge is the thing
+             that says where the drawing surface is. */
+          onClick={() =>
+            (store.doc.canvas.page ?? true)
+              ? rf.fitBounds({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT }, { padding: 0.08 })
+              : rf.fitView({ padding: 0.2 })
+          }
+        >
           Fit view
         </button>
 

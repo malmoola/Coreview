@@ -1,8 +1,6 @@
 import { nodeForDrop } from '../lib/paletteDrop';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Background,
-  BackgroundVariant,
   Controls,
   MiniMap,
   ReactFlow,
@@ -23,6 +21,7 @@ import { STATUS_COLOR_DARK, canvasPalette } from '../theme';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { ColourLegend } from './ColourLegend';
+import { Page, PAGE_HEIGHT, PAGE_WIDTH } from './Page';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
 import { alignmentFor, spacingHint, type Box, type Guide } from '../lib/alignment';
@@ -326,7 +325,7 @@ export function Canvas() {
       { label: 'Add note', onSelect: () => store.addNode(makeNote(p.x, p.y)) },
       { label: 'Add change note', onSelect: () => store.addNode(makeNote(p.x, p.y, 'change')) },
       { label: 'Add container', onSelect: () => store.addNode(makeDeviceNode('site', p.x, p.y)) },
-      { label: 'Fit view', onSelect: () => rf.fitView({ padding: 0.2 }) },
+      { label: 'Fit view', onSelect: () => fitEverything() },
       { label: 'Find a device…', onSelect: () => setFinding(true) },
       ...(folded.size > 0
         ? [
@@ -439,6 +438,36 @@ export function Canvas() {
     return () => el.removeEventListener('dblclick', write, true);
   }, [rf, store]);
 
+  /** Fit the sheet, not just what is on it.
+   *
+   *  Fitting to the devices alone puts the page edge off-screen, so the one
+   *  thing that says where the drawing surface is cannot be seen. When the
+   *  page is off, there is nothing to fit but the devices. */
+  const fitEverything = useCallback(() => {
+    if (!(doc.canvas.page ?? true)) {
+      rf.fitView({ padding: 0.2 });
+      return;
+    }
+    const bounds = doc.nodes.reduce(
+      (acc, n) => ({
+        minX: Math.min(acc.minX, n.position.x),
+        minY: Math.min(acc.minY, n.position.y),
+        maxX: Math.max(acc.maxX, n.position.x + (n.width ?? 176)),
+        maxY: Math.max(acc.maxY, n.position.y + (n.height ?? 96)),
+      }),
+      { minX: 0, minY: 0, maxX: PAGE_WIDTH, maxY: PAGE_HEIGHT },
+    );
+    rf.fitBounds(
+      {
+        x: bounds.minX,
+        y: bounds.minY,
+        width: bounds.maxX - bounds.minX,
+        height: bounds.maxY - bounds.minY,
+      },
+      { padding: 0.08 },
+    );
+  }, [doc.canvas.page, doc.nodes, rf]);
+
   // Space held is "grab the diagram". Kept separate from the shortcut handler
   // below because it has to watch both the press and the release, and must
   // not fire while someone is typing a device name.
@@ -520,12 +549,12 @@ export function Canvas() {
         e.preventDefault();
         store.deleteSelected();
       } else if (e.key === 'f' && !mod) {
-        rf.fitView({ padding: 0.2 });
+        fitEverything();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [doc.nodes, rf, store]);
+  }, [doc.nodes, rf, store, fitEverything]);
 
   // React Flow decides whether a node can be dragged from a `draggable` field
   // on the node itself. `locked` lives in `data`, which it never looks at, so
@@ -769,9 +798,10 @@ export function Canvas() {
             />
           ))}
         </ViewportPortal>
-        {doc.canvas.gridEnabled && (
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={palette.grid} />
-        )}
+        {/* The grid is drawn inside the page now, so it stops at the paper's
+            edge. React Flow's own Background painted the whole viewport, which
+            is what made the desk and the page look like one surface. */}
+        <Page />
         <Controls showInteractive={false} />
         {doc.canvas.minimap && (
           <MiniMap

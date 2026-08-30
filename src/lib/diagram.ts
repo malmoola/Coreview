@@ -17,6 +17,9 @@
  */
 import { getBezierPath, getSmoothStepPath, getStraightPath, Position } from '@xyflow/react';
 import {
+  SHEET_SECTION_TINT,
+  sheetFor,
+  type Sheet,
   deviceColor,
   notePalette,
   readableOn,
@@ -53,16 +56,6 @@ const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud
  * a white page. It now follows the ground on screen, which also means the
  * colours are the ones that were chosen against that ground.
  */
-interface Sheet {
-  ground: Ground;
-  paper: string;
-  ink: string;
-  inkDim: string;
-  surface: string;
-  line: string;
-  header: string;
-  onStatus: string;
-}
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
@@ -72,29 +65,6 @@ function cssId(id: string): string {
   return id.replace(/[^A-Za-z0-9_-]/g, '_');
 }
 
-function sheetFor(ground: Ground): Sheet {
-  return ground === 'light'
-    ? {
-        ground,
-        paper: '#ffffff',
-        ink: '#0d1722',
-        inkDim: '#41536a',
-        surface: '#f4f7fa',
-        line: '#ccd6e0',
-        header: '#eef3f8',
-        onStatus: '#ffffff',
-      }
-    : {
-        ground,
-        paper: '#0a0e13',
-        ink: '#e6eef7',
-        inkDim: '#8ea2b5',
-        surface: '#111823',
-        line: '#2a3644',
-        header: '#0e141b',
-        onStatus: '#07110c',
-      };
-}
 
 export interface DiagramInput {
   meta: ProjectMeta;
@@ -261,7 +231,7 @@ function nodeMarkup(
       if (d.maintenance) {
         ty += 13;
         parts.push(
-          `<text x="${cx}" y="${ty}" text-anchor="middle" fill="#8b7ff0" font-size="10">In maintenance</text>`,
+          `<text x="${cx}" y="${ty}" text-anchor="middle" fill="${statusColors(sheet.ground).maintenance}" font-size="10">In maintenance</text>`,
         );
       }
     }
@@ -271,7 +241,7 @@ function nodeMarkup(
   // A section is an area, not a device: it carries its name in the corner,
   // has no health of its own, and everything else stands inside it.
   if (d.deviceType === 'zone') {
-    const tint = sheet.ground === 'light' ? '#0b5fce' : '#4ea8f0';
+    const tint = SHEET_SECTION_TINT[sheet.ground];
     const label = d.label ? esc(fit(d.label, w - 30, 12)) : '';
     return (
       // fill-opacity rather than an eight-digit hex: SVG 1.1 has no alpha in a
@@ -352,7 +322,7 @@ function nodeMarkup(
     if (d.maintenance) {
       ty += 14;
       parts.push(
-        `<text x="${textX}" y="${ty}"${anchorAttr} fill="#8b7ff0" font-size="10">In maintenance</text>`,
+        `<text x="${textX}" y="${ty}"${anchorAttr} fill="${statusColors(sheet.ground).maintenance}" font-size="10">In maintenance</text>`,
       );
     }
   }
@@ -461,7 +431,7 @@ function edgeMarkup(
 
   if (centreText) {
     parts.push(
-      `<g><rect x="${labelX - centreW / 2}" y="${labelY - 9}" width="${centreW}" height="18" rx="4" fill="#111823" stroke="${color}"/>` +
+      `<g><rect x="${labelX - centreW / 2}" y="${labelY - 9}" width="${centreW}" height="18" rx="4" fill="${sheet.surface}" stroke="${color}"/>` +
         `<text x="${labelX}" y="${labelY + 4}" text-anchor="middle" fill="${sheet.ink}" font-size="11">${esc(centreText)}</text></g>`,
     );
   }

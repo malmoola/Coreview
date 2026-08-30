@@ -1,4 +1,5 @@
 import type { ProjectMeta } from '../types/domain';
+import { DEFAULTS } from '../theme';
 import type { EventRow, HealthStatus } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
 import { bytesToBase64, utf8ToBase64 } from './base64';
@@ -84,7 +85,7 @@ export async function svgToPng(svg: string): Promise<string> {
   canvas.height = img.height * scale;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas rendering is unavailable.');
-  ctx.fillStyle = '#0a0e13';
+  ctx.fillStyle = DEFAULTS.exportPaper;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/png');

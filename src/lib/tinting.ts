@@ -14,21 +14,11 @@
  */
 import type { TopoNode } from '../state/store';
 import type { DeviceNodeData } from '../types/domain';
-import type { Ground } from '../theme';
+import { GROUP_WHEEL_DARK, GROUP_WHEEL_LIGHT, type Ground } from '../theme';
 import { subnetOf } from './subnetGroups';
 
 export type ColourBy = 'health' | 'role' | 'subnet' | 'tag';
 
-/** Distinct hues, ordered so neighbours in the list do not look alike. */
-const WHEEL_DARK = [
-  '#4ea8f0', '#f59e0b', '#34d399', '#f472b6', '#a78bfa', '#22d3ee',
-  '#fb923c', '#a3e635', '#fb7185', '#38bdf8', '#facc15', '#c084fc',
-];
-
-const WHEEL_LIGHT = [
-  '#0b5fce', '#a15c00', '#067a4a', '#b8206b', '#5b32b8', '#0e7490',
-  '#c2410c', '#4d7c0f', '#be123c', '#0369a1', '#8a6d00', '#7e22ce',
-];
 
 /** What a device is being grouped by, or null when it has no answer.
  *
@@ -83,7 +73,7 @@ function hash(key: string): number {
  * colours meaningless as a memory aid.
  */
 export function colourForKey(key: string, ground: Ground): string {
-  const wheel = ground === 'light' ? WHEEL_LIGHT : WHEEL_DARK;
+  const wheel = ground === 'light' ? GROUP_WHEEL_LIGHT : GROUP_WHEEL_DARK;
   return wheel[hash(key) % wheel.length]!;
 }
 
