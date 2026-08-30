@@ -514,6 +514,28 @@ export function Canvas() {
       const el = e.target as HTMLElement | null;
       if (el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
       const mod = e.ctrlKey || e.metaKey;
+      // Ctrl+Alt+letter arranges a multiple selection — the keyboard half of
+      // the context menu's align and distribute.
+      if (mod && e.altKey) {
+        const how = ({
+          l: 'left', c: 'centre', r: 'right',
+          t: 'top', m: 'middle', b: 'bottom',
+          h: 'across', v: 'down',
+        } as const)[e.key.toLowerCase() as 'l'];
+        if (how) {
+          const ids = doc.nodes.filter((n) => n.selected).map((n) => n.id);
+          if (ids.length > 1) {
+            e.preventDefault();
+            const moved = store.arrange(ids, how);
+            store.setStatusMessage(
+              moved === 0
+                ? 'They are already arranged that way.'
+                : `Moved ${moved} object${moved === 1 ? '' : 's'}.`,
+            );
+            return;
+          }
+        }
+      }
       if (mod && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         store.selectAll();

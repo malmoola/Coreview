@@ -1695,6 +1695,36 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("a multiple selection can be lined up", (await item.count()) === 1);
 
   if (await item.count()) {
+    // The keyboard half first: Ctrl+Alt+T lines up their tops.
+    await page.keyboard.press("Escape");
+    // By name, not by index: clicking a node reorders the DOM, so nth(1)
+    // after a click can be the node just clicked — the handover's 6.2 trap.
+    const two = ["Core switch", "Bystander"];
+    const byName = (n) => page.locator(".react-flow__node", { hasText: n }).first();
+    const yOf = (n) => byName(n).evaluate((el) => {
+      const m = /,\s*(-?[\d.]+)px\)/.exec(el.style.transform ?? "");
+      return m ? Number(m[1]) : 0;
+    });
+    const yBefore = [await yOf(two[0]), await yOf(two[1])];
+    await byName(two[0]).locator(".cv-glyph-art").click();
+    await byName(two[1]).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+    await page.waitForTimeout(250);
+    // At least the two named ones; a leftover from the menu step may ride
+    // along, which the align handles fine.
+    check("a multiple selection is in place for the keyboard align",
+      (await page.locator(".react-flow__node.selected").count()) >= 2);
+    await page.keyboard.press("Control+Alt+t");
+    await page.waitForTimeout(400);
+    const yAfter = [await yOf(two[0]), await yOf(two[1])];
+    check("Ctrl+Alt+T lines up their tops from the keyboard",
+      Math.abs(yAfter[0] - yAfter[1]) < 0.5 &&
+        Math.abs(Math.min(...yAfter) - Math.min(...yBefore)) < 0.5,
+      `${yBefore.map((v)=>v.toFixed(0))} -> ${yAfter.map((v)=>v.toFixed(0))}`);
+
+    // The menu was closed for the keyboard half; open it again on one of the
+    // still-selected devices for the mouse half.
+    await byName(two[0]).click({ button: "right", position: { x: 10, y: 10 } });
+    await page.waitForTimeout(300);
     const before = [await posOf(0), await posOf(1)];
     await item.click();
     await page.waitForTimeout(450);

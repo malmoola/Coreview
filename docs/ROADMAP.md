@@ -63,11 +63,6 @@ variables that were meant.
 
 *Accepted, not started.*
 
-### LT-038 — Align/distribute on the keyboard
-**Source:** asked 2026-08-30 (Item D2). The context-menu half already exists.
-**Acceptance:** align left/right/top/bottom and distribute
-horizontal/vertical, on the selection context menu and keyboard.
-
 ### LT-039 — Keyboard pass and a "?" shortcut overlay
 **Source:** asked 2026-08-30 (Item D3).
 **Acceptance:** Delete removes; Ctrl+D duplicates offset by one grid step;
@@ -281,6 +276,12 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-038 — Align/distribute on the keyboard — 2026-08-30
+Shipped: Ctrl+Alt+L/C/R aligns left/centre/right, Ctrl+Alt+T/M/B tops,
+middles, bottoms, Ctrl+Alt+H/V evens the gaps across or down — the keyboard
+half of the context menu's arrange, on the same `store.arrange` path, so the
+two cannot drift apart. Only fires with more than one thing selected.
 
 ### LT-037 — Smart guides: Alt disables — 2026-08-30
 Shipped: Alt held during a drag stands the guides and the snap down and clears
