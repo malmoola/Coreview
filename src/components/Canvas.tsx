@@ -21,6 +21,7 @@ import { STATUS_COLOR_DARK, canvasPalette } from '../theme';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { ColourLegend } from './ColourLegend';
+import { ShortcutHelp } from './ShortcutHelp';
 import { Page } from './Page';
 import { effectivePage, pageForContent } from '../lib/pageRect';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
@@ -95,6 +96,7 @@ export function Canvas() {
   const palette = canvasPalette(ground);
 
   const [finding, setFinding] = useState(false);
+  const [help, setHelp] = useState(false);
   const [guides, setGuides] = useState<Guide[]>([]);
   /** Space held: the pointer becomes a hand and drags the diagram. */
   const [panning, setPanning] = useState(false);
@@ -567,13 +569,49 @@ export function Canvas() {
         e.preventDefault();
         const sel = doc.nodes.find((n) => n.selected);
         if (sel) {
+          // Offset by one grid step, and the copy takes the selection — the
+          // original must let go of it, or the next Delete removes both.
+          store.selectNone();
           store.addNode({
             ...sel,
             id: uid(),
-            position: { x: sel.position.x + 40, y: sel.position.y + 40 },
-            selected: false,
+            position: { x: sel.position.x + 60, y: sel.position.y + 60 },
+            selected: true,
           } as TopoNode);
         }
+      } else if (e.key.startsWith('Arrow') && !mod) {
+        // Arrows nudge by a pixel, Shift-arrows by a grid step. The keyboard
+        // is how the last two pixels of a layout actually get done.
+        const ids = doc.nodes
+          .filter((n) => n.selected && !(n.data as { locked?: boolean }).locked)
+          .map((n) => n.id);
+        if (ids.length > 0) {
+          e.preventDefault();
+          const step = e.shiftKey ? 60 : 1;
+          const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+          const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+          store.onNodesChange(
+            doc.nodes
+              .filter((n) => ids.includes(n.id))
+              .map((n) => ({
+                id: n.id,
+                type: 'position' as const,
+                position: { x: n.position.x + dx, y: n.position.y + dy },
+              })),
+          );
+        }
+      } else if (e.key === 'Escape') {
+        // Layered: the first Escape closes what is on top, the next clears
+        // the selection. One key, nearest thing first.
+        if (help) {
+          setHelp(false);
+          return;
+        }
+        store.selectNone();
+        setGuides([]);
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setHelp((h) => !h);
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         store.deleteSelected();
@@ -583,7 +621,7 @@ export function Canvas() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [doc.nodes, rf, store, fitEverything]);
+  }, [doc.nodes, rf, store, fitEverything, help]);
 
   // React Flow decides whether a node can be dragged from a `draggable` field
   // on the node itself. `locked` lives in `data`, which it never looks at, so
@@ -801,6 +839,10 @@ export function Canvas() {
            and drags the whole diagram — as does the middle button, which is
            the other thing people reach for. Shift-drag still adds to a
            selection, and Ctrl-click still picks devices one at a time. */
+        /* React Flow's own arrow-key movement is off: it moved a focused node
+           five pixels on top of our one-pixel nudge, so a single press walked
+           a device six. Ours is the only keyboard movement. */
+        disableKeyboardA11y
         panOnDrag={[1]}
         selectionOnDrag={!panning}
         selectionMode={SelectionMode.Partial}
@@ -878,6 +920,7 @@ export function Canvas() {
           }}
         />
       )}
+      {help && <ShortcutHelp onClose={() => setHelp(false)} />}
       {finding && <FindBox onClose={() => setFinding(false)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>

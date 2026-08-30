@@ -1697,6 +1697,14 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   if (await item.count()) {
     // The keyboard half first: Ctrl+Alt+T lines up their tops.
     await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    if (await page.locator(".cv-menu").count()) {
+      // Belt and braces: the menu also closes on an outside press.
+      await page.mouse.click(60, 640);
+      await page.waitForTimeout(250);
+    }
+    check("the context menu is closed before the keyboard half",
+      (await page.locator(".cv-menu").count()) === 0);
     // By name, not by index: clicking a node reorders the DOM, so nth(1)
     // after a click can be the node just clicked — the handover's 6.2 trap.
     const two = ["Core switch", "Bystander"];
@@ -1725,10 +1733,14 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     // still-selected devices for the mouse half.
     await byName(two[0]).click({ button: "right", position: { x: 10, y: 10 } });
     await page.waitForTimeout(300);
-    const before = [await posOf(0), await posOf(1)];
+    const xOf = (n) => byName(n).evaluate((el) => {
+      const m = /translate\((-?[\d.]+)px/.exec(el.style.transform ?? "");
+      return m ? Number(m[1]) : 0;
+    });
+    const before = [{ x: await xOf(two[0]) }, { x: await xOf(two[1]) }];
     await item.click();
     await page.waitForTimeout(450);
-    const after = [await posOf(0), await posOf(1)];
+    const after = [{ x: await xOf(two[0]) }, { x: await xOf(two[1]) }];
     check("their left edges end up the same",
       Math.abs(after[0].x - after[1].x) < 0.5,
       `${after[0].x.toFixed(1)} vs ${after[1].x.toFixed(1)}`);
@@ -2057,6 +2069,65 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   await page.locator("label", { hasText: "Overview" }).locator("input").check();
   await page.waitForTimeout(300);
   check("and brings it back", (await page.locator(".cv-minimap").count()) === 1);
+}
+
+// ---------------------------------------------------------------- keys
+// The keyboard is how the last two pixels of a layout actually get done.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  const dev = page.locator(".react-flow__node", { hasText: "Bystander" }).first();
+  const flowPos = () => dev.evaluate((el) => {
+    const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(el.style.transform ?? "");
+    return m ? { x: Number(m[1]), y: Number(m[2]) } : { x: 0, y: 0 };
+  });
+  await dev.locator(".cv-glyph-art").click();
+  await page.waitForTimeout(250);
+
+  const start = await flowPos();
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(200);
+  check("an arrow nudges by one pixel", (await flowPos()).x === start.x + 1,
+    `${start.x} -> ${(await flowPos()).x}`);
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.waitForTimeout(200);
+  check("shift-arrow nudges a grid step", (await flowPos()).x === start.x + 61,
+    `${(await flowPos()).x}`);
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await page.waitForTimeout(200);
+  check("and back", (await flowPos()).x === start.x);
+
+  // Ctrl+D: one grid step over, selected, ready to nudge.
+  const before = await nodeCount();
+  await page.keyboard.press("Control+d");
+  await page.waitForTimeout(350);
+  check("Ctrl+D duplicates", (await nodeCount()) === before + 1);
+  const copies = await page.locator(".react-flow__node", { hasText: "Bystander" }).count();
+  check("the copy is a grid step over and selected", copies === 2 &&
+    (await page.locator(".react-flow__node.selected").count()) >= 1, `${copies} copies`);
+  await page.keyboard.press("Delete");
+  await page.waitForTimeout(300);
+  check("Delete removes it again", (await nodeCount()) === before);
+
+  // Esc selects nothing.
+  await dev.locator(".cv-glyph-art").click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  check("Esc clears the selection",
+    (await page.locator(".react-flow__node.selected").count()) === 0);
+
+  // ? shows the overlay; Esc puts it away.
+  await page.keyboard.press("?");
+  await page.waitForTimeout(250);
+  check("? opens the shortcut list", (await page.locator(".cv-help-card").count()) === 1);
+  const listed = await page.locator(".cv-help-card").innerText();
+  check("and it names the arrange keys", /Ctrl\+Alt\+L/.test(listed));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  check("Esc puts it away", (await page.locator(".cv-help-card").count()) === 0);
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });

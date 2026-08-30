@@ -153,6 +153,7 @@ interface Store {
   copySelection: () => number;
   paste: () => number;
   selectAll: () => void;
+  selectNone: () => void;
   beginEditing: (id: string | null) => void;
   arrange: (
     ids: string[],
@@ -637,6 +638,18 @@ export const useStore = create<Store>((set, get) => ({
       edges: fresh.edges.map((e) => ({ ...e })),
     };
     return fresh.nodes.length;
+  },
+
+  selectNone() {
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        nodes: state.doc.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+        edges: state.doc.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+      },
+      selectedNodeId: null,
+      selectedEdgeId: null,
+    }));
   },
 
   beginEditing(id) {

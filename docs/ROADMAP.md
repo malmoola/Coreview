@@ -63,12 +63,6 @@ variables that were meant.
 
 *Accepted, not started.*
 
-### LT-039 — Keyboard pass and a "?" shortcut overlay
-**Source:** asked 2026-08-30 (Item D3).
-**Acceptance:** Delete removes; Ctrl+D duplicates offset by one grid step;
-arrows nudge 1px, Shift+arrows one grid step; Ctrl+A selects all in view; Esc
-clears selection. All documented in a "?" overlay.
-
 ### LT-040 — The filter box finds on the canvas
 **Source:** asked 2026-08-30 (Item D4).
 **Acceptance:** typing in the existing monitored-objects filter box highlights
@@ -276,6 +270,16 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-039 — Keyboard pass and a "?" shortcut overlay — 2026-08-30
+Shipped: arrows nudge a pixel, Shift-arrows a grid step; Ctrl+D duplicates one
+grid step over with the copy taking the selection; Esc closes what is on top
+first, then clears the selection; "?" opens an overlay naming everything,
+arrange keys included. Two things found on the way: React Flow's own arrow-key
+a11y movement was adding five pixels on top of the one-pixel nudge, so a
+single press walked a device six — it is off, and ours is the only keyboard
+movement; and Ctrl+D used to leave the original selected, so the next Delete
+removed both the copy and the thing copied.
 
 ### LT-038 — Align/distribute on the keyboard — 2026-08-30
 Shipped: Ctrl+Alt+L/C/R aligns left/centre/right, Ctrl+Alt+T/M/B tops,
