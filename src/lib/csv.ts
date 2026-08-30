@@ -169,6 +169,47 @@ export function parseLinkCsv(text: string): { rows: LinkCsvRow[]; errors: string
   return { rows, errors };
 }
 
+/**
+ * The diagram written back out as the two files that can be read back in.
+ *
+ * Import existed and export did not, which made CSV a one-way door: a diagram
+ * built from a spreadsheet could not be handed back to the spreadsheet, and a
+ * diagram built by a crawl could not be handed to anyone who does not run
+ * Coreview. The columns are exactly the ones the importers read, so a file
+ * written here reopens as the same diagram.
+ *
+ * Positions are deliberately not exported. A CSV is an inventory, and the
+ * moment it carries coordinates people start editing them in a spreadsheet.
+ * A project package is the format that keeps a layout.
+ */
+export function nodesToCsv(
+  nodes: { label: string; type: string; address: string; probeType: string; port?: number; notes?: string; tags: string[] }[],
+): string {
+  return toCsv([
+    ['Name', 'Type', 'IP', 'Probe type', 'Port', 'Notes', 'Tags'],
+    ...nodes.map((n) => [
+      n.label,
+      n.type,
+      n.address,
+      n.probeType,
+      n.port ?? '',
+      n.notes ?? '',
+      // Semicolons, because a comma inside a cell is the thing this format is
+      // worst at and the importer splits on these.
+      n.tags.join('; '),
+    ]),
+  ]);
+}
+
+export function linksToCsv(
+  links: { source: string; target: string; sourcePort: string; targetPort: string; label: string; healthRule: string }[],
+): string {
+  return toCsv([
+    ['Source name', 'Target name', 'Source port', 'Target port', 'Link label', 'Health rule'],
+    ...links.map((l) => [l.source, l.target, l.sourcePort, l.targetPort, l.label, l.healthRule]),
+  ]);
+}
+
 export const STATUS_ORDER: HealthStatus[] = [
   'healthy',
   'warning',

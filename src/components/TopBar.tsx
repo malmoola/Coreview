@@ -5,8 +5,8 @@ import { useStore } from '../state/store';
 import { ipc } from '../lib/ipc';
 import { buildMarkdownReport, saveExport, slug, svgToPng } from '../lib/exports';
 import { renderDiagramSvg } from '../lib/diagram';
-import { eventsToCsv } from '../lib/csv';
-import type { HealthStatus } from '../types/domain';
+import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
+import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
 
 const SESSION_LABEL: Record<string, string> = {
@@ -112,6 +112,51 @@ export function TopBar({ onExit }: { onExit: () => void }) {
 
   const exportCsv = () => {
     void runExport(`${slug(meta.name)}-events.csv`, () => eventsToCsv(store.events), 'text/csv');
+  };
+
+  /** The diagram as the two files the importer reads back. */
+  const exportTopologyCsv = () => {
+    const devices = store.doc.nodes.filter((n) => n.type === 'device');
+    const nameOf = new Map(
+      devices.map((n) => [n.id, String((n.data as DeviceNodeData).label ?? '')]),
+    );
+    const probeFor = (nodeId: string) =>
+      store.doc.probes.find((p) => p.objectKind === 'node' && p.objectId === nodeId);
+
+    const rows = devices.map((n) => {
+      const d = n.data as DeviceNodeData;
+      const probe = probeFor(n.id);
+      return {
+        label: d.label,
+        type: d.deviceType,
+        address:
+          d.addresses?.find((a: NodeAddress) => a.isPrimary)?.address ??
+          d.addresses?.[0]?.address ??
+          '',
+        probeType: probe?.kind ?? 'manual',
+        port: probe?.kind === 'tcp' ? (probe.tcpPort ?? undefined) : undefined,
+        notes: d.notes ?? '',
+        tags: d.tags ?? [],
+      };
+    });
+    void runExport(`${slug(meta.name)}-devices.csv`, () => nodesToCsv(rows), 'text/csv');
+
+    // Links reference devices by name, because that is what the importer
+    // matches on and what a person reading the file can follow.
+    const links = store.doc.edges
+      .filter((e) => nameOf.has(e.source) && nameOf.has(e.target))
+      .map((e) => {
+        const d = (e.data ?? {}) as LinkData;
+        return {
+          source: nameOf.get(e.source) ?? '',
+          target: nameOf.get(e.target) ?? '',
+          sourcePort: d.sourcePortLabel ?? '',
+          targetPort: d.targetPortLabel ?? '',
+          label: d.label ?? '',
+          healthRule: d.healthRule?.type ?? 'both-endpoints',
+        };
+      });
+    void runExport(`${slug(meta.name)}-links.csv`, () => linksToCsv(links), 'text/csv');
   };
 
   const exportReport = () => {
@@ -231,6 +276,13 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             </button>
             <button type="button" onClick={exportCsv}>
               Events as CSV
+            </button>
+            <button
+              type="button"
+              onClick={exportTopologyCsv}
+              title="Two files — devices and links — in the same columns the CSV import reads"
+            >
+              Devices and links as CSV
             </button>
             <button type="button" onClick={exportReport}>
               Validation report (Markdown)

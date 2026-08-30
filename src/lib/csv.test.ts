@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { csvCell, eventsToCsv, parseCsv, parseLinkCsv, parseNodeCsv } from './csv';
+import {
+  csvCell,
+  eventsToCsv,
+  linksToCsv,
+  nodesToCsv,
+  parseCsv,
+  parseLinkCsv,
+  parseNodeCsv,
+} from './csv';
 import type { EventRow } from '../types/domain';
 
 describe('csv writing', () => {
@@ -62,5 +70,62 @@ describe('csv reading', () => {
   it('defaults an unrecognised health rule instead of failing the import', () => {
     const { rows } = parseLinkCsv('source name,target name,health rule\nA,B,nonsense\n');
     expect(rows[0]?.healthRule).toBe('both-endpoints');
+  });
+});
+
+describe('writing the diagram back out', () => {
+  const nodes = [
+    {
+      label: 'CORE-SW', type: 'core-switch', address: '10.0.0.1',
+      probeType: 'icmp', notes: 'Rack 4', tags: ['site-hq', 'discovered'],
+    },
+    {
+      label: 'Web, staging', type: 'server', address: '10.0.0.8',
+      probeType: 'tcp', port: 443, notes: '', tags: [],
+    },
+  ];
+
+  it('writes a header the importer understands', () => {
+    const { rows, errors } = parseNodeCsv(nodesToCsv(nodes));
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(2);
+  });
+
+  it('survives a round trip unchanged', () => {
+    // The whole point. If this drifts, a diagram exported to a spreadsheet
+    // comes back as a different diagram.
+    const { rows } = parseNodeCsv(nodesToCsv(nodes));
+    expect(rows[0]).toEqual({
+      name: 'CORE-SW', type: 'core-switch', address: '10.0.0.1',
+      probeType: 'icmp', port: undefined, notes: 'Rack 4',
+      tags: ['site-hq', 'discovered'],
+    });
+    expect(rows[1]!.port).toBe(443);
+  });
+
+  it('keeps a name containing a comma in one cell', () => {
+    // "Web, staging" split across two columns would shift every field after
+    // it and silently corrupt the type of that row.
+    const { rows } = parseNodeCsv(nodesToCsv(nodes));
+    expect(rows[1]!.name).toBe('Web, staging');
+    expect(rows[1]!.type).toBe('server');
+  });
+
+  it('writes links the importer reads back', () => {
+    const links = [
+      {
+        source: 'CORE-SW', target: 'ACC-SW', sourcePort: 'Gi1/0/1',
+        targetPort: 'Gi0/1', label: 'Uplink', healthRule: 'both-endpoints',
+      },
+    ];
+    const { rows, errors } = parseLinkCsv(linksToCsv(links));
+    expect(errors).toEqual([]);
+    expect(rows[0]).toEqual(links[0]);
+  });
+
+  it('writes an empty diagram as a header and nothing else', () => {
+    const { rows, errors } = parseNodeCsv(nodesToCsv([]));
+    expect(rows).toEqual([]);
+    expect(errors).toEqual([]);
   });
 });

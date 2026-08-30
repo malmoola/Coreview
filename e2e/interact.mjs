@@ -550,6 +550,43 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- csv out
+// CSV import existed and export did not, which made it a one-way door. The
+// check that matters is not that a file appears but that what comes out is
+// what the importer reads back in.
+{
+  const downloads = [];
+  page.on("download", (d) => downloads.push(d));
+
+  await page.locator(".cv-dropdown summary", { hasText: "Export" }).first().click();
+  await page.waitForTimeout(250);
+  const item = page.locator(".cv-dropdown-menu button", { hasText: "Devices and links as CSV" });
+  check("the export menu offers the diagram as CSV", (await item.count()) === 1);
+
+  if (await item.count()) {
+    await item.click();
+    await page.waitForTimeout(1200);
+    check("it writes two files, devices and links", downloads.length === 2, `${downloads.length} downloads`);
+
+    const fs = await import("node:fs/promises");
+    const read = async (which) => {
+      const d = downloads.find((x) => x.suggestedFilename().includes(which));
+      const path = d ? await d.path() : null;
+      return path ? fs.readFile(path, "utf8") : "";
+    };
+    const devicesCsv = await read("devices");
+    const linksCsv = await read("links");
+
+    check("the devices file names every device on the diagram",
+      /Core switch/.test(devicesCsv) && /Access switch/.test(devicesCsv) && /Bystander/.test(devicesCsv),
+      devicesCsv.split("\n").slice(0, 2).join(" / "));
+    check("the devices file carries the header the importer reads",
+      /^Name,Type,IP,Probe type,Port,Notes,Tags/.test(devicesCsv), devicesCsv.slice(0, 60));
+    check("the links file references devices by name, with ports",
+      /Core switch/.test(linksCsv) && /Gi1\/0\/1/.test(linksCsv), linksCsv.split("\n").slice(0, 3).join(" / "));
+  }
+}
+
 // ---------------------------------------------------------------- routing
 // Links must leave the nearer side of a device. The fixture has one link
 // wired right-to-left between two devices that are stacked, which is exactly
