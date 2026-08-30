@@ -1406,3 +1406,13 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px;
 }
 .cv-help-row span { color: var(--text-dim); }
+
+/* What the panel filter matches, lit on the canvas. Everything else steps
+   back rather than vanishing — the point is to find, not to hide. */
+.cv-glyph-node.is-hit .cv-glyph-art::after,
+.cv-node.is-hit::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 10px;
+  border: 2px solid var(--warning); pointer-events: none;
+}
+.cv-glyph-node.is-hit .cv-glyph-art::after { border-radius: 50%; }
+.cv-glyph-node.is-dimmed, .cv-node.is-dimmed { opacity: 0.3; }

@@ -135,6 +135,8 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const nodeStyle = useStore((s) => s.doc.canvas.nodeStyle ?? 'glyph');
   const ground = useStore((s) => s.settings.ground);
   const editingNow = useStore((s) => s.editingNodeId === id);
+  const hit = useStore((s) => s.canvasHighlight?.has(id) ?? false);
+  const dimmed = useStore((s) => (s.canvasHighlight ? !s.canvasHighlight.has(id) : false));
   const beginEditing = useStore((s) => s.beginEditing);
   const colourBy = useStore((s) => s.doc.canvas.colourBy ?? 'health');
   const rename = useStore((s) => s.updateNodeData);
@@ -182,7 +184,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   if (glyph) {
     return (
       <div
-        className={`cv-glyph-node ${selected ? 'is-selected' : ''}`}
+        className={`cv-glyph-node ${selected ? 'is-selected' : ''}${hit ? ' is-hit' : ''}${dimmed ? ' is-dimmed' : ''}`}
         title={`${d.label} — ${STATUS_LABEL[status]}`}
       >
         <NodeResizer
@@ -251,7 +253,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
     <div
       className={`cv-node ${isShape ? 'cv-node-shape' : ''} ${isZone ? 'cv-zone' : ''} ${
         selected ? 'is-selected' : ''
-      }`}
+      }${hit ? ' is-hit' : ''}${dimmed ? ' is-dimmed' : ''}`}
       data-shape={d.deviceType}
       style={{
         // A shape with its own outline must not also draw the box's border,

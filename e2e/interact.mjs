@@ -2130,6 +2130,34 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("Esc puts it away", (await page.locator(".cv-help-card").count()) === 0);
 }
 
+// ---------------------------------------------------------------- filter
+// The words that filter the table light up the canvas.
+{
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  const box = page.locator('input[placeholder*="Filter by name"]');
+  check("the panel has its filter box", (await box.count()) === 1);
+
+  await box.fill("Bystander");
+  await page.waitForTimeout(400);
+  const lit = await page.locator(".is-hit").count();
+  const dimmed = await page.locator(".is-dimmed").count();
+  check("typing lights the matches on the canvas", lit >= 1, `${lit} lit`);
+  check("and steps the rest back without hiding them", dimmed >= 1, `${dimmed} dimmed`);
+
+  await box.press("Enter");
+  await page.waitForTimeout(600);
+  const title = await page.locator(".cv-inspector-title").first().innerText();
+  check("Enter jumps to and selects the first match", /Node/i.test(title),
+    title.replace(/\n/g, " ").slice(0, 30));
+
+  await box.fill("");
+  await page.waitForTimeout(300);
+  check("clearing the filter puts the canvas back",
+    (await page.locator(".is-hit").count()) === 0 &&
+      (await page.locator(".is-dimmed").count()) === 0);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
+import { findNodes } from '../lib/findNodes';
 
 import { useStore } from '../state/store';
 import { DiscoverPanel } from './DiscoverPanel';
@@ -75,6 +77,34 @@ export function StatusPanel() {
   // backup without being drawn first.
   const [handedOver, setHandedOver] = useState<{ address: string; name: string }[]>([]);
   const [query, setQuery] = useState('');
+  const rf = useReactFlow();
+  const docNodes = useStore((s) => s.doc.nodes);
+  const setHighlight = useStore((s) => s.setCanvasHighlight);
+  // The same words that filter the table light up the canvas, so the list and
+  // the drawing answer the question together.
+  useEffect(() => {
+    if (!query.trim()) {
+      setHighlight(null);
+      return;
+    }
+    const hits = findNodes(docNodes, query, 200);
+    setHighlight(new Set(hits.map((h) => h.id)));
+    return () => setHighlight(null);
+  }, [query, docNodes, setHighlight]);
+
+  /** Enter goes to the first match: centred, selected, zoom left alone. */
+  const jumpToFirst = () => {
+    const first = findNodes(docNodes, query, 1)[0];
+    if (!first) return;
+    const node = docNodes.find((n) => n.id === first.id);
+    if (!node) return;
+    rf.setCenter(
+      node.position.x + (node.width ?? node.measured?.width ?? 120) / 2,
+      node.position.y + (node.height ?? node.measured?.height ?? 60) / 2,
+      { duration: 300, zoom: Math.max(rf.getZoom(), 0.9) },
+    );
+    useStore.getState().select(first.id, null);
+  };
   const [problemsOnly, setProblemsOnly] = useState(false);
 
   // Ages have to move on their own, or "3s ago" sits there saying 3s
@@ -240,6 +270,12 @@ export function StatusPanel() {
               placeholder="Filter by name, IP, type, tag or status"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  jumpToFirst();
+                }
+              }}
             />
             <label className="cv-check cv-check-inline">
               <input

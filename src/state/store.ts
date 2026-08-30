@@ -102,6 +102,9 @@ interface Store {
   selectedNodeId: string | null;
   /** A node that has just been made and should be typed into straight away. */
   editingNodeId: string | null;
+  /** Devices the panel filter currently matches, lit up on the canvas so the
+   *  table and the drawing answer the same question at the same time. */
+  canvasHighlight: Set<string> | null;
   selectedEdgeId: string | null;
   settings: AppSettings;
   /** Runtime-indexed icon library. Never persisted with the project — the
@@ -155,6 +158,7 @@ interface Store {
   selectAll: () => void;
   selectNone: () => void;
   beginEditing: (id: string | null) => void;
+  setCanvasHighlight: (ids: Set<string> | null) => void;
   arrange: (
     ids: string[],
     how: 'left' | 'centre' | 'right' | 'top' | 'middle' | 'bottom' | 'across' | 'down',
@@ -328,6 +332,7 @@ export const useStore = create<Store>((set, get) => ({
   lastSavedAt: null,
   selectedNodeId: null,
   editingNodeId: null,
+  canvasHighlight: null,
   selectedEdgeId: null,
   iconLibrary: [],
   iconLibraryDir: null,
@@ -650,6 +655,10 @@ export const useStore = create<Store>((set, get) => ({
       selectedNodeId: null,
       selectedEdgeId: null,
     }));
+  },
+
+  setCanvasHighlight(ids) {
+    set({ canvasHighlight: ids });
   },
 
   beginEditing(id) {

@@ -63,11 +63,6 @@ variables that were meant.
 
 *Accepted, not started.*
 
-### LT-040 — The filter box finds on the canvas
-**Source:** asked 2026-08-30 (Item D4).
-**Acceptance:** typing in the existing monitored-objects filter box highlights
-matches on the canvas, and Enter jumps/zooms to the first match.
-
 ### LT-041 — Export renders exactly the page rect
 **Source:** asked 2026-08-30 (Item D5).
 **Acceptance:** PNG and SVG export render exactly the LT-036 page rect, in
@@ -270,6 +265,12 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-040 — The filter box finds on the canvas — 2026-08-30
+Shipped: typing in the monitored-objects filter lights every canvas match with
+a ring and steps everything else back to 30% — found, not hidden. Enter
+centres and selects the first match, zooming in only if the view is far out.
+Clearing the box puts the canvas back exactly.
 
 ### LT-039 — Keyboard pass and a "?" shortcut overlay — 2026-08-30
 Shipped: arrows nudge a pixel, Shift-arrows a grid step; Ctrl+D duplicates one
