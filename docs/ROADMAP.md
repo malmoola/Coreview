@@ -114,6 +114,23 @@ Ordered by what makes the app more useful, not by what is easiest.
       drag per site. /24, because that is what a site or a VLAN almost always
       is and a boundary you have to configure before you can tidy a diagram is
       one nobody uses. A subnet holding one device is left alone
+- [x] **Tidy the layout**, from the canvas menu. Evens the spacing of a
+      crawled diagram without rearranging it: whatever was above stays above,
+      whatever was left stays left. Predictable matters more than optimal —
+      an operator has to be able to press it without bracing. Locked devices
+      are left where they are, and it says how many it moved
+- [x] **Find a device**, Ctrl+F. Ranks name, then address, then model, tag
+      and note; moves the view to the match and selects it. Zoom is left
+      alone deliberately: someone who has zoomed out to see the shape of a
+      site does not want a search to throw them back in
+- [x] **Say what changed since the diagram was drawn.** A re-crawl merges
+      silently, which is right when nothing moved and wrong when something
+      did. Discover now reports devices that have gone, devices that are new,
+      addresses that moved, and links that are no longer where they were
+      drawn — a link that is both gone and new is a cable that moved port. It
+      reports; drawing stays the operator's decision. Driven end to end by
+      `e2e/change.mjs`, which stubs the Tauri bridge and delivers a crawl
+      result the way the backend does
 - [ ] **Link aggregation: draw a port-channel as one link.** Attempted and
       reverted. Collapsing links whose ports are consecutive infers a bundle
       from port numbering, and two consecutive cables between a pair are just
@@ -151,6 +168,8 @@ Recorded because it is the only evidence that counts.
 | Palo Alto PA-220 (192.168.14.206) | SNMP v2c identity, classified as a firewall |
 | FortiGate (192.168.14.195) | Not answering on 161 — the error now says what to check |
 | FortiAP U431F ×2 | Classified as access points from LLDP platform |
+| FortiGate-60F 7.6.7 (192.168.14.1) | SSH login on a read-only profile — which needed the prompt finder to accept FortiOS's `$`, without which the device was unreachable entirely. 44 named endpoints from `execute dhcp lease-list` across four networks, the FortiSwitch it manages, and three FortiAPs, two of them cabled to Laundry-SW on Port 3 and Port 2. `diagnose` is refused on this profile, so the device store is unavailable and the lease list is what runs |
+| Ubiquiti Laundry-SW (UBNT-USL8L) | Found only through a FortiAP's LLDP block, by name, chassis MAC and socket. It speaks no CDP and the crawl cannot log into it |
 | FortiSwitch 224E (192.168.14.203) | SSH via the FortiOS command set — classified Switch, platform FortiSwitch-224E, and its LLDP neighbour HOME-MAIN-SW on port24. SNMP v3 identity too. Reached only because its address is resolved from its chassis id, and only with the second credential set — three features composing on one device |
 
 ## Not doing, and why
