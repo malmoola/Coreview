@@ -1380,6 +1380,27 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   await page.waitForTimeout(450);
   check("showing it again brings them back", (await nodeCount()) === before);
 
+  // A view hidden to prepare a document must not reappear in the document.
+  await page.getByLabel("Hide Logical").click();
+  await page.waitForTimeout(400);
+  {
+    const downloads = [];
+    page.on("download", (d) => downloads.push(d));
+    await page.locator(".cv-dropdown summary", { hasText: "Export" }).first().click();
+    await page.waitForTimeout(250);
+    await page.locator(".cv-dropdown-menu button", { hasText: "Diagram as SVG" }).click();
+    await page.waitForTimeout(1200);
+    const fs = await import("node:fs/promises");
+    const path = downloads[0] ? await downloads[0].path() : null;
+    const svg = path ? await fs.readFile(path, "utf8") : "";
+    check("the export leaves out a hidden view",
+      svg.length > 0 && !svg.includes("Core switch"),
+      `${svg.length} bytes${svg.includes("Core switch") ? ", still has the hidden device" : ""}`);
+    check("but keeps everything else", svg.includes("Bystander"));
+  }
+  await page.getByLabel("Show Logical").click();
+  await page.waitForTimeout(400);
+
   // Removing a view must not remove the network.
   await page.getByLabel("Remove Logical").click();
   await page.waitForTimeout(450);

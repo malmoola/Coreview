@@ -5,6 +5,7 @@ import { useStore } from '../state/store';
 import { ipc } from '../lib/ipc';
 import { buildMarkdownReport, saveExport, slug, svgToPng } from '../lib/exports';
 import { renderDiagramSvg } from '../lib/diagram';
+import { isVisible, layersOf } from '../lib/layers';
 import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
 import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
@@ -65,6 +66,25 @@ export function TopBar({ onExit }: { onExit: () => void }) {
   const counts = statusCounts();
 
   /** Runs an export and reports where it landed, or that it failed. */
+  /** The diagram as it is being looked at, with hidden views left out. */
+  const shown = (() => {
+    const layers = layersOf(store.doc.canvas.layers);
+    if (layers.every((l) => l.visible)) {
+      return { nodes: store.doc.nodes, edges: store.doc.edges };
+    }
+    const nodes = store.doc.nodes.filter((n) =>
+      isVisible((n.data as { layers?: string[] }).layers, layers),
+    );
+    const alive = new Set(nodes.map((n) => n.id));
+    const edges = store.doc.edges.filter(
+      (e) =>
+        isVisible((e.data as { layers?: string[] } | undefined)?.layers, layers) &&
+        alive.has(e.source) &&
+        alive.has(e.target),
+    );
+    return { nodes, edges };
+  })();
+
   const runExport = async (filename: string, build: () => string | Uint8Array | null, mime: string) => {
     try {
       const content = build();
@@ -81,8 +101,10 @@ export function TopBar({ onExit }: { onExit: () => void }) {
   const diagramSvg = () =>
     renderDiagramSvg({
       meta,
-      nodes: store.doc.nodes,
-      edges: store.doc.edges,
+      // What is on screen, not what is in the file: a view hidden to prepare a
+      // document must not reappear in the document.
+      nodes: shown.nodes,
+      edges: shown.edges,
       nodeStatus: (id) => store.nodeStatus(id),
       linkStatus: (id) => store.linkStatus(id),
       includeTitleBlock: true,
