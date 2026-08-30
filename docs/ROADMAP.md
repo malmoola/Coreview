@@ -88,7 +88,12 @@ Ordered by what makes the app more useful, not by what is easiest.
       survives. Verified by crawling the real network twice: the second run
       reported "Added 0 devices and 0 links. Updated 5 already on the diagram,
       keeping their positions" 
-- [ ] Group by site or subnet, using the grouping that already exists
+- [x] **Group each subnet together**, from the canvas menu. A discovered
+      diagram of a real estate is a lot of boxes, and the first thing anyone
+      wants is to push each site into its own corner — this makes that one
+      drag per site. /24, because that is what a site or a VLAN almost always
+      is and a boundary you have to configure before you can tidy a diagram is
+      one nobody uses. A subnet holding one device is left alone
 - [ ] **Link aggregation: draw a port-channel as one link.** Attempted and
       reverted. Collapsing links whose ports are consecutive infers a bundle
       from port numbering, and two consecutive cables between a pair are just

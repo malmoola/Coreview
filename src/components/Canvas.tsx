@@ -241,6 +241,18 @@ export function Canvas() {
           }),
       },
       {
+        label: 'Group each subnet together',
+        onSelect: () => {
+          const { groups, ungrouped } = store.groupBySubnet();
+          store.setStatusMessage(
+            groups === 0
+              ? 'Nothing to group — no two devices share a /24.'
+              : `Grouped ${groups} subnet${groups === 1 ? '' : 's'}. Dragging one device now moves its whole subnet.` +
+                (ungrouped ? ` ${ungrouped} device${ungrouped === 1 ? '' : 's'} left ungrouped.` : ''),
+          );
+        },
+      },
+      {
         label: doc.canvas.minimap ? 'Hide the overview box' : 'Show the overview box',
         onSelect: () => store.setCanvas({ minimap: !doc.canvas.minimap }),
       },

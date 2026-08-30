@@ -4,6 +4,7 @@ import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } 
 
 import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/ipc';
 import { uid } from '../lib/id';
+import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import {
   linkStatus as computeLinkStatus,
   nodeStatus as computeNodeStatus,
@@ -104,6 +105,8 @@ interface Store {
   ungroup: (nodeId: string) => void;
   /** Every node in this node's group, itself included. Empty if ungrouped. */
   groupMembers: (nodeId: string) => string[];
+  /** Binds each subnet's devices together. Returns how many groups were made. */
+  groupBySubnet: () => { groups: number; ungrouped: number };
   onEdgesChange: (changes: EdgeChange<TopoEdge>[]) => void;
   addNode: (node: TopoNode) => void;
   addEdge: (edge: TopoEdge) => void;
@@ -408,6 +411,29 @@ export const useStore = create<Store>((set, get) => ({
       },
       dirty: true,
     }));
+  },
+
+  groupBySubnet() {
+    const { assignments, subnets, ungrouped } = bucketBySubnet(get().doc.nodes);
+    if (assignments.size === 0) return { groups: 0, ungrouped };
+    get().commit('Group by subnet');
+    // One id per subnet rather than the subnet string itself: a group id is
+    // opaque everywhere else, and making it meaningful here would invite
+    // something to start parsing it.
+    const ids = new Map(subnets.map((s) => [s, uid()]));
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        nodes: state.doc.nodes.map((n) => {
+          const subnet = assignments.get(n.id);
+          return subnet
+            ? ({ ...n, data: { ...n.data, groupId: ids.get(subnet) } } as TopoNode)
+            : n;
+        }),
+      },
+      dirty: true,
+    }));
+    return { groups: subnets.length, ungrouped };
   },
 
   groupMembers(nodeId) {
