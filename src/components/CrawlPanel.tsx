@@ -15,6 +15,7 @@ import { SubnetList } from './SubnetList';
 import { reasonWithoutAddress } from '../lib/failures';
 import { newProbe } from '../lib/probes';
 import { buildTopology } from '../lib/topology';
+import { ChangeReport } from './ChangeReport';
 import { selectAttached, vendorCounts } from '../lib/attached';
 import type { DeviceNodeData } from '../types/domain';
 
@@ -692,6 +693,8 @@ export function CrawlPanel({
             <input className="cv-input cv-filter-search" placeholder="Name, address or platform"
               value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+
+          {result && <ChangeReport result={result} />}
 
           <div className="cv-discover-actions">
             <button type="button" className="cv-btn cv-btn-small" onClick={() => setAllVisible(true)}>

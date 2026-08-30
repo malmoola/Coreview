@@ -107,6 +107,32 @@ const gapBetween = async (a, b) => {
   return { dx: Math.round(x.x - y.x), dy: Math.round(x.y - y.y) };
 };
 
+/** A drag that is verified to have actually dragged something.
+ *
+ *  "The gap did not change" is true both when a node moved with its group and
+ *  when nothing moved at all — a locked node, a missed grab, or a pan. Two of
+ *  the grouping checks below passed for that second reason for as long as the
+ *  lock tests left their nodes locked. Watching a third, uninvolved node
+ *  separates the cases: it stays put during a node drag and moves during a
+ *  pan. */
+const dragNode = async (selector, dx, dy, witnessSelector) => {
+  const witnessBefore = await page.locator(witnessSelector).first().boundingBox();
+  const b = await page.locator(selector).first().boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + 22);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + dx, b.y + 22 + dy, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(350);
+  const after = await page.locator(selector).first().boundingBox();
+  const witnessAfter = await page.locator(witnessSelector).first().boundingBox();
+  return {
+    moved: Math.abs(after.x - b.x) > 40 || Math.abs(after.y - b.y) > 40,
+    panned:
+      Math.abs(witnessAfter.x - witnessBefore.x) > 12 ||
+      Math.abs(witnessAfter.y - witnessBefore.y) > 12,
+  };
+};
+
 // ---------------------------------------------------------------- case 1
 // A real HTML5 drag out of the palette. `nodeForDrop` is unit-tested; what is
 // not, is that the palette actually hands over the payload the canvas reads.
@@ -275,6 +301,25 @@ const gapBetween = async (a, b) => {
       "a locked node offers no resize handles",
       (await page.locator(".cv-resize-handle").count()) === 0,
     );
+
+    // Unlock again, and prove it. Leaving it locked made every later check
+    // that measures a drag pass without anything moving.
+    await page.locator(".react-flow__node").first().click();
+    await page.waitForTimeout(200);
+    await lockLabel.locator("input[type=checkbox]").uncheck();
+    await page.waitForTimeout(250);
+    const freed = await page.locator(".react-flow__node").first().boundingBox();
+    await page.mouse.move(freed.x + 30, freed.y + freed.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(freed.x + 160, freed.y + freed.height / 2 + 40, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const freedAfter = await gapBetween(".react-flow__node", ref);
+    check(
+      "unlocking lets it move again",
+      Math.abs(freedAfter.dx - after.dx) > 40 || Math.abs(freedAfter.dy - after.dy) > 20,
+      `gap (${after.dx},${after.dy}) -> (${freedAfter.dx},${freedAfter.dy})`,
+    );
   }
 }
 
@@ -304,6 +349,25 @@ const gapBetween = async (a, b) => {
       Math.abs(after.dx - before.dx) < 6 && Math.abs(after.dy - before.dy) < 6,
       `gap (${before.dx},${before.dy}) -> (${after.dx},${after.dy})`,
     );
+
+    // Same reason as the device: a note left locked makes every grouping
+    // check below pass with nothing moving.
+    await page.locator(".react-flow__node .cv-note").first().click();
+    await page.waitForTimeout(200);
+    await label.locator("input[type=checkbox]").uncheck();
+    await page.waitForTimeout(250);
+    const freed = await page.locator(note).first().boundingBox();
+    await page.mouse.move(freed.x + 30, freed.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(freed.x + 170, freed.y + 120, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const freedAfter = await gapBetween(note, ".react-flow__node");
+    check(
+      "unlocking the note lets it move again",
+      Math.abs(freedAfter.dx - after.dx) > 40 || Math.abs(freedAfter.dy - after.dy) > 40,
+      `gap (${after.dx},${after.dy}) -> (${freedAfter.dx},${freedAfter.dy})`,
+    );
   }
 }
 
@@ -318,6 +382,9 @@ const gapBetween = async (a, b) => {
   await page.waitForTimeout(500);
 
   const dev = ".react-flow__node:not(:has(.cv-note))";
+  // A node that takes no part in the grouping, so it can testify that the
+  // canvas did not simply pan under the drag.
+  const witness = ".react-flow__node:not(:has(.cv-note))>>nth=1";
   const note = ".react-flow__node:has(.cv-note)";
 
   await page.locator(dev).first().click();
@@ -339,16 +406,12 @@ const gapBetween = async (a, b) => {
     await page.waitForTimeout(250);
 
     const before = await gapBetween(note, dev);
-    const b = await page.locator(dev).first().boundingBox();
-    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(b.x + b.width / 2 + 130, b.y + b.height / 2 + 90, { steps: 12 });
-    await page.mouse.up();
-    await page.waitForTimeout(300);
+    const dragged = await dragNode(dev, 130, 90, witness);
     const after = await gapBetween(note, dev);
+    check("the grouped node actually moved", dragged.moved && !dragged.panned, JSON.stringify(dragged));
     check(
       "a grouped companion moves with the node that was dragged",
-      Math.abs(after.dx - before.dx) < 8 && Math.abs(after.dy - before.dy) < 8,
+      dragged.moved && Math.abs(after.dx - before.dx) < 8 && Math.abs(after.dy - before.dy) < 8,
       `gap (${before.dx},${before.dy}) -> (${after.dx},${after.dy})`,
     );
 
@@ -381,18 +444,99 @@ const gapBetween = async (a, b) => {
     await page.waitForTimeout(200);
 
     const before3 = await gapBetween(note, dev);
-    const b3 = await page.locator(dev).first().boundingBox();
-    await page.mouse.move(b3.x + b3.width / 2, b3.y + b3.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(b3.x + b3.width / 2 + 140, b3.y + b3.height / 2, { steps: 12 });
-    await page.mouse.up();
-    await page.waitForTimeout(300);
+    const dragged3 = await dragNode(dev, 140, 0, witness);
     const after3 = await gapBetween(note, dev);
+    check("the ungrouped node actually moved", dragged3.moved && !dragged3.panned, JSON.stringify(dragged3));
     check(
       "an ungrouped companion stays where it was",
-      Math.abs(after3.dx - before3.dx) > 60,
+      dragged3.moved && Math.abs(after3.dx - before3.dx) > 60,
       `gap (${before3.dx},${before3.dy}) -> (${after3.dx},${after3.dy})`,
     );
+  }
+}
+
+// ---------------------------------------------------------------- find
+// The search library is unit-tested. What is not, is that Ctrl+F actually
+// opens it, that a match moves the view, and that it changes nothing.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 700, y: 600 } });
+  const before = await nodeCount();
+  await page.keyboard.press("Control+f");
+  await page.waitForTimeout(200);
+  const box = page.locator(".cv-find-input");
+  check("Ctrl+F opens the find box", await box.count() === 1);
+
+  if (await box.count()) {
+    await box.fill("Access");
+    await page.waitForTimeout(250);
+    const results = await page.locator(".cv-find-results button").count();
+    check("typing a name lists matches", results > 0, `${results} results`);
+
+    const label = await page.locator(".cv-find-results button .cv-find-label").first().textContent();
+    check("the match is the device asked for", label === "Access switch", String(label));
+
+    // Where the node sits on screen before and after jumping to it. The
+    // view moves, so the node's screen box must change.
+    const at = async () => {
+      const b = await page.locator(".react-flow__node").nth(2).boundingBox();
+      return b ? { x: Math.round(b.x), y: Math.round(b.y) } : null;
+    };
+    const was = await at();
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(700);
+    const now = await at();
+    check(
+      "choosing a match moves the view to it",
+      was && now && (Math.abs(now.x - was.x) > 20 || Math.abs(now.y - was.y) > 20),
+      `${JSON.stringify(was)} -> ${JSON.stringify(now)}`,
+    );
+    check("the find box closes once a device is chosen", await page.locator(".cv-find-input").count() === 0);
+    check("searching adds and removes nothing", await nodeCount() === before, `${before} -> ${await nodeCount()}`);
+  }
+}
+
+// ---------------------------------------------------------------- tidy
+// Tidy must even out spacing without rearranging: whatever was above stays
+// above. An operator has to be able to press it without bracing.
+{
+  const order = async () => {
+    const boxes = [];
+    const n = await page.locator(".react-flow__node").count();
+    for (let i = 0; i < n; i++) {
+      const b = await page.locator(".react-flow__node").nth(i).boundingBox();
+      boxes.push(b ? { x: b.x, y: b.y } : null);
+    }
+    return boxes;
+  };
+  const before = await order();
+  const count = await nodeCount();
+
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.waitForTimeout(250);
+  const item = page.locator(".cv-menu button", { hasText: "Tidy the layout" });
+  check("the canvas menu offers a tidy", await item.count() === 1);
+  if (await item.count()) {
+    await item.click();
+    await page.waitForTimeout(400);
+    const after = await order();
+    check("tidying draws and deletes nothing", await nodeCount() === count, `${count} -> ${await nodeCount()}`);
+
+    // Every pair that was left-to-right must still be left-to-right, and
+    // every pair that was above must still be above.
+    let flipped = 0;
+    for (let i = 0; i < before.length; i++) {
+      for (let j = i + 1; j < before.length; j++) {
+        if (!before[i] || !before[j] || !after[i] || !after[j]) continue;
+        const wasLeft = before[i].x < before[j].x - 8;
+        const wasAbove = before[i].y < before[j].y - 8;
+        if (wasLeft && after[i].x > after[j].x + 8) flipped++;
+        if (wasAbove && after[i].y > after[j].y + 8) flipped++;
+      }
+    }
+    check("tidying keeps the arrangement it was given", flipped === 0, `${flipped} pairs reordered`);
+
+    const status = await page.locator(".cv-panel-message").first().textContent().catch(() => "");
+    check("tidying says what it did", /tidy|even|row/i.test(status ?? ""), String(status).slice(0, 90));
   }
 }
 

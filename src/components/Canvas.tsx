@@ -16,6 +16,7 @@ import { DeviceNode } from './nodes/DeviceNode';
 import { NoteNode } from './nodes/NoteNode';
 import { EdgeMarkerDefs, LiveEdge, STATUS_COLOR } from './edges/LiveEdge';
 import { ContextMenu, type MenuItem } from './ContextMenu';
+import { FindBox } from './FindBox';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
@@ -70,6 +71,7 @@ interface MenuState {
 export function Canvas() {
   const wrapper = useRef<HTMLDivElement>(null);
   const rf = useReactFlow();
+  const [finding, setFinding] = useState(false);
   const [menu, setMenu] = useState<MenuState | null>(null);
 
   const doc = useStore((s) => s.doc);
@@ -226,6 +228,7 @@ export function Canvas() {
       { label: 'Add change note', onSelect: () => store.addNode(makeNote(p.x, p.y, 'change')) },
       { label: 'Add container', onSelect: () => store.addNode(makeDeviceNode('site', p.x, p.y)) },
       { label: 'Fit view', onSelect: () => rf.fitView({ padding: 0.2 }) },
+      { label: 'Find a device…', onSelect: () => setFinding(true) },
       {
         label: doc.canvas.gridEnabled ? 'Hide grid' : 'Show grid',
         onSelect: () => store.setCanvas({ gridEnabled: !doc.canvas.gridEnabled }),
@@ -239,6 +242,20 @@ export function Canvas() {
           store.setCanvas({
             nodeStyle: (doc.canvas.nodeStyle ?? 'glyph') === 'glyph' ? 'card' : 'glyph',
           }),
+      },
+      {
+        label: 'Tidy the layout',
+        onSelect: () => {
+          const { moved, rows, locked } = store.tidyLayout();
+          store.setStatusMessage(
+            moved === 0
+              ? 'Nothing to tidy — the spacing is already even.'
+              : `Evened out ${moved} device${moved === 1 ? '' : 's'} across ${rows} row${
+                  rows === 1 ? '' : 's'
+                }. Nothing was rearranged.` +
+                (locked ? ` ${locked} locked device${locked === 1 ? '' : 's'} left alone.` : ''),
+          );
+        },
       },
       {
         label: 'Group each subnet together',
@@ -265,7 +282,10 @@ export function Canvas() {
       const el = e.target as HTMLElement | null;
       if (el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 's') {
+      if (mod && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setFinding(true);
+      } else if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void store.saveProject();
       } else if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -375,6 +395,7 @@ export function Canvas() {
           />
         )}
       </ReactFlow>
+      {finding && <FindBox onClose={() => setFinding(false)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>
   );

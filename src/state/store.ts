@@ -5,6 +5,7 @@ import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } 
 import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/ipc';
 import { uid } from '../lib/id';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
+import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import {
   linkStatus as computeLinkStatus,
   nodeStatus as computeNodeStatus,
@@ -107,6 +108,7 @@ interface Store {
   groupMembers: (nodeId: string) => string[];
   /** Binds each subnet's devices together. Returns how many groups were made. */
   groupBySubnet: () => { groups: number; ungrouped: number };
+  tidyLayout: () => { moved: number; rows: number; locked: number };
   onEdgesChange: (changes: EdgeChange<TopoEdge>[]) => void;
   addNode: (node: TopoNode) => void;
   addEdge: (edge: TopoEdge) => void;
@@ -436,6 +438,25 @@ export const useStore = create<Store>((set, get) => ({
       dirty: true,
     }));
     return { groups: subnets.length, ungrouped };
+  },
+
+  tidyLayout() {
+    const nodes = get().doc.nodes;
+    const { moved, rows } = evenOutSpacing(nodes);
+    const locked = nodes.filter((n) => (n.data as { locked?: boolean }).locked).length;
+    if (moved.size === 0) return { moved: 0, rows, locked };
+    get().commit('Tidy layout');
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        nodes: state.doc.nodes.map((n) => {
+          const at = moved.get(n.id);
+          return at ? ({ ...n, position: at } as TopoNode) : n;
+        }),
+      },
+      dirty: true,
+    }));
+    return { moved: moved.size, rows, locked };
   },
 
   groupMembers(nodeId) {
