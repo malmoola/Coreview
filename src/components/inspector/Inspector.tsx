@@ -17,6 +17,7 @@ import type {
 } from '../../types/domain';
 import {
   HEALTH_RULE_LABEL,
+  PROBE_DEFAULTS,
   STATUS_GLYPH,
   STATUS_LABEL,
 } from '../../types/domain';
@@ -108,11 +109,74 @@ function ProjectInspector() {
           onChange={(e) => updateMeta({ description: e.target.value })}
         />
       </Field>
+      <ProjectCheckTiming />
+
       <p className="cv-help">
         Select a node or a link to configure targets and health rules. Checks run from this
         machine only.
       </p>
     </>
+  );
+}
+
+/**
+ * The timing policy for every check in the project.
+ *
+ * "Tell me within fifteen seconds" is one decision, and setting it per probe
+ * across ninety devices is not a decision, it is data entry. The two numbers
+ * that decide it are here, together, with what they add up to spelled out —
+ * an interval and a threshold multiply, and people read them separately.
+ */
+function ProjectCheckTiming() {
+  const probes = useStore((s) => s.doc.probes);
+  const setProbeTiming = useStore((s) => s.setProbeTiming);
+  const setStatusMessage = useStore((s) => s.setStatusMessage);
+
+  // The policy in force, when every probe agrees on one.
+  const interval = probes.length ? probes[0]!.intervalSeconds : PROBE_DEFAULTS.intervalSeconds;
+  const threshold = probes.length ? probes[0]!.failureThreshold : PROBE_DEFAULTS.failureThreshold;
+  const mixed =
+    probes.length > 1 &&
+    probes.some((p) => p.intervalSeconds !== interval || p.failureThreshold !== threshold);
+
+  const [everySeconds, setEverySeconds] = useState(interval);
+  const [misses, setMisses] = useState(threshold);
+
+  const apply = () => {
+    const changed = setProbeTiming(everySeconds, misses);
+    setStatusMessage(
+      changed === 0
+        ? 'Nothing to change — this project has no checks yet.'
+        : `Every check now runs every ${everySeconds}s and needs ${misses} missed before a device is called down.`,
+    );
+  };
+
+  return (
+    <div className="cv-timing">
+      <span className="cv-subnets-label">Checks</span>
+      <div className="cv-timing-row">
+        <label className="cv-field cv-field-narrow">
+          <span>Every</span>
+          <input className="cv-input" type="number" min={1} max={3600} value={everySeconds}
+            onChange={(e) => setEverySeconds(Number(e.target.value) || 1)} />
+        </label>
+        <label className="cv-field cv-field-narrow">
+          <span>Missed before down</span>
+          <input className="cv-input" type="number" min={1} max={60} value={misses}
+            onChange={(e) => setMisses(Number(e.target.value) || 1)} />
+        </label>
+      </div>
+      <p className="cv-help">
+        A device that stops answering is called down after about{' '}
+        <strong>{everySeconds * misses} seconds</strong>. Missed checks show on the diagram
+        straight away, before that.
+        {mixed && ' These checks do not all agree today; applying this will make them.'}
+      </p>
+      <button type="button" className="cv-btn cv-btn-small" onClick={apply}
+        disabled={probes.length === 0}>
+        Apply to all {probes.length} check{probes.length === 1 ? '' : 's'}
+      </button>
+    </div>
   );
 }
 

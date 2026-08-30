@@ -84,8 +84,11 @@ Ordered by what makes the app more useful, not by what is easiest.
       row looked identical whether it was confirmed a second ago or had not
       been re-checked since the session was paused. The clock only runs while
       a session does — with nothing being checked there is nothing to age
-- [ ] Let the interval and failure threshold be set for the whole project
-      rather than per probe, so "tell me within 5 seconds" is one setting
+- [x] **One timing policy for the whole project.** "Tell me within fifteen
+      seconds" is one decision, and setting it per probe across ninety devices
+      is data entry, not a decision. Both numbers sit together in the project
+      panel with their product spelled out — an interval and a threshold
+      multiply, and people read them separately
 
 ## Then — the diagram itself
 

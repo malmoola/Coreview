@@ -838,3 +838,8 @@ textarea.cv-input { resize: vertical; }
    the choice rather than left to a manual nobody reads. */
 .cv-transport { margin-top: 8px; max-width: 320px; }
 .cv-transport-warning { color: var(--warning); max-width: 70ch; }
+
+/* One timing policy for the whole project. */
+.cv-timing { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; }
+.cv-timing-row { display: flex; gap: 8px; }
+.cv-timing-row .cv-field { flex: 1; }

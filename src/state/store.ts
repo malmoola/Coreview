@@ -116,6 +116,8 @@ interface Store {
   select: (nodeId: string | null, edgeId: string | null) => void;
 
   upsertProbe: (probe: Probe) => void;
+  /** Applies one timing policy to every check in the project. */
+  setProbeTiming: (intervalSeconds: number, failureThreshold: number) => number;
   removeProbe: (probeId: string) => void;
   probesFor: (objectId: string) => Probe[];
   nodeStatus: (nodeId: string) => HealthStatus;
@@ -538,6 +540,28 @@ export const useStore = create<Store>((set, get) => ({
       }
       return { doc: { ...s.doc, probes }, dirty: true };
     });
+  },
+
+  setProbeTiming(intervalSeconds, failureThreshold) {
+    // Clamped rather than validated: the field is a number input, and a
+    // interval of zero would spin a check as fast as the machine allows.
+    const interval = Math.min(3600, Math.max(1, Math.round(intervalSeconds)));
+    const threshold = Math.min(60, Math.max(1, Math.round(failureThreshold)));
+    const probes = get().doc.probes;
+    if (probes.length === 0) return 0;
+    get().commit('Check timing');
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        probes: s.doc.probes.map((p) => ({
+          ...p,
+          intervalSeconds: interval,
+          failureThreshold: threshold,
+        })),
+      },
+      dirty: true,
+    }));
+    return probes.length;
   },
 
   removeProbe(probeId) {
