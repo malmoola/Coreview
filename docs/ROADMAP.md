@@ -188,6 +188,41 @@ Ordered by what makes the app more useful, not by what is easiest.
       the lab switch — two ports is enough — and this becomes a morning's
       work with real output to verify against.**
 
+## Drawing, and being a diagram tool
+
+The bar here is Lucidchart and Visio, on the drawing side, without giving up
+the half neither of them has: a diagram that is pointed at real addresses and
+watches them.
+
+- [x] **Sections** — a labelled area that holds whatever stands in it.
+      Membership is geometric and recomputed, so nothing is re-assigned when a
+      device is dragged in
+- [x] **Line jumps** where one link crosses another, sized to the line, one per
+      crossing pair
+- [x] **Link properties**: solid, dashed, dotted or dash-dot; six thicknesses;
+      arrow, open arrow, circle, square, diamond or nothing at each end; and a
+      colour of its own while health keeps the dots and the arrowheads
+- [x] **A white ground** for a document or a projector, with every colour
+      chosen against it rather than inverted
+- [x] **Shape import** from PowerPoint stencil decks, Visio 2013+ stencils,
+      zips and folders, named from the source and grouped by family
+- [x] **The icon library reads folders of folders**, and says how many files it
+      could not read instead of reporting an almost empty library
+- [ ] **Legacy binary `.vss`** — Visio 2003 to 2010 — is a compound file rather
+      than a zip. `libvisio-tools` can read them; it is not installed here and
+      installing it is the operator's call. Everything else in a shape folder
+      already imports
+- [ ] **Shapes with their own connection points.** An imported vendor shape is
+      a picture; a Visio master carries named ports. Reading those would let a
+      link land on "Gi0/1" rather than on the right-hand side
+- [ ] **Text on the canvas that is not a node** — headings, legends, callouts
+      with a leader line
+- [ ] **Snapping and alignment guides.** Drag a device and have it line up with
+      its neighbours, with the guide shown
+- [ ] **Layers**, so a physical view and a logical view can share one document
+- [ ] **A shape library that travels with the project**, so a diagram opened on
+      another machine is not missing its artwork
+
 ## Packaging and trust
 
 - [x] Windows installer down from 500 MB to 7 MB (WebView2 bootstrapper)
