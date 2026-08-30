@@ -119,6 +119,22 @@ async fn main() {
             );
         }
     }
+    for d in &result.devices {
+        if d.attached.is_empty() {
+            continue;
+        }
+        println!("\n--- attached to {} (announced nothing) ---", d.hostname);
+        for a in &d.attached {
+            println!(
+                "  {:<10} {:<16} {:<18} {} on that port",
+                a.port,
+                a.address.as_deref().unwrap_or("-"),
+                a.vendor.as_deref().unwrap_or("unknown maker"),
+                a.port_population
+            );
+        }
+    }
+
     println!("\n--- seen but not visited ---");
     for n in &result.not_visited {
         println!("  {:<22} [{:?}] {}", n.short_name, n.class, n.address().unwrap_or(""));

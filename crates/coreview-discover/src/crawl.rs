@@ -117,6 +117,27 @@ pub struct CrawledDevice {
     pub neighbors: Vec<Neighbor>,
     pub hops: usize,
     pub reached_by: ReachedBy,
+    /// Addresses this device has learned on its ports, with the maker of each
+    /// where the registry knows it. Everything plugged in that says nothing
+    /// for itself is in here.
+    pub attached: Vec<AttachedDevice>,
+}
+
+/// Something seen on a port that announced nothing about itself.
+///
+/// Deliberately not a `Neighbor`: a neighbour told us who it is, and this did
+/// not. All that is known is a MAC, the port it was learned on, sometimes an
+/// address from ARP, and who made it.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachedDevice {
+    pub mac: String,
+    pub port: String,
+    pub address: Option<String>,
+    pub vendor: Option<String>,
+    /// How many distinct addresses share this port. One means something is
+    /// plugged into it; many means it leads to another switch.
+    pub port_population: usize,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -387,6 +408,8 @@ async fn identify_over_snmp(
         neighbors: Vec::new(),
         hops,
         reached_by: ReachedBy::Snmp,
+        // SNMP gives an identity and nothing about what is plugged in.
+        attached: Vec::new(),
     })
 }
 
@@ -474,6 +497,12 @@ async fn visit(
     // named and classified correctly and has nowhere to connect. The switch
     // that sees it knows: the chassis id is a MAC, and this maps it.
     let arp = crate::arp::parse_arp_table(&device.run("show ip arp").await.unwrap_or_default());
+    // What the switch has learned on each port. Discovery protocols only see
+    // devices that speak them; a printer or a workstation announces nothing,
+    // and on a real diagram those are most of what is plugged in.
+    let learned = crate::mac_table::parse_mac_table(
+        &device.run("show mac address-table").await.unwrap_or_default(),
+    );
 
     // FortiSwitch and FortiGate answer SSH and then reject all of the above
     // with a parse error. Without this the crawl logs in, takes the hostname
@@ -538,6 +567,44 @@ async fn visit(
             }
         }
     }
+
+    // The other way round, for a neighbour whose chassis id is a name rather
+    // than a MAC. The switch learned exactly one address on that port, so the
+    // device on the far end is the one holding it — WORKSTATION1 announces a
+    // name and no address, and this is what finds it.
+    //
+    // Only where the port has learned exactly one. Two or more and the far end
+    // is another switch, and picking one of them would be a guess.
+    if !learned.is_empty() && !arp.is_empty() {
+        let population = crate::mac_table::count_by_port(&learned);
+        for n in &mut neighbors {
+            if !n.addresses.is_empty() {
+                continue;
+            }
+            let Some(port) = n.local_interface.as_deref() else { continue };
+            let on_port: Vec<&crate::mac_table::MacEntry> = learned
+                .iter()
+                .filter(|e| same_interface(port, &e.port))
+                .collect();
+            if on_port.len() != 1 {
+                continue;
+            }
+            let entry = on_port[0];
+            if population.get(&entry.port).copied().unwrap_or(0) != 1 {
+                continue;
+            }
+            if let Some(ip) = arp.get(&entry.mac) {
+                n.addresses.push(DeviceAddress {
+                    ip: ip.clone(),
+                    interface: None,
+                    is_management: true,
+                });
+                if n.vendor.is_none() {
+                    n.vendor = crate::oui::vendor(&entry.mac).map(str::to_string);
+                }
+            }
+        }
+    }
     if let Some((_, _, forti_neighbors)) = &forti {
         if neighbors.is_empty() {
             neighbors = forti_neighbors.clone();
@@ -561,6 +628,28 @@ async fn visit(
     };
     let class = crate::classify::classify(platform.as_deref(), &[], version_line);
 
+    // A port with a discovery neighbour is a link to something that already
+    // introduced itself; anything else learned there is behind that device,
+    // not attached here. That is observed rather than assumed.
+    let uplinks: std::collections::HashSet<String> = neighbors
+        .iter()
+        .filter_map(|n| n.local_interface.clone())
+        .collect();
+    let population = crate::mac_table::count_by_port(&learned);
+    let mut attached = Vec::new();
+    for entry in &learned {
+        if uplinks.iter().any(|u| crate::crawl::same_interface(u, &entry.port)) {
+            continue;
+        }
+        attached.push(AttachedDevice {
+            address: arp.get(&entry.mac).cloned(),
+            vendor: crate::oui::vendor(&entry.mac).map(str::to_string),
+            port_population: population.get(&entry.port).copied().unwrap_or(1),
+            mac: entry.mac.clone(),
+            port: entry.port.clone(),
+        });
+    }
+
     Ok(Visit {
         device: CrawledDevice {
             hostname,
@@ -573,6 +662,7 @@ async fn visit(
             neighbors: neighbors.clone(),
             hops,
             reached_by: ReachedBy::Ssh,
+            attached,
         },
         neighbors,
     })

@@ -41,9 +41,19 @@ Ordered by what makes the app more useful, not by what is easiest.
 - [ ] **Telnet transport**: `russh` is SSH-only, so this is a new transport,
       not a flag. Wanted for old gear that has nothing else. Must be opt-in
       per run and say plainly that credentials cross the network in clear text
-- [ ] LLDP-only devices: use chassis-id/port-id when a system name is absent
-- [ ] ARP and MAC-address-table sweep for endpoints that advertise nothing,
-      the way the FortiGate reference script does with `get system arp`
+- [x] A device that announces a name and no address is found by the port it is
+      on: the switch learned exactly one address there, so the far end is what
+      holds it. WORKSTATION1 on the test network is found this way and no
+      other. A port carrying more than one address is left alone — the far end
+      is another switch and choosing between them would be a guess
+- [x] MAC-address-table and ARP are read on every device reached, and what
+      they learn is on `CrawledDevice.attached`: every address seen on a port
+      that has no discovery neighbour, with its maker. Nothing on the test
+      network exercises it — every port there carries a device that announces
+      itself — so the parser is verified against that switch's real output and
+      the selection is covered by tests, but the end-to-end path is not
+- [ ] Draw those attached devices on the diagram. The data is collected; what
+      is missing is deciding how much of a flat network belongs on a picture
 - [x] **MAC OUI lookup**, from the bundled IEEE registry — a device whose only
       identity is `7456.3c75.fcae` is drawn as "Ubiquiti device". The maker
       only: a vendor does not say what a device *is*, and guessing would put

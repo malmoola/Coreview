@@ -84,6 +84,8 @@ struct FakeSwitch {
     loopback: String,
     /// `show ip arp`, for resolving a neighbour that advertises no address.
     arp: String,
+    /// `show mac address-table`, for resolving one by the port it is on.
+    macs: String,
 }
 
 impl server::Handler for FakeSwitch {
@@ -147,6 +149,7 @@ impl server::Handler for FakeSwitch {
             "show cdp neighbors detail" => self.cdp.clone(),
             "show lldp neighbors detail" => self.lldp.clone(),
             "show ip arp" => self.arp.clone(),
+            "show mac address-table" => self.macs.clone(),
             "show ip interface brief" => format!(
                 "Interface              IP-Address      OK? Method Status                Protocol\r\n\
                  GigabitEthernet1/0/1   {}        YES NVRAM  up                    up\r\n\
@@ -223,8 +226,22 @@ async fn start_network() -> u16 {
             lldp: sw1_lldp(),
             loopback: "10.255.0.1".into(),
             // SW1 has seen the silent switch and knows its address.
-            arp: "Protocol  Address          Age (min)  Hardware Addr   Type   Interface\r\n                  Internet  127.0.0.4               0   e81c.bac4.964b  ARPA   Vlan1\r\n"
-                .into(),
+            arp: concat!(
+                "Protocol  Address          Age (min)  Hardware Addr   Type   Interface\r\n",
+                "Internet  127.0.0.4               0   e81c.bac4.964b  ARPA   Vlan1\r\n",
+                "Internet  127.0.0.9               0   7456.3c75.fcae  ARPA   Vlan1\r\n",
+            )
+            .into(),
+            // Gi0/5 has learned exactly one address, so whatever is on the far
+            // end is the thing holding it. Gi0/6 has two, so it leads to
+            // another switch and picking one of them would be a guess.
+            macs: concat!(
+                "Vlan    Mac Address       Type        Ports\r\n",
+                "   1    7456.3c75.fcae    DYNAMIC     Gi0/5\r\n",
+                "   1    aaaa.bbbb.cccc    DYNAMIC     Gi0/6\r\n",
+                "   1    aaaa.bbbb.cccd    DYNAMIC     Gi0/6\r\n",
+            )
+            .into(),
         },
     )
     .await;
@@ -237,6 +254,7 @@ async fn start_network() -> u16 {
             lldp: sw2_lldp(),
             loopback: "10.255.0.2".into(),
             arp: String::new(),
+            macs: String::new(),
         },
     )
     .await;
@@ -252,6 +270,7 @@ async fn start_network() -> u16 {
             lldp: String::new(),
             loopback: "10.255.0.4".into(),
             arp: String::new(),
+            macs: String::new(),
         },
     )
     .await;
@@ -261,8 +280,42 @@ async fn start_network() -> u16 {
 /// A switch that advertises a chassis id and no management address, which is
 /// what a FortiSwitch does and what left one undrawable on the real network.
 fn sw1_lldp() -> String {
-    "------------------------------------------------\r\n     Local Intf: Gi0/9\r\n     Chassis id: e81c.bac4.964b\r\n     Port id: port24\r\n     System Name: SILENT-SW\r\n\r\n     System Description:\r\n     FortiSwitch-224E v7.6.1\r\n\r\n     Time remaining: 96 seconds\r\n     System Capabilities: B,R\r\n     Enabled Capabilities: B\r\n\r\n     Total entries displayed: 1\r\n"
-        .into()
+    concat!(
+        // A switch that advertises a chassis id and no management address,
+        // which is what a FortiSwitch does.
+        "------------------------------------------------\r\n",
+        "Local Intf: Gi0/9\r\n",
+        "Chassis id: e81c.bac4.964b\r\n",
+        "Port id: port24\r\n",
+        "System Name: SILENT-SW\r\n\r\n",
+        "System Description:\r\n",
+        "FortiSwitch-224E v7.6.1\r\n\r\n",
+        "Time remaining: 96 seconds\r\n",
+        "System Capabilities: B,R\r\n",
+        "Enabled Capabilities: B\r\n\r\n",
+        // A name and nothing else. Its port has learned exactly one address,
+        // so the switch knows where it is even though it never said.
+        "------------------------------------------------\r\n",
+        "Local Intf: Gi0/5\r\n",
+        "Chassis id: DESKTOP-QUIET\r\n",
+        "Port id: eth0\r\n",
+        "System Name: DESKTOP-QUIET\r\n\r\n",
+        "Time remaining: 96 seconds\r\n",
+        "System Capabilities: S\r\n",
+        "Enabled Capabilities: S\r\n\r\n",
+        // The same, but its port carries two addresses, so which one it is
+        // cannot be established.
+        "------------------------------------------------\r\n",
+        "Local Intf: Gi0/6\r\n",
+        "Chassis id: CROWDED-PORT\r\n",
+        "Port id: eth0\r\n",
+        "System Name: CROWDED-PORT\r\n\r\n",
+        "Time remaining: 96 seconds\r\n",
+        "System Capabilities: S\r\n",
+        "Enabled Capabilities: S\r\n\r\n",
+        "Total entries displayed: 3\r\n",
+    )
+    .into()
 }
 
 fn creds() -> Credentials {
@@ -410,6 +463,41 @@ async fn a_neighbour_that_advertises_no_address_is_resolved_from_arp() {
     assert_eq!(
         result.devices.iter().filter(|d| d.hostname == "SILENT-SW").count(),
         1
+    );
+}
+
+/// A device that announces a name and no address at all.
+///
+/// The switch learned exactly one address on that port, so the thing on the
+/// far end is what holds it. WORKSTATION1 on the real network is found this
+/// way and no other.
+#[tokio::test]
+async fn a_neighbour_with_only_a_name_is_resolved_from_the_port_it_is_on() {
+    let port = start_network().await;
+    let store = Arc::new(std::sync::Mutex::new(HostKeyStore::new()));
+    let (tx, _rx) = mpsc::channel(256);
+
+    let result = crawl("127.0.0.1", creds(), options(port), store, tx, CancellationToken::new()).await;
+
+    let sw1 = result.devices.iter().find(|d| d.hostname == "SW1").expect("SW1");
+    let quiet = sw1
+        .neighbors
+        .iter()
+        .find(|n| n.short_name == "DESKTOP-QUIET")
+        .expect("the device that announces only a name");
+    assert_eq!(quiet.address(), Some("127.0.0.9"));
+
+    // And the port with two addresses on it is left alone: the far end is
+    // another switch, and choosing one of them would be a guess.
+    let crowded = sw1
+        .neighbors
+        .iter()
+        .find(|n| n.short_name == "CROWDED-PORT")
+        .expect("the neighbour on the shared port");
+    assert_eq!(
+        crowded.address(),
+        None,
+        "a port with more than one address must not be guessed from"
     );
 }
 
