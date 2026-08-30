@@ -12,9 +12,11 @@
 
 /// A device prompt, as it appears at the end of the output.
 ///
-/// Cisco prompts end in `>` in user mode and `#` in enable mode. Detection is
-/// on the last non-empty line, because a configuration can contain lines that
-/// end in `#` — a comment, a banner — and only the last one is the prompt.
+/// Cisco prompts end in `>` in user mode and `#` in enable mode. FortiOS ends
+/// in `#` for a super_admin and `$` for any other admin profile, which is what
+/// a read-only account made for a discovery tool gets. Detection is on the
+/// last non-empty line, because a configuration can contain lines that end in
+/// `#` — a comment, a banner — and only the last one is the prompt.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Prompt {
     /// The whole prompt, for example `CORE-SW-01#`.
@@ -37,19 +39,24 @@ pub fn find_prompt(buffer: &str) -> Option<Prompt> {
     let line = last.trim_end();
     let (head, enabled) = match line.chars().last()? {
         '#' => (&line[..line.len() - 1], true),
-        '>' => (&line[..line.len() - 1], false),
+        // `$` is FortiOS for "logged in, but not as super_admin". It is a real
+        // prompt: the device is ready and will answer. Treated as unprivileged
+        // so a config backup still reports honestly that it cannot escalate.
+        '>' | '$' => (&line[..line.len() - 1], false),
         _ => return None,
     };
 
     let hostname = head.trim();
-    // Reject anything that cannot be a hostname. Without this, a config line
-    // like `banner motd #` reads as a prompt and truncates the capture.
-    if hostname.is_empty() || hostname.len() > 64 || hostname.contains(char::is_whitespace) {
+    if hostname.is_empty() || hostname.len() > 64 {
         return None;
     }
-    // A prompt in a sub-mode looks like `SW1(config-if)#`; the hostname is the
-    // part before the bracket.
-    let base = hostname.split('(').next().unwrap_or(hostname);
+    // A prompt in a sub-mode looks like `SW1(config-if)#`, and on FortiOS
+    // inside a VDOM like `FGT (root) #` — with a space before the bracket.
+    // The hostname is the part in front of it, so the bracket is removed
+    // before anything else is judged.
+    let base = hostname.split('(').next().unwrap_or(hostname).trim();
+    // Reject anything that cannot be a hostname. Without this, a config line
+    // like `banner motd #` reads as a prompt and truncates the capture.
     if base.is_empty() || !base.chars().all(is_hostname_char) {
         return None;
     }
@@ -229,6 +236,36 @@ mod tests {
         assert!(find_prompt("Building configuration...").is_none());
         assert!(find_prompt("interface GigabitEthernet0/1").is_none());
         assert!(find_prompt("").is_none());
+    }
+
+    #[test]
+    fn a_fortios_non_admin_prompt_is_recognised() {
+        // Captured from a FortiGate at 192.168.14.1 using an account with a
+        // read-only profile — which is exactly the account anyone sensible
+        // gives a discovery tool. Without this the crawler logs in, waits for
+        // a prompt that never comes in a shape it knows, and reports the
+        // device as having no CLI.
+        let p = find_prompt("Moe_BusinessOffice $ ").expect("a FortiGate prompt");
+        assert_eq!(p.hostname, "Moe_BusinessOffice");
+        // Not super_admin, so a backup must not claim it can escalate.
+        assert!(!p.enabled);
+    }
+
+    #[test]
+    fn a_fortios_vdom_prompt_reduces_to_the_hostname() {
+        // Inside a VDOM the prompt gains a bracket and a space before it. The
+        // space is the difference from `SW1(config-if)#`.
+        let p = find_prompt("FGT-60F (root) # ").expect("a VDOM prompt");
+        assert_eq!(p.hostname, "FGT-60F");
+        assert!(p.enabled);
+    }
+
+    #[test]
+    fn a_dollar_inside_a_configuration_is_not_mistaken_for_a_prompt() {
+        // A hashed secret ends in characters that are not hostname characters,
+        // and a shell-looking line has whitespace in front of the marker.
+        assert!(find_prompt("set passwd ENC $1$xyz$").is_none());
+        assert!(find_prompt("echo hello $").is_none());
     }
 
     #[test]

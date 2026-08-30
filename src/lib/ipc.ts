@@ -144,7 +144,7 @@ export type Neighbor = {
   capabilities: string[];
   version: string | null;
   class: DeviceClassName;
-  discoveredBy: 'cdp' | 'lldp';
+  discoveredBy: 'cdp' | 'lldp' | 'fortiLink';
   chassisId: string | null;
   /** Who registered the chassis id's MAC prefix. The maker only — a vendor
    *  does not say what a device is. */

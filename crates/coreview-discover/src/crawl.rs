@@ -639,13 +639,36 @@ async fn visit(
             .run("get switch lldp neighbors-summary")
             .await
             .unwrap_or_default();
+        // A FortiGate rejects the FortiSwitch LLDP command and, on a
+        // non-super_admin account, every `diagnose`. The switches it manages
+        // are still in its configuration, and that is a certain link.
+        let managed = crate::fortios::parse_managed_switches(
+            &device
+                .run("show switch-controller managed-switch")
+                .await
+                .unwrap_or_default(),
+        );
         // A FortiGate's own ARP table, which a FortiSwitch does not have.
         let forti_arp =
             crate::arp::parse_arp_table(&device.run("get system arp").await.unwrap_or_default());
-        let endpoints = read_device_store(&mut device).await;
+        // Two sources, because which one answers depends on the account. The
+        // device store is richer; `diagnose` is refused outright by any admin
+        // profile that is not super_admin, which is what a discovery account
+        // should be. The lease list is what actually runs there.
+        let mut endpoints = read_device_store(&mut device).await;
+        let leases = crate::fortios::parse_dhcp_leases(
+            &device.run("execute dhcp lease-list").await.unwrap_or_default(),
+        );
+        merge_endpoint_lists(&mut endpoints, leases);
+        let mut forti_neighbors = crate::fortios::parse_lldp_summary(&neighbours);
+        for m in managed {
+            if !forti_neighbors.iter().any(|n| n.device_id == m.device_id) {
+                forti_neighbors.push(m);
+            }
+        }
         Some(FortiFacts {
             addresses: crate::fortios::parse_system_interface(&ifaces),
-            neighbors: crate::fortios::parse_lldp_summary(&neighbours),
+            neighbors: forti_neighbors,
             arp: forti_arp,
             endpoints,
             status,
@@ -851,6 +874,38 @@ async fn read_device_store(device: &mut Session) -> Vec<crate::fortios::Endpoint
         }
     }
     crate::fortios::parse_device_store(&out)
+}
+
+/// Folds a second list of endpoints into the first, matching on MAC.
+///
+/// The device store and the lease list overlap: the same laptop is in both.
+/// Whichever answered first keeps its fields, and the second only fills gaps,
+/// so a richer source is never overwritten by a thinner one.
+fn merge_endpoint_lists(into: &mut Vec<crate::fortios::Endpoint>, extra: Vec<crate::fortios::Endpoint>) {
+    for e in extra {
+        let Some(existing) = into.iter_mut().find(|x| x.mac == e.mac) else {
+            into.push(e);
+            continue;
+        };
+        if existing.address.is_none() {
+            existing.address = e.address;
+        }
+        if existing.hostname.is_none() {
+            existing.hostname = e.hostname;
+        }
+        if existing.os_name.is_none() {
+            existing.os_name = e.os_name;
+        }
+        if existing.interface.is_none() {
+            existing.interface = e.interface;
+        }
+        if existing.fortiap_ssid.is_none() {
+            existing.fortiap_ssid = e.fortiap_ssid;
+        }
+        if existing.fortiap_name.is_none() {
+            existing.fortiap_name = e.fortiap_name;
+        }
+    }
 }
 
 /// Folds what the FortiGate knows into what the switches saw.

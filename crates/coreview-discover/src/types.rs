@@ -15,6 +15,12 @@ use std::net::Ipv4Addr;
 pub enum Protocol {
     Cdp,
     Lldp,
+    /// A FortiGate managing a FortiSwitch over FortiLink. Not a discovery
+    /// protocol in the CDP sense — the FortiGate is not overhearing an
+    /// advertisement, it is naming a switch it administers. That is a stronger
+    /// statement about the link than either protocol makes, and it is the only
+    /// way this link is visible on an account that cannot run `diagnose`.
+    FortiLink,
 }
 
 impl Protocol {
@@ -22,6 +28,7 @@ impl Protocol {
         match self {
             Protocol::Cdp => "CDP",
             Protocol::Lldp => "LLDP",
+            Protocol::FortiLink => "FortiLink",
         }
     }
 }

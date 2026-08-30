@@ -126,11 +126,12 @@ async fn main() {
         println!("\n--- attached to {} (announced nothing) ---", d.hostname);
         for a in &d.attached {
             println!(
-                "  {:<10} {:<16} {:<18} {} on that port",
+                "  {:<12} {:<16} {:<22} {:<20} {:?}",
                 a.port,
                 a.address.as_deref().unwrap_or("-"),
+                a.hostname.as_deref().unwrap_or("-"),
                 a.vendor.as_deref().unwrap_or("unknown maker"),
-                a.port_population
+                a.class
             );
         }
     }

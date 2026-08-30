@@ -387,6 +387,187 @@ pub fn parse_device_store(out: &str) -> Vec<Endpoint> {
     found
 }
 
+/// FortiSwitches this FortiGate manages, from `show switch-controller
+/// managed-switch`.
+///
+/// A FortiGate that manages a switch is not overhearing an advertisement about
+/// it — it is administering it, so the link is certain. Without this the
+/// FortiGate is a dead end on the diagram: it cannot run `diagnose`, its LLDP
+/// command is rejected, and a crawl that starts there reaches one device and
+/// stops.
+///
+/// The switch is identified by serial number, because that is all the
+/// FortiGate says. A FortiSwitch reached directly reports the same serial in
+/// `get system status`, which is what lets the two be recognised as one
+/// device rather than drawn twice.
+pub fn parse_managed_switches(out: &str) -> Vec<Neighbor> {
+    let mut found = Vec::new();
+    // Depth inside the managed-switch block. A switch is an `edit` at depth 1;
+    // anything deeper is a nested `config ports` block, whose own `edit
+    // "port1"` lines are ports. Counting rather than latching is what lets
+    // the scan resume for the second switch after the first one's ports.
+    let mut depth = 0usize;
+    for line in out.lines() {
+        let t = line.trim();
+        if depth == 0 {
+            if t.starts_with("config switch-controller managed-switch") {
+                depth = 1;
+            }
+            continue;
+        }
+        if t.starts_with("config ") {
+            depth += 1;
+            continue;
+        }
+        if t == "end" {
+            depth -= 1;
+            if depth == 0 {
+                break;
+            }
+            continue;
+        }
+        if depth != 1 {
+            continue;
+        }
+        let Some(rest) = t.strip_prefix("edit ") else {
+            continue;
+        };
+        let serial = rest.trim().trim_matches('"').trim();
+        if serial.is_empty() {
+            continue;
+        }
+        found.push(Neighbor {
+            device_id: serial.to_string(),
+            short_name: serial.to_string(),
+            addresses: Vec::new(),
+            // FortiLink runs over whichever port is in the FortiLink
+            // interface; the config does not say which, and inventing one
+            // would put a wrong port label on the diagram.
+            local_interface: None,
+            remote_interface: None,
+            platform: None,
+            capabilities: Vec::new(),
+            version: None,
+            class: DeviceClass::Switch,
+            discovered_by: Protocol::FortiLink,
+            chassis_id: None,
+            vendor: Some("Fortinet".to_string()),
+        });
+    }
+    found
+}
+
+/// Every current DHCP lease, which is the best list of named endpoints a
+/// restricted account can get.
+///
+/// `diagnose user-device-store device memory list` is richer, but `diagnose`
+/// is refused outright by an admin profile that is not super_admin — the
+/// FortiGate answers "Unknown action 0" to the bare word. A read-only account
+/// is exactly what anyone sensible gives a discovery tool, so the lease list
+/// is what actually runs. It gives a name, a MAC, an address, the DHCP vendor
+/// class (which identifies the operating system), and for wireless clients the
+/// SSID and the access point they are on.
+///
+/// Captured from a FortiGate-60F on 7.6.7.
+pub fn parse_dhcp_leases(out: &str) -> Vec<Endpoint> {
+    let mut found = Vec::new();
+    // Leases are grouped under the interface serving them, as a bare line.
+    let mut interface: Option<String> = None;
+    // Column offsets are read from each group's header rather than assumed,
+    // because the widths are a display choice and not a promise.
+    let mut columns: Vec<(String, usize)> = Vec::new();
+
+    for line in out.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        // The columns after the MAC are fixed width; the first two are
+        // tab-separated. Splitting on tabs first is what keeps a hostname
+        // containing spaces from being read as two fields.
+        let mut parts = line.split('\t');
+        let first = parts.next().unwrap_or("").trim();
+        let rest: Vec<&str> = parts.filter(|p| !p.trim().is_empty()).collect();
+
+        if first == "IP" {
+            columns = header_columns(rest.last().unwrap_or(&""));
+            continue;
+        }
+        if rest.is_empty() {
+            // A bare line with no tabs is the interface this group is on.
+            if !line.starts_with(' ') || !first.is_empty() {
+                interface = Some(first.to_string());
+            }
+            continue;
+        }
+        let Some(mac) = rest.first().and_then(|m| normalise_mac(m.trim())) else {
+            continue;
+        };
+        let tail = rest.get(1).copied().unwrap_or("");
+        let field = |name: &str| column_value(tail, &columns, name);
+        found.push(Endpoint {
+            mac,
+            address: (!first.is_empty()).then(|| first.to_string()),
+            hostname: field("Hostname"),
+            // The DHCP vendor class: "MSFT 5.0", "android-dhcp-14", "PS5".
+            // The device said this about itself, so it is evidence.
+            os_name: field("VCI"),
+            interface: interface.clone(),
+            fortiap_ssid: field("SSID"),
+            fortiap_name: field("AP"),
+            hardware_vendor: None,
+            hardware_type: None,
+            os_version: None,
+            // A lease is not a statement that something is connected right
+            // now. Claiming otherwise would put a device on the diagram as
+            // present when it went home hours ago.
+            online: false,
+        });
+    }
+    found
+}
+
+fn normalise_mac(v: &str) -> Option<String> {
+    crate::arp::normalise_mac(v)
+}
+
+/// Where each named column begins, read off the header line.
+fn header_columns(header: &str) -> Vec<(String, usize)> {
+    let mut out = Vec::new();
+    let mut index = 0;
+    let bytes: Vec<char> = header.chars().collect();
+    while index < bytes.len() {
+        if bytes[index] == ' ' {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        // A label runs until two spaces; one space can sit inside one.
+        while index < bytes.len()
+            && !(bytes[index] == ' ' && bytes.get(index + 1).is_some_and(|c| *c == ' '))
+        {
+            index += 1;
+        }
+        let label: String = bytes[start..index].iter().collect();
+        out.push((label.trim().to_string(), start));
+        index += 1;
+    }
+    out
+}
+
+/// One column out of a fixed-width row, or `None` when it is blank.
+fn column_value(row: &str, columns: &[(String, usize)], name: &str) -> Option<String> {
+    let at = columns.iter().position(|(label, _)| label == name)?;
+    let start = columns[at].1;
+    let end = columns.get(at + 1).map_or(usize::MAX, |(_, s)| *s);
+    let chars: Vec<char> = row.chars().collect();
+    if start >= chars.len() {
+        return None;
+    }
+    let slice: String = chars[start..end.min(chars.len())].iter().collect();
+    let v = slice.trim();
+    (!v.is_empty()).then(|| v.to_string())
+}
+
 /// What a FortiGate device store entry says this thing is.
 ///
 /// The FortiGate's own words are better evidence than an OUI: "Printer" is a
@@ -412,7 +593,14 @@ pub fn endpoint_class(e: &Endpoint) -> Option<DeviceClass> {
         Some(DeviceClass::Router)
     } else if hint.contains("switch") {
         Some(DeviceClass::Switch)
-    } else if hint.contains("windows") || hint.contains("mac os") || hint.contains("linux") {
+    } else if hint.contains("windows")
+        || hint.contains("mac os")
+        || hint.contains("linux")
+        // DHCP vendor class identifiers, which are what a lease list carries:
+        // "MSFT 5.0" is every Windows machine, "android-dhcp-14" every Android.
+        || hint.contains("msft")
+        || hint.contains("android")
+    {
         Some(DeviceClass::Endpoint)
     } else {
         None
@@ -571,5 +759,161 @@ Record #3:
         assert_eq!(s.model.as_deref(), Some("FortiSwitch-224E"));
         assert_eq!(s.hostname.as_deref(), Some("FSW-224E"));
         assert!(!s.vdoms_enabled);
+    }
+}
+
+#[cfg(test)]
+mod dhcp_lease_tests {
+    use super::*;
+
+    /// Verbatim from a FortiGate-60F on 7.6.7, tabs and all. The blank
+    /// hostnames and blank VCIs are real and are the whole difficulty.
+    const LEASES: &str = "Corp_WLAN\n  IP\t\tMAC-Address\t\tHostname            VCI                 SSID                AP                  SERVER-ID           Expiry\n  192.168.1.204\tac:3d:cb:c2:42:eb\tF-1248              MSFT 5.0            RITAJ-IT            PU431F5E19002618    22                  Thu Sep  3 07:51:56 2026\n  192.168.1.205\t42:59:ba:88:dd:cb\tiPhone                                  RITAJ-IT            FP231FTF2309C2FK    22                  Fri Sep  4 21:20:35 2026\nHOME-WIFI\n  IP\t\tMAC-Address\t\tHostname            VCI                 SSID                AP                  SERVER-ID           Expiry\n  10.192.14.21\t1e:6e:5b:f4:f0:a2\t                                        A-R-M-R             PU431F5E19002618    21                  Mon Aug 31 10:37:11 2026\n  10.192.14.18\tda:b6:b2:e8:d8:8d\t                    android-dhcp-14     A-R-M-R             PU431F5E19002618    21                  Wed Sep  2 07:43:07 2026\n  10.192.14.19\tc4:db:ad:99:38:d3\tRingSpotlightCam-d3                     A-R-M-R             PU431F5E19002618    21                  Sat Sep  5 23:45:43 2026\n";
+
+    #[test]
+    fn reads_every_lease() {
+        assert_eq!(parse_dhcp_leases(LEASES).len(), 5);
+    }
+
+    #[test]
+    fn reads_a_full_row() {
+        let l = &parse_dhcp_leases(LEASES)[0];
+        assert_eq!(l.address.as_deref(), Some("192.168.1.204"));
+        assert_eq!(l.hostname.as_deref(), Some("F-1248"));
+        assert_eq!(l.os_name.as_deref(), Some("MSFT 5.0"));
+        assert_eq!(l.fortiap_ssid.as_deref(), Some("RITAJ-IT"));
+        assert_eq!(l.fortiap_name.as_deref(), Some("PU431F5E19002618"));
+    }
+
+    #[test]
+    fn a_hostname_with_a_space_in_its_vci_is_not_split() {
+        // "MSFT 5.0" has a space in it. Splitting the row on whitespace would
+        // shift every column after it by one and put "5.0" in the SSID.
+        let l = &parse_dhcp_leases(LEASES)[0];
+        assert_eq!(l.os_name.as_deref(), Some("MSFT 5.0"));
+        assert_eq!(l.fortiap_ssid.as_deref(), Some("RITAJ-IT"));
+    }
+
+    #[test]
+    fn a_blank_hostname_stays_blank_and_does_not_borrow_the_next_column() {
+        // The commonest row on a real network: a device that never sent a
+        // name. Reading "A-R-M-R" as its hostname would name a dozen devices
+        // after the SSID they are on.
+        let l = &parse_dhcp_leases(LEASES)[2];
+        assert_eq!(l.hostname, None);
+        assert_eq!(l.fortiap_ssid.as_deref(), Some("A-R-M-R"));
+    }
+
+    #[test]
+    fn a_blank_hostname_with_a_vci_still_reads_the_vci() {
+        let l = &parse_dhcp_leases(LEASES)[3];
+        assert_eq!(l.hostname, None);
+        assert_eq!(l.os_name.as_deref(), Some("android-dhcp-14"));
+    }
+
+    #[test]
+    fn each_lease_carries_the_interface_it_was_served_on() {
+        let all = parse_dhcp_leases(LEASES);
+        assert_eq!(all[0].interface.as_deref(), Some("Corp_WLAN"));
+        assert_eq!(all[2].interface.as_deref(), Some("HOME-WIFI"));
+    }
+
+    #[test]
+    fn the_header_row_is_not_read_as_a_lease() {
+        let all = parse_dhcp_leases(LEASES);
+        assert!(all.iter().all(|l| l.hostname.as_deref() != Some("Hostname")));
+    }
+
+    #[test]
+    fn a_lease_is_not_a_claim_that_the_device_is_here_now() {
+        // Leases outlive the device by days. Reporting them as online would
+        // put a laptop that went home on the diagram as present.
+        assert!(parse_dhcp_leases(LEASES).iter().all(|l| !l.online));
+    }
+
+    #[test]
+    fn the_mac_matches_the_arp_table_spelling() {
+        let l = &parse_dhcp_leases(LEASES)[0];
+        assert_eq!(l.mac, crate::arp::normalise_mac("AC3D.CBC2.42EB").expect("valid"));
+    }
+
+    #[test]
+    fn no_leases_is_no_devices() {
+        assert!(parse_dhcp_leases("").is_empty());
+        assert!(parse_dhcp_leases("Corp_WLAN\n").is_empty());
+    }
+}
+
+#[cfg(test)]
+mod managed_switch_tests {
+    use super::*;
+
+    /// Verbatim from a FortiGate-60F on 7.6.7, trimmed to two switches and
+    /// the nested port block that is the whole difficulty.
+    const MANAGED: &str = r#"config switch-controller managed-switch
+    edit "S224ENTF19001615"
+        set sn "S224ENTF19001615"
+        set fsw-wan1-peer "Fortilink"
+        set fsw-wan1-admin enable
+        config ports
+            edit "port1"
+                set vlan "Printers-FS"
+            next
+            edit "port2"
+                set vlan "_default"
+            next
+        end
+    next
+    edit "S248EPTF18001234"
+        set sn "S248EPTF18001234"
+    next
+end
+"#;
+
+    #[test]
+    fn finds_the_switches_it_manages() {
+        let found = parse_managed_switches(MANAGED);
+        assert_eq!(
+            found.iter().map(|n| n.short_name.as_str()).collect::<Vec<_>>(),
+            ["S224ENTF19001615", "S248EPTF18001234"]
+        );
+    }
+
+    #[test]
+    fn a_port_is_not_a_switch() {
+        // The nested `config ports` block has its own `edit "port1"` lines.
+        // Reading those as switches would put a node on the diagram for every
+        // port on every switch.
+        let found = parse_managed_switches(MANAGED);
+        assert!(found.iter().all(|n| !n.short_name.starts_with("port")));
+        assert_eq!(found.len(), 2);
+    }
+
+    #[test]
+    fn the_link_is_marked_as_fortilink_not_a_discovery_protocol() {
+        // The FortiGate administers this switch rather than overhearing it.
+        // Labelling it CDP would claim evidence that does not exist.
+        let found = parse_managed_switches(MANAGED);
+        assert_eq!(found[0].discovered_by, Protocol::FortiLink);
+        assert_eq!(found[0].class, DeviceClass::Switch);
+    }
+
+    #[test]
+    fn no_port_is_claimed_because_the_config_does_not_say() {
+        let found = parse_managed_switches(MANAGED);
+        assert_eq!(found[0].local_interface, None);
+        assert_eq!(found[0].remote_interface, None);
+    }
+
+    #[test]
+    fn a_fortigate_that_manages_nothing_reports_nothing() {
+        assert!(parse_managed_switches("config switch-controller managed-switch\nend\n").is_empty());
+        assert!(parse_managed_switches("").is_empty());
+    }
+
+    #[test]
+    fn other_configuration_is_not_read_as_switches() {
+        let other = "config system interface\n    edit \"wan1\"\n    next\nend\n";
+        assert!(parse_managed_switches(other).is_empty());
     }
 }
