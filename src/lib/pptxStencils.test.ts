@@ -29,10 +29,10 @@ describe('cropping a LibreOffice page down to its artwork', () => {
     // LibreOffice puts a 1000x800 icon on a 21000x29700 page. Without the
     // crop it renders as a speck — the "Untitled Drawing" bug.
     const out = pipe.cropToContent(pipe.stripCruft(LO_STYLE_SVG))!;
-    const vb = /viewBox="([^"]+)"/.exec(out)![1]!.split(' ').map(Number);
-    expect(vb[0]).toBeCloseTo(480, 0);
-    expect(vb[2]).toBeCloseTo(1040, 0);
-    expect(vb[3]).toBeCloseTo(840, 0);
+    const vb = /viewBox="([^"]+)"/.exec(out)![1]!.split(' ').map(Number) as number[];
+    expect(vb[0]!).toBeCloseTo(480, 0);
+    expect(vb[2]!).toBeCloseTo(1040, 0);
+    expect(vb[3]!).toBeCloseTo(840, 0);
   });
 
   it('drops width and height so the icon scales to its container', () => {
@@ -53,10 +53,10 @@ describe('cropping a LibreOffice page down to its artwork', () => {
   it('follows relative path commands, or the box is wrong for half the deck', () => {
     const rel = '<svg viewBox="0 0 21000 29700"><path d="m 100,100 l 50,0 l 0,50 z"/></svg>';
     const out = pipe.cropToContent(rel)!;
-    const vb = /viewBox="([^"]+)"/.exec(out)![1]!.split(' ').map(Number);
-    expect(vb[0]).toBeLessThan(100);
-    expect(vb[0] + vb[2]).toBeGreaterThan(150);
-    expect(vb[0] + vb[2]).toBeLessThan(200);
+    const vb = /viewBox="([^"]+)"/.exec(out)![1]!.split(' ').map(Number) as number[];
+    expect(vb[0]!).toBeLessThan(100);
+    expect(vb[0]! + vb[2]!).toBeGreaterThan(150);
+    expect(vb[0]! + vb[2]!).toBeLessThan(200);
   });
 
   it('has nothing to say about a file with no drawable content', () => {
