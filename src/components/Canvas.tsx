@@ -37,6 +37,7 @@ const edgeTypes = { live: LiveEdge };
  *  176x96 section would have to be resized before it could hold anything. */
 function defaultSize(type: DeviceType): { width: number; height: number } {
   if (type === 'zone') return { width: 420, height: 300 };
+  if (type === 'callout') return { width: 190, height: 64 };
   return { width: 168, height: 92 };
 }
 
@@ -107,6 +108,18 @@ export function Canvas() {
       // node can be dropped on itself. A link from a device to itself is
       // never what someone meant to draw.
       if (c.source === c.target) return;
+
+      // A line out of a piece of text is a leader, not a cable. Drawing one
+      // from a note and then having to turn off its health, its arrow and its
+      // packet dots by hand is three steps to say something obvious.
+      const annotation = (id: string) => {
+        const n = doc.nodes.find((x) => x.id === id);
+        if (!n) return false;
+        if (n.type === 'note') return true;
+        const kind = (n.data as { deviceType?: string }).deviceType;
+        return kind === 'text' || kind === 'callout';
+      };
+      const leader = annotation(c.source) || annotation(c.target);
       const edge: TopoEdge = {
         id: uid(),
         source: c.source,
@@ -115,24 +128,25 @@ export function Canvas() {
         targetHandle: c.targetHandle ?? null,
         type: 'live',
         data: {
+          ...(leader ? { kind: 'leader' as const } : {}),
           sourcePortLabel: '',
           targetPortLabel: '',
           label: '',
-          pathType: 'smoothstep',
-          direction: 'forward',
+          pathType: leader ? 'straight' : 'smoothstep',
+          direction: leader ? 'none' : 'forward',
           width: 2,
           // A stored default, not a drawn one: what is saved in the document
           // must not depend on which ground the person who drew it was using.
           color: STATUS_COLOR_DARK.unknown,
           enabled: true,
           maintenance: false,
-          healthRule: { type: 'both-endpoints' },
+          healthRule: leader ? { type: 'manual' } : { type: 'both-endpoints' },
         },
       };
       store.addEdge(edge);
       store.select(null, edge.id);
     },
-    [store],
+    [store, doc.nodes],
   );
 
   const onDrop = useCallback(

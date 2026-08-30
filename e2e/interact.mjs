@@ -1408,6 +1408,66 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     (await nodeCount()) === before, `${before} -> ${await nodeCount()}`);
 }
 
+// ---------------------------------------------------------------- callouts
+// A line out of a piece of text is a remark about the diagram, not a cable.
+{
+  await page.locator("button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(400);
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  const item = page.locator(".cv-palette-item", { hasText: "Callout" }).first();
+  check("the palette offers a callout", (await item.count()) === 1);
+
+  const edgesBefore = await page.locator(".react-flow__edge").count();
+  await item.dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 200, y: 130 } });
+  await page.waitForTimeout(450);
+
+  const callout = page.locator(".cv-node[data-shape='callout']").first();
+  check("it lands as a callout", (await callout.count()) === 1);
+
+  if (await callout.count()) {
+    // Draw a line from it to a device.
+    const from = await callout.boundingBox();
+    // Whatever device is actually on screen — by this point the earlier checks
+    // have moved things about, and a named one may be outside the view.
+    const target = await page
+      .locator(".react-flow__node:not(:has(.cv-note)):not(:has(.cv-node[data-shape='callout']))")
+      .first()
+      .boundingBox();
+    check("there is a device to point at", target !== null);
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.waitForTimeout(250);
+    const wrapper = page.locator(".react-flow__node:has(.cv-node[data-shape='callout'])").first();
+    const handle = await wrapper.locator(".react-flow__handle-right").boundingBox().catch(() => null);
+    // Asserted rather than guarded on: a check that quietly skips itself is
+    // not a check.
+    check("the callout offers a handle to draw from", handle !== null);
+    if (handle) {
+      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(target.x + target.width / 2, target.y + 22, { steps: 18 });
+      // React Flow needs a moment with the pointer over the target before it
+      // treats the drop as landing on it.
+      await page.waitForTimeout(200);
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+      check("a line can be drawn from a callout",
+        (await page.locator(".react-flow__edge").count()) === edgesBefore + 1,
+        `${edgesBefore} -> ${await page.locator(".react-flow__edge").count()}`);
+
+      // The new line is the last one. It must be a leader: no arrowhead, no
+      // packet dots, and nothing added to the health counts.
+      const last = page.locator(".react-flow__edge").last();
+      const marker = await last.locator("path.react-flow__edge-path")
+        .getAttribute("marker-end").catch(() => null);
+      check("a leader carries no arrowhead", marker === null, String(marker));
+      const dots = await last.locator("circle").count();
+      check("nothing travels along a leader", dots === 0, `${dots} dots`);
+    }
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

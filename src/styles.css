@@ -33,6 +33,8 @@
   --zone-line: rgba(78, 168, 240, 0.34);
   --zone-title: rgba(78, 168, 240, 0.13);
   --guide: #f0abfc;
+  --callout-bg: rgba(234, 179, 8, 0.10);
+  --callout-line: rgba(234, 179, 8, 0.45);
 
   --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   --sans: ui-sans-serif, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
@@ -89,6 +91,8 @@
   --zone-line: rgba(11, 95, 206, 0.4);
   --zone-title: rgba(11, 95, 206, 0.13);
   --guide: #a21caf;
+  --callout-bg: #fdf6e0;
+  --callout-line: #cfa53c;
 }
 
 .is-contrast {
@@ -1199,3 +1203,17 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
 .cv-layer-lock.is-on { color: var(--warning); }
 .cv-layer-remove:hover { color: var(--down); }
 .cv-layers-add { margin-bottom: 6px; }
+
+/* A callout: a small card that says something, with a leader pointing at what
+   it is about. Deliberately quiet — it is a remark on the diagram, not part
+   of the network. */
+.cv-node[data-shape='callout'] {
+  background: var(--callout-bg);
+  border: 1px solid var(--callout-line);
+  border-radius: 6px;
+  align-items: center;
+  padding: 6px 9px;
+}
+.cv-node[data-shape='callout'] .cv-node-label { font-weight: 500; white-space: normal; }
+.cv-node[data-shape='callout'] .cv-node-detail,
+.cv-node[data-shape='callout'] .cv-status-badge { display: none; }

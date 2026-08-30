@@ -239,3 +239,50 @@ describe('worst', () => {
     expect(worst('healthy', 'healthy')).toBe('healthy');
   });
 });
+
+describe('a leader is not a cable', () => {
+  it('carries no health of its own', () => {
+    // A leader points a note at the thing it is about. Reporting a health for
+    // it would put a made-up green line in the counts and a made-up outage in
+    // the timeline.
+    expect(
+      linkStatus({
+        link: { enabled: true, maintenance: false, kind: 'leader', healthRule: { type: 'manual', manualStatus: 'healthy' } },
+        sourceStatus: 'healthy',
+        targetStatus: 'healthy',
+        linkProbes: [],
+        allProbes: [],
+        runtime: new Map(),
+        sessionRunning: true,
+      }),
+    ).toBe('disabled');
+  });
+
+  it('stays out of the way even when both ends are down', () => {
+    expect(
+      linkStatus({
+        link: { enabled: true, maintenance: false, kind: 'leader', healthRule: { type: 'both-endpoints' } },
+        sourceStatus: 'down',
+        targetStatus: 'down',
+        linkProbes: [],
+        allProbes: [],
+        runtime: new Map(),
+        sessionRunning: true,
+      }),
+    ).toBe('disabled');
+  });
+
+  it('leaves an ordinary link alone', () => {
+    expect(
+      linkStatus({
+        link: { enabled: true, maintenance: false, healthRule: { type: 'manual', manualStatus: 'healthy' } },
+        sourceStatus: 'healthy',
+        targetStatus: 'healthy',
+        linkProbes: [],
+        allProbes: [],
+        runtime: new Map(),
+        sessionRunning: true,
+      }),
+    ).toBe('healthy');
+  });
+});

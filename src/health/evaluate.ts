@@ -48,7 +48,7 @@ export function worst(a: HealthStatus, b: HealthStatus): HealthStatus {
 }
 
 export interface LinkContext {
-  link: Pick<LinkData, 'enabled' | 'maintenance' | 'healthRule'>;
+  link: Pick<LinkData, 'enabled' | 'maintenance' | 'healthRule' | 'kind'>;
   sourceStatus: HealthStatus;
   targetStatus: HealthStatus;
   /** Probes belonging to this link (dedicated-probe rule). */
@@ -68,6 +68,10 @@ export interface LinkContext {
  */
 export function linkStatus(ctx: LinkContext): HealthStatus {
   const { link } = ctx;
+  // A leader points a note at the thing it is about. It is an annotation, not
+  // a cable: reporting a health for it would put a made-up green line in the
+  // counts and a made-up outage in the timeline.
+  if (link.kind === 'leader') return 'disabled';
   if (!link.enabled) return 'disabled';
   if (link.maintenance) return 'maintenance';
 

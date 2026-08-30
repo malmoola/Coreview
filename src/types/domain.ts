@@ -37,6 +37,7 @@ export type DeviceType =
   | 'circle'
   | 'diamond'
   | 'zone'
+  | 'callout'
   | 'cloud'
   | 'text';
 
@@ -158,6 +159,10 @@ export interface LinkHealthRule {
 }
 
 export interface LinkData extends Record<string, unknown> {
+  /** What this line is. A 'leader' points a note at the thing it is about; it
+   *  is an annotation, not a cable, so it carries no health, is not counted,
+   *  and does not hop over the links it crosses. */
+  kind?: 'link' | 'leader';
   sourcePortLabel: string;
   targetPortLabel: string;
   label: string;

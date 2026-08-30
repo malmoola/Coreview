@@ -7,7 +7,9 @@ import { useStore } from '../../state/store';
 import type { DeviceNodeData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 
-const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'zone']);
+const SHAPE_TYPES = new Set([
+  'rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'zone', 'callout',
+]);
 
 /** Shapes a border and a border-radius cannot draw.
  *

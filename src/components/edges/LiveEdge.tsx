@@ -124,6 +124,10 @@ function LiveEdgeInner(props: EdgeProps) {
   );
 
   const ground = useStore((s) => s.settings.ground);
+  // A leader points a note at what it is about. It is an annotation, not a
+  // cable: nothing travels along it, it carries no health, and it does not
+  // hop over the links it crosses.
+  const isLeader = data.kind === 'leader';
   const jumpsEnabled = useStore((s) => s.doc.canvas.lineJumps ?? true);
   const color = statusColors(ground)[status];
   // The line can be given a colour of its own — a fibre run, a carrier
@@ -134,9 +138,13 @@ function LiveEdgeInner(props: EdgeProps) {
   // A colour someone picked to stand out on black is invisible on white, so
   // it is darkened just enough to be seen rather than overridden, which would
   // lose the choice entirely.
-  const lineColor =
-    data.colorMode === 'fixed' && data.color ? readableOn(data.color, ground) : color;
-  const animate = shouldAnimate(status, reduceMotion);
+  const lineColor = isLeader
+    ? 'var(--text-faint)'
+    : data.colorMode === 'fixed' && data.color
+      ? readableOn(data.color, ground)
+      : color;
+  // A leader carries nothing, so nothing travels along it.
+  const animate = !isLeader && shouldAnimate(status, reduceMotion);
   const duration = SPEED_SECONDS[status] ?? 3;
   const direction = data.direction ?? 'forward';
   const width = data.width ?? 2;
@@ -151,7 +159,9 @@ function LiveEdgeInner(props: EdgeProps) {
   useEffect(() => () => forgetPath(id), [id]);
 
   const drawnPath = useMemo(() => {
-    if (!jumpsEnabled) return edgePath;
+    // A leader is an annotation. Hopping it over the cables it crosses would
+    // say it is one of them.
+    if (!jumpsEnabled || isLeader) return edgePath;
     const others = allPaths();
     if (others.size > MAX_EDGES_FOR_JUMPS) return edgePath;
     void version;
@@ -159,10 +169,12 @@ function LiveEdgeInner(props: EdgeProps) {
     // to clear the line it is hopping to read as a hop at all.
     const radius = Math.max(5, (data.width ?? 2) * 2.6);
     return withJumps(edgePath, jumpsFor(id, edgePath, others, radius * 2), radius);
-  }, [id, edgePath, jumpsEnabled, version, data.width]);
+  }, [id, edgePath, jumpsEnabled, isLeader, version, data.width]);
 
-  const dash = dashFor(data.lineStyle, status);
-  const caps = capsFor(data);
+  const dash = isLeader ? (data.lineStyle === 'solid' ? undefined : '4 4') : dashFor(data.lineStyle, status);
+  const caps = isLeader
+    ? { start: data.startCap ?? 'none', end: data.endCap ?? 'none' }
+    : capsFor(data);
 
   const dotCount = 3;
   /** Each dot gets one trailing companion: smaller, dimmer and slightly behind.
@@ -280,9 +292,9 @@ function LiveEdgeInner(props: EdgeProps) {
         path={drawnPath}
         style={{
           stroke: lineColor,
-          strokeWidth: selected ? width + 1.5 : width,
+          strokeWidth: isLeader ? 1 : selected ? width + 1.5 : width,
           strokeDasharray: dash,
-          opacity: status === 'disabled' ? 0.55 : 1,
+          opacity: isLeader ? 0.85 : status === 'disabled' ? 0.55 : 1,
           filter: selected ? `drop-shadow(0 0 6px ${lineColor})` : undefined,
           // Colour changes ease rather than snapping, so a status flip reads as
           // a transition instead of a jump cut.

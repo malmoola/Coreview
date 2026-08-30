@@ -1233,6 +1233,24 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
         </label>
       </div>
 
+      <Field
+        label="What this line is"
+        hint={
+          d.kind === 'leader'
+            ? 'A leader carries no health and is not counted'
+            : 'A cable, with health and direction'
+        }
+      >
+        <select
+          className="cv-input"
+          value={d.kind ?? 'link'}
+          onChange={(e) => update(edgeId, { kind: e.target.value as LinkData['kind'] })}
+        >
+          <option value="link">A link between devices</option>
+          <option value="leader">A leader, pointing at something</option>
+        </select>
+      </Field>
+
       <div className="cv-row">
         <Field label="Line style" hint="Auto follows health">
           <select
