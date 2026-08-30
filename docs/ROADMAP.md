@@ -231,16 +231,29 @@ watches them.
 - [ ] **Shapes with their own connection points.** An imported vendor shape is
       a picture; a Visio master carries named ports. Reading those would let a
       link land on "Gi0/1" rather than on the right-hand side
-- [ ] **Even spacing while dragging.** `spacingHint` is written and tested —
-      it finds the gap that matches the rhythm of a row — but is not yet wired
-      to the drag
-- [ ] **Text on the canvas that is not a node** — headings, legends, callouts
-      with a leader line
-- [ ] **Snapping and alignment guides.** Drag a device and have it line up with
-      its neighbours, with the guide shown
-- [ ] **Layers**, so a physical view and a logical view can share one document
-- [ ] **A shape library that travels with the project**, so a diagram opened on
-      another machine is not missing its artwork
+- [x] **Even spacing while dragging.** A device dropped into a row is pulled
+      the last few pixels to the gap the row already has. Where an edge and a
+      rhythm are both within reach, whichever needs the smaller correction wins
+- [x] **Views** — physical, logical, the change on Saturday, in one document.
+      A view is a property of an object, so nothing moves between them and an
+      unassigned object is on all of them. Hidden views are left out of the
+      export
+- [x] **Callouts and leaders.** A line out of a piece of text is a remark, not
+      a cable: no health, not counted, nothing travelling along it, and no hop
+      over the links it crosses
+- [x] **The export is the diagram you were looking at** — the ground, sections,
+      line styles, end shapes and a link's own colour, none of which it knew
+      about before
+- [x] **Printing puts the diagram on white**, in both halves: the stylesheet
+      for a plain Ctrl+P, and the ground switched for the menu item, because
+      half the colours are set from script and a media query cannot reach them
+- [x] **A shape library travels with the project already** — a library icon is
+      inlined into the node when it is dropped, so a diagram opened on a
+      machine without the folder still has its artwork
+- [ ] **A page setup for the export** — paper size, orientation, and a large
+      diagram split across sheets rather than shrunk to one
+- [ ] **Colour by VLAN or subnet**, which is the thing a network diagram wants
+      and a general drawing tool cannot do
 
 ## Packaging and trust
 
