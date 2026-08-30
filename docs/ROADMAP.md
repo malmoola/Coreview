@@ -208,6 +208,22 @@ watches them.
       zips and folders, named from the source and grouped by family
 - [x] **The icon library reads folders of folders**, and says how many files it
       could not read instead of reporting an almost empty library
+- [x] **Colours that hold on both grounds.** An unwatched device is drawn by
+      what it is rather than by a health it does not have, so a diagram nobody
+      has pointed at anything is a drawing rather than a grey one; health takes
+      the colour back the moment a probe is attached. The light ground is built
+      against white rather than dimmed from the dark one, and tests hold a
+      contrast floor for every tint
+- [x] **A modern shape set**, fetched from Tabler (MIT) and Simple Icons (CC0)
+      by `scripts/fetch-modern-shapes.mjs` — 118 shapes across eleven families,
+      licences written beside them. Curated, because a palette of eight
+      thousand entries is not a palette
+- [x] **The icon library is grouped and collapsible**, and search reaches into
+      a closed group
+- [x] **Alignment guides.** Devices line up with their neighbours as they are
+      dragged, with the guide drawn between the two boxes it relates. The
+      ten-pixel grid snap is gone; it was fighting this for the last few pixels
+      of every drag
 - [ ] **Legacy binary `.vss`** — Visio 2003 to 2010 — is a compound file rather
       than a zip. `libvisio-tools` can read them; it is not installed here and
       installing it is the operator's call. Everything else in a shape folder
@@ -215,6 +231,9 @@ watches them.
 - [ ] **Shapes with their own connection points.** An imported vendor shape is
       a picture; a Visio master carries named ports. Reading those would let a
       link land on "Gi0/1" rather than on the right-hand side
+- [ ] **Even spacing while dragging.** `spacingHint` is written and tested —
+      it finds the gap that matches the rhythm of a row — but is not yet wired
+      to the drag
 - [ ] **Text on the canvas that is not a node** — headings, legends, callouts
       with a leader line
 - [ ] **Snapping and alignment guides.** Drag a device and have it line up with
