@@ -252,8 +252,9 @@ watches them.
       machine without the folder still has its artwork
 - [ ] **A page setup for the export** — paper size, orientation, and a large
       diagram split across sheets rather than shrunk to one
-- [ ] **Colour by VLAN or subnet**, which is the thing a network diagram wants
-      and a general drawing tool cannot do
+- [x] **Colour by subnet, tag, or what a device is**, with a legend. Colours
+      are assigned from the key, so the same subnet is the same colour every
+      session and adding a device does not repaint the diagram
 
 ## Packaging and trust
 
