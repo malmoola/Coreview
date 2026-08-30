@@ -409,7 +409,22 @@ export function Canvas() {
       const el = e.target as HTMLElement | null;
       if (el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (mod && e.key.toLowerCase() === 'f') {
+      if (mod && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        store.selectAll();
+      } else if (mod && e.key.toLowerCase() === 'c') {
+        const copied = store.copySelection();
+        if (copied > 0) {
+          e.preventDefault();
+          store.setStatusMessage(`Copied ${copied} object${copied === 1 ? '' : 's'}.`);
+        }
+      } else if (mod && e.key.toLowerCase() === 'v') {
+        const pasted = store.paste();
+        if (pasted > 0) {
+          e.preventDefault();
+          store.setStatusMessage(`Pasted ${pasted} object${pasted === 1 ? '' : 's'}.`);
+        }
+      } else if (mod && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setFinding(true);
       } else if (mod && e.key.toLowerCase() === 's') {

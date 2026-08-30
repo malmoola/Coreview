@@ -1692,6 +1692,70 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- copying
+// Two switches and the link between them, repeated for eleven wiring closets,
+// is most of what drawing a real network consists of.
+{
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.waitForTimeout(250);
+  await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
+  await page.waitForTimeout(400);
+  await page.locator("button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+
+  const devs = page.locator(".react-flow__node:not(:has(.cv-note))");
+  const before = await nodeCount();
+  const edgesBefore = await page.locator(".react-flow__edge").count();
+
+  // Selection cleared first, then each device taken by its glyph — the middle
+  // of a node is often under a neighbour's connection handle after a tidy,
+  // and a click there is swallowed without selecting anything.
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+  await devs.nth(0).locator(".cv-glyph-art").click();
+  await page.waitForTimeout(200);
+  await devs.nth(1).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+  await page.waitForTimeout(350);
+  const picked = await page.locator(".react-flow__node.selected").count();
+  check("two devices are selected to copy", picked === 2, `${picked} selected`);
+
+  await page.keyboard.press("Control+c");
+  await page.waitForTimeout(300);
+  check("copying says what it took",
+    /Copied 2 objects/.test(await page.locator(".cv-panel-message").first().textContent() ?? ""),
+    (await page.locator(".cv-panel-message").first().textContent()) ?? "");
+
+  await page.keyboard.press("Control+v");
+  await page.waitForTimeout(500);
+  check("pasting adds the copies", (await nodeCount()) === before + 2,
+    `${before} -> ${await nodeCount()}`);
+
+  // A link whose two ends were both copied comes with them; one with an end
+  // outside the selection does not, because it has nowhere to land.
+  const edgesAfter = await page.locator(".react-flow__edge").count();
+  check("links inside the selection come too, and no others",
+    edgesAfter >= edgesBefore, `${edgesBefore} -> ${edgesAfter}`);
+
+  // Pasting again must make a row, not a stack nobody can separate.
+  await page.keyboard.press("Control+v");
+  await page.waitForTimeout(500);
+  check("pasting twice adds two more", (await nodeCount()) === before + 4);
+
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  check("both pastes undo", (await nodeCount()) === before, `${before} -> ${await nodeCount()}`);
+
+  // Select all, which is the other half of working on more than one thing.
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Control+a");
+  await page.waitForTimeout(350);
+  const selected = await page.locator(".react-flow__node.selected").count();
+  check("select all takes everything", selected === before, `${selected} of ${before}`);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

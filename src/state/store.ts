@@ -9,6 +9,7 @@ import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
 import { zoneDeltas } from '../lib/zones';
 import { alignTo, distribute } from '../lib/alignment';
+import { copySelection, pasteClipping, type Clipping } from '../lib/clipboard';
 import { layersOf, withNewLayer, withoutLayer, type Layer } from '../lib/layers';
 import type { ColourBy } from '../lib/tinting';
 import {
@@ -137,6 +138,9 @@ interface Store {
   /** Releases every link somebody pinned, so they all follow again. */
   unpinLinks: () => number;
   /** Lines a selection up on one edge, or evens the gaps between them. */
+  copySelection: () => number;
+  paste: () => number;
+  selectAll: () => void;
   arrange: (
     ids: string[],
     how: 'left' | 'centre' | 'right' | 'top' | 'middle' | 'bottom' | 'across' | 'down',
@@ -289,6 +293,10 @@ function moveGroups(changes: NodeChange<TopoNode>[], before: TopoNode[]): TopoNo
     return { ...n, position: { x: n.position.x + d.dx, y: n.position.y + d.dy } };
   });
 }
+
+/** What was copied, kept for the session rather than per project, so a chunk
+ *  of one diagram can be pasted into another. */
+let clipboard: Clipping | null = null;
 
 function snapshot(doc: ProjectDocument): HistoryEntry {
   return {
@@ -579,6 +587,51 @@ export const useStore = create<Store>((set, get) => ({
       },
       // Which views are on is part of how the diagram was left.
       dirty: true,
+    }));
+  },
+
+  copySelection() {
+    const { nodes, edges } = get().doc;
+    clipboard = copySelection(nodes, edges);
+    return clipboard.nodes.length;
+  },
+
+  paste() {
+    if (!clipboard || clipboard.nodes.length === 0) return 0;
+    const fresh = pasteClipping(clipboard, { x: 40, y: 40 }, uid);
+    get().commit('Paste');
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        // The paste is selected and everything else is not, so it can be
+        // dragged into place straight away.
+        nodes: [
+          ...state.doc.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+          ...fresh.nodes,
+        ],
+        edges: [...state.doc.edges, ...fresh.edges],
+      },
+      dirty: true,
+      selectedNodeId: fresh.nodes.length === 1 ? fresh.nodes[0]!.id : null,
+      selectedEdgeId: null,
+    }));
+    // Pasting again offsets further, so a run of pastes makes a row rather
+    // than a stack nobody can separate.
+    clipboard = {
+      nodes: fresh.nodes.map((n) => ({ ...n })),
+      edges: fresh.edges.map((e) => ({ ...e })),
+    };
+    return fresh.nodes.length;
+  },
+
+  selectAll() {
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        nodes: state.doc.nodes.map((n) => (n.selected ? n : { ...n, selected: true })),
+      },
+      selectedNodeId: null,
+      selectedEdgeId: null,
     }));
   },
 
