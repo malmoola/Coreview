@@ -1756,6 +1756,120 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("select all takes everything", selected === before, `${selected} of ${before}`);
 }
 
+// ---------------------------------------------------------------- handling
+// How it is driven, which is the way Lucidchart and Visio do it because that
+// is what anyone opening this already knows.
+{
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.waitForTimeout(250);
+  await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
+  await page.waitForTimeout(400);
+  await page.locator("button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+  await page.locator(".react-flow__pane").click({ position: { x: 40, y: 40 } });
+  await page.waitForTimeout(250);
+
+  const devs = page.locator(".react-flow__node:not(:has(.cv-note))");
+  const flowPos = (loc) =>
+    loc.evaluate((el) => {
+      const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(el.style.transform ?? "");
+      return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+    });
+
+  // A click in the middle of a device selects it. An invisible connection
+  // handle belonging to a neighbour used to sit over that spot and swallow it.
+  const first = await devs.nth(0).boundingBox();
+  await page.mouse.click(first.x + first.width / 2, first.y + first.height / 2);
+  await page.waitForTimeout(300);
+  check("a click in the middle of a device selects it",
+    (await page.locator(".react-flow__node.selected").count()) === 1,
+    `${await page.locator(".react-flow__node.selected").count()} selected`);
+
+  // Left-drag across bare canvas draws a selection box.
+  await page.locator(".react-flow__pane").click({ position: { x: 40, y: 40 } });
+  await page.waitForTimeout(200);
+  const a = await devs.nth(0).boundingBox();
+  const b = await devs.nth(1).boundingBox();
+  const left = Math.min(a.x, b.x) - 25;
+  const top = Math.min(a.y, b.y) - 25;
+  const right = Math.max(a.x + a.width, b.x + b.width) + 25;
+  const bottom = Math.max(a.y + a.height, b.y + b.height) + 25;
+  await page.mouse.move(left, top);
+  await page.mouse.down();
+  await page.mouse.move(right, bottom, { steps: 14 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const caught = await page.locator(".react-flow__node.selected").count();
+  check("dragging across bare canvas selects what it covers", caught >= 2, `${caught} caught`);
+
+  // And they move together.
+  if (caught >= 2) {
+    const was = [await flowPos(devs.nth(0)), await flowPos(devs.nth(1))];
+    const grab = await devs.nth(0).boundingBox();
+    await page.mouse.move(grab.x + grab.width / 2, grab.y + 22);
+    await page.mouse.down();
+    await page.mouse.move(grab.x + grab.width / 2 + 130, grab.y + 22 + 70, { steps: 14 });
+    await page.mouse.up();
+    await page.waitForTimeout(450);
+    const now = [await flowPos(devs.nth(0)), await flowPos(devs.nth(1))];
+    const moved = now.map((p, i) => p.x - was[i].x);
+    check("a selection moves together",
+      Math.abs(moved[0]) > 40 && Math.abs(moved[0] - moved[1]) < 2,
+      `${moved.map((m) => m.toFixed(0)).join(" vs ")}`);
+  }
+
+  // Space held drags the whole diagram: everything shifts on screen and
+  // nothing moves on the diagram.
+  //
+  // Watched by name. React Flow reorders nodes in the document as they are
+  // selected and dragged, so comparing "the first one" before and after is
+  // comparing two different devices.
+  const witness = page.locator(".react-flow__node", { hasText: "Bystander" }).first();
+  const screenWas = await witness.boundingBox();
+  const flowWas = await flowPos(witness);
+  await page.keyboard.down("Space");
+  await page.waitForTimeout(250);
+  check("holding space puts the canvas in hand mode",
+    (await page.locator(".cv-canvas.is-panning").count()) === 1,
+    `class: ${await page.locator(".cv-canvas").first().getAttribute("class")}`);
+  await page.mouse.move(700, 460);
+  await page.mouse.down();
+  await page.mouse.move(520, 360, { steps: 12 });
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+  await page.waitForTimeout(400);
+  const screenNow = await witness.boundingBox();
+  const flowNow = await flowPos(witness);
+  check("holding space and dragging moves the whole diagram",
+    Math.abs(screenNow.x - screenWas.x) > 80,
+    `${Math.round(screenNow.x - screenWas.x)}px on screen`);
+  check("and moves nothing on it",
+    Math.abs(flowNow.x - flowWas.x) < 0.5,
+    `${(flowNow.x - flowWas.x).toFixed(1)} units`);
+
+  // Double-click on bare canvas writes text where you clicked.
+  const before = await nodeCount();
+  const pane = await page.locator(".react-flow__pane").boundingBox();
+  await page.mouse.dblclick(pane.x + pane.width - 140, pane.y + 90);
+  await page.waitForTimeout(500);
+  check("double-clicking bare canvas adds text", (await nodeCount()) === before + 1,
+    `${before} -> ${await nodeCount()}`);
+  check("and puts the cursor in it straight away",
+    (await page.locator(".cv-inline-edit").count()) === 1);
+
+  await page.keyboard.type("Rack 4 spare");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(350);
+  const labels = await page.locator(".cv-node-label, .cv-glyph-label").allTextContents();
+  check("what was typed is what it says", labels.some((t) => t === "Rack 4 spare"),
+    JSON.stringify(labels.slice(-3)));
+
+  const border = await page.locator(".cv-node[data-shape='text']").first()
+    .evaluate((el) => getComputedStyle(el).borderTopColor);
+  check("text on the canvas has no box round it",
+    /rgba\(0, 0, 0, 0\)|transparent/.test(border), border);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

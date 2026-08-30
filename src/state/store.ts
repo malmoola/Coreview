@@ -90,6 +90,8 @@ interface Store {
 
   // --- selection & ui
   selectedNodeId: string | null;
+  /** A node that has just been made and should be typed into straight away. */
+  editingNodeId: string | null;
   selectedEdgeId: string | null;
   settings: AppSettings;
   /** Runtime-indexed icon library. Never persisted with the project — the
@@ -141,6 +143,7 @@ interface Store {
   copySelection: () => number;
   paste: () => number;
   selectAll: () => void;
+  beginEditing: (id: string | null) => void;
   arrange: (
     ids: string[],
     how: 'left' | 'centre' | 'right' | 'top' | 'middle' | 'bottom' | 'across' | 'down',
@@ -313,6 +316,7 @@ export const useStore = create<Store>((set, get) => ({
   dirty: false,
   lastSavedAt: null,
   selectedNodeId: null,
+  editingNodeId: null,
   selectedEdgeId: null,
   iconLibrary: [],
   iconLibraryDir: null,
@@ -622,6 +626,10 @@ export const useStore = create<Store>((set, get) => ({
       edges: fresh.edges.map((e) => ({ ...e })),
     };
     return fresh.nodes.length;
+  },
+
+  beginEditing(id) {
+    set({ editingNodeId: id });
   },
 
   selectAll() {

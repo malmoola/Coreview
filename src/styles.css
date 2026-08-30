@@ -1000,8 +1000,14 @@ textarea.cv-input { resize: vertical; }
   background: var(--panel-2);
   border: 1.5px solid var(--line-strong);
   /* Out of the way until wanted: four dots around every device is clutter on
-     a diagram of any size. The hit area stays full size. */
+     a diagram of any size.
+     
+     Not just invisible — untouchable. An invisible handle keeps its hit area,
+     and the hit area is bigger than the dot, so the handles of a device you
+     are not pointing at sat over its neighbours and swallowed clicks meant
+     for them. A click on a device did nothing and nothing said why. */
   opacity: 0;
+  pointer-events: none;
   transition: opacity 120ms ease;
 }
 .cv-glyph-node .react-flow__handle::after {
@@ -1010,7 +1016,10 @@ textarea.cv-input { resize: vertical; }
 }
 .cv-glyph-node:hover .react-flow__handle,
 .cv-glyph-node.is-selected .react-flow__handle,
-.react-flow.is-connecting .cv-glyph-node .react-flow__handle { opacity: 1; }
+.react-flow.is-connecting .cv-glyph-node .react-flow__handle {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 .cv-glyph-node .react-flow__handle-top { top: 0; left: 50%; }
 .cv-glyph-node .react-flow__handle-bottom { top: 46px; bottom: auto; left: 50%; }
@@ -1293,3 +1302,19 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   text-underline-offset: 3px;
 }
 .cv-change-show:hover { color: var(--accent); }
+
+/* Space held: the pointer is a hand and a drag moves the whole diagram.
+   The cursor has to say so, or holding space looks like nothing happened. */
+.cv-canvas.is-panning,
+.cv-canvas.is-panning .react-flow__pane { cursor: grab; }
+.cv-canvas.is-panning .react-flow__pane:active { cursor: grabbing; }
+/* Nothing here disables the nodes while space is held: React Flow sets
+   pointer-events on them inline, which no stylesheet can beat. It is done
+   through `nodesDraggable` instead. */
+/* The sheet that takes the drag while space is held. Transparent, but it has
+   to be there: a drag that begins over a device is captured by the device
+   before the canvas sees it. */
+.cv-pan-sheet {
+  position: absolute; inset: 0; z-index: 20; cursor: grab;
+}
+.cv-pan-sheet:active { cursor: grabbing; }

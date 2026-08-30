@@ -41,14 +41,32 @@ function EditableLabel({
   value,
   className,
   onCommit,
+  startEditing = false,
+  onStarted,
 }: {
   value: string;
   className: string;
   onCommit: (next: string) => void;
+  /** Straight into typing, for text that has just been put on the canvas.
+   *  Making someone double-click the thing they just created to type in it is
+   *  a step that exists for no reason. */
+  startEditing?: boolean;
+  onStarted?: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing);
   const [draft, setDraft] = useState(value);
   const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!startEditing) return;
+    setDraft(value);
+    setEditing(true);
+    onStarted?.();
+    // Deliberately not depending on the value: this fires when the node is
+    // created, and re-running it whenever the label changes would drag the
+    // cursor back into a field somebody had left.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startEditing]);
 
   useEffect(() => {
     if (editing) {
@@ -116,6 +134,8 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const runtime = useStore((s) => s.runtime);
   const nodeStyle = useStore((s) => s.doc.canvas.nodeStyle ?? 'glyph');
   const ground = useStore((s) => s.settings.ground);
+  const editingNow = useStore((s) => s.editingNodeId === id);
+  const beginEditing = useStore((s) => s.beginEditing);
   const colourBy = useStore((s) => s.doc.canvas.colourBy ?? 'health');
   const rename = useStore((s) => s.updateNodeData);
 
@@ -201,6 +221,8 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
             className="cv-glyph-label"
             value={d.label}
             onCommit={(label) => rename(id, { label })}
+            startEditing={editingNow}
+            onStarted={() => beginEditing(null)}
           />
           {d.showDetails && (
             <>
@@ -303,6 +325,8 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
             className="cv-node-label"
             value={d.label}
             onCommit={(label) => rename(id, { label })}
+            startEditing={editingNow}
+            onStarted={() => beginEditing(null)}
           />
           {d.showDetails && !isText && (
             <div className="cv-node-detail">

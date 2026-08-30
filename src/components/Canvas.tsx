@@ -9,6 +9,7 @@ import {
   ViewportPortal,
   useReactFlow,
   ConnectionMode,
+  SelectionMode,
   type Connection,
   type NodeChange,
   type OnConnect,
@@ -94,6 +95,13 @@ export function Canvas() {
 
   const [finding, setFinding] = useState(false);
   const [guides, setGuides] = useState<Guide[]>([]);
+  /** Space held: the pointer becomes a hand and drags the diagram. */
+  const [panning, setPanning] = useState(false);
+  const panFrom = useRef<{
+    from: { x: number; y: number; zoom: number };
+    startX: number;
+    startY: number;
+  } | null>(null);
   // A view, not a document change: folding a site must not touch what is
   // saved, so expanding restores exactly what was there.
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
@@ -403,6 +411,67 @@ export function Canvas() {
     ];
   };
 
+  /** Double-click on bare canvas puts text where you clicked and starts
+   *  typing. Every drawing tool does this, and the alternative — find the
+   *  palette, drag a text shape out, double-click it — is three steps to
+   *  write a word.
+   *
+   *  A native listener in the capture phase, because React Flow does not let
+   *  a double-click on the pane reach anything above it: the React handler on
+   *  the wrapper never ran, and nothing said why. */
+  useEffect(() => {
+    const el = wrapper.current;
+    if (!el) return;
+    const write = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      // Only on the canvas itself. Double-clicking a device renames it, and
+      // dropping a text box on the thing being renamed is a surprise.
+      if (!target?.classList.contains('react-flow__pane')) return;
+      const at = rf.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const node = makeDeviceNode('text', at.x - 60, at.y - 14);
+      (node.data as DeviceNodeData).label = 'Text';
+      node.width = 140;
+      node.height = 30;
+      store.addNode(node);
+      store.beginEditing(node.id);
+    };
+    el.addEventListener('dblclick', write, true);
+    return () => el.removeEventListener('dblclick', write, true);
+  }, [rf, store]);
+
+  // Space held is "grab the diagram". Kept separate from the shortcut handler
+  // below because it has to watch both the press and the release, and must
+  // not fire while someone is typing a device name.
+  useEffect(() => {
+    const typing = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      return Boolean(
+        el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable),
+      );
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || typing(e.target)) return;
+      // Space scrolls the page otherwise, which on a canvas means nothing
+      // visible happens and the diagram jumps.
+      e.preventDefault();
+      setPanning(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setPanning(false);
+    };
+    // Releasing space while the window is not focused would otherwise leave
+    // the canvas stuck in panning.
+    const blur = () => setPanning(false);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
+
   // Keyboard shortcuts. Ignored while typing in a field.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -617,8 +686,14 @@ export function Canvas() {
     [doc.canvas.snapEnabled, doc.nodes, rf, store],
   );
 
+
   return (
-    <div className="cv-canvas" ref={wrapper} onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+    <div
+      className={`cv-canvas${panning ? ' is-panning' : ''}`}
+      ref={wrapper}
+      onDrop={onDrop}
+      onDragOver={(e) => e.preventDefault()}
+    >
       <EdgeMarkerDefs />
       <ReactFlow
         nodes={nodes}
@@ -659,13 +734,17 @@ export function Canvas() {
            four pixels out from each other — and it fights the alignment
            guides for the last few pixels of every drag. Lining up with the
            neighbours is what people are actually trying to do. */
-        /* Left-drag pans, which is what every diagram tool does and what
-           people reach for first. It used to draw a selection box, so the
-           only way to move around a diagram larger than the window was the
-           minimap. Shift-drag still draws the box, and Ctrl-click still adds
-           to a selection. */
-        panOnDrag
-        selectionOnDrag={false}
+        /* The way Lucidchart and Visio work, because that is what anyone
+           opening this already knows.
+        
+           Left-drag on empty canvas draws a selection box and the devices it
+           catches move together. Holding space turns the pointer into a hand
+           and drags the whole diagram — as does the middle button, which is
+           the other thing people reach for. Shift-drag still adds to a
+           selection, and Ctrl-click still picks devices one at a time. */
+        panOnDrag={[1]}
+        selectionOnDrag={!panning}
+        selectionMode={SelectionMode.Partial}
         selectionKeyCode="Shift"
         multiSelectionKeyCode="Control"
         panOnScroll={false}
@@ -705,6 +784,40 @@ export function Canvas() {
         )}
       </ReactFlow>
       <ColourLegend />
+      {/* Space held: a sheet over the whole canvas that takes the drag and
+          moves the viewport itself.
+      
+          React Flow's own `panOnDrag` cannot do this, because a drag that
+          begins over a device is captured by the device before the pane sees
+          it — and a device is exactly where the pointer usually is. Turning
+          the nodes off instead does not work either: React Flow sets
+          pointer-events on them inline, where no stylesheet reaches. A sheet
+          on top is the one thing that reliably gets the pointer first. */}
+      {panning && (
+        <div
+          className="cv-pan-sheet"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const from = rf.getViewport();
+            const startX = e.clientX;
+            const startY = e.clientY;
+            panFrom.current = { from, startX, startY };
+          }}
+          onPointerMove={(e) => {
+            const g = panFrom.current;
+            if (!g) return;
+            rf.setViewport({
+              x: g.from.x + (e.clientX - g.startX),
+              y: g.from.y + (e.clientY - g.startY),
+              zoom: g.from.zoom,
+            });
+          }}
+          onPointerUp={(e) => {
+            panFrom.current = null;
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }}
+        />
+      )}
       {finding && <FindBox onClose={() => setFinding(false)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>
