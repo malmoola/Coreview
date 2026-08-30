@@ -44,7 +44,10 @@ impl Secret {
     pub fn new(value: impl Into<String>) -> Self {
         Self(value.into())
     }
-    fn expose(&self) -> &str {
+    /// Crate-visible, not public: the telnet transport needs it to answer a
+    /// login prompt, and nothing outside this crate should be able to read a
+    /// secret back out at all.
+    pub(crate) fn expose(&self) -> &str {
         &self.0
     }
 }

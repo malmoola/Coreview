@@ -189,6 +189,8 @@ export type CrawlInput = {
   addressPreference: 'loopback' | 'management' | 'first' | 'interface';
   interfaceName?: string;
   port: number;
+  /** Telnet is never chosen for you: absent means SSH. */
+  transport?: 'ssh' | 'telnet' | 'sshThenTelnet';
   snmp?: SnmpInput;
   /** A saved credential to use instead of typed ones. Only the id travels. */
   credentialId?: string;

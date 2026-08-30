@@ -120,6 +120,7 @@ export function CrawlPanel({
   // Everything discovered is drawn either way — this only decides what gets a
   // connection attempt, which is what sets off intrusion alerts.
   const [loginClasses, setLoginClasses] = useState<DeviceClassName[]>(INFRASTRUCTURE);
+  const [transport, setTransport] = useState<'ssh' | 'telnet' | 'sshThenTelnet'>('ssh');
   // A second login, tried only where the first is rejected.
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupUsername, setBackupUsername] = useState('');
@@ -271,6 +272,7 @@ export function CrawlPanel({
           secondFactor,
           addressPreference: preference,
           port,
+          transport,
           snmp: snmpForRun(),
           credentialId: credentialId ?? undefined,
         },
@@ -459,6 +461,32 @@ export function CrawlPanel({
 
       <SubnetList label="Stay inside these subnets" subnets={subnets} onChange={setSubnets}
         disabled={running} placeholder="10.1.0.0/16" />
+
+      {/* Telnet is never chosen for anyone. It puts every credential and every
+          byte of output on the wire in clear text, which is not a flaw in the
+          implementation — it is what the protocol is — so the run has to ask
+          for it and the form says what it costs. */}
+      <label className="cv-field cv-field-narrow cv-transport">
+        <span>Reach devices over</span>
+        <select
+          className="cv-input"
+          value={transport}
+          disabled={running}
+          onChange={(e) => setTransport(e.target.value as typeof transport)}
+        >
+          <option value="ssh">SSH only</option>
+          <option value="sshThenTelnet">SSH, then telnet if nothing answers</option>
+          <option value="telnet">Telnet only</option>
+        </select>
+      </label>
+      {transport !== 'ssh' && (
+        <p className="cv-help cv-transport-warning">
+          Telnet sends the username, the password and everything the device replies in clear
+          text, readable by anything on the path. Coreview will not fall back to it after a
+          password is <em>rejected</em> — the account exists and the credentials are wrong, and
+          sending them again unprotected would be worse than failing.
+        </p>
+      )}
 
       {/* Two logins, because one estate rarely has one. Sites migrate between
           TACACS realms and appliances keep a local account of their own. */}

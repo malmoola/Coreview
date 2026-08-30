@@ -15,7 +15,7 @@
 /// Cisco prompts end in `>` in user mode and `#` in enable mode. Detection is
 /// on the last non-empty line, because a configuration can contain lines that
 /// end in `#` — a comment, a banner — and only the last one is the prompt.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Prompt {
     /// The whole prompt, for example `CORE-SW-01#`.
     pub text: String,

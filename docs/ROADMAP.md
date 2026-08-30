@@ -40,9 +40,17 @@ Ordered by what makes the app more useful, not by what is easiest.
       network: the FortiSwitch advertises no address, its chassis id
       e81c.bac4.964b appears in the Cisco's ARP table as 192.168.14.203, and
       it is now reached, identified as a FortiSwitch-224E and linked both ways
-- [ ] **Telnet transport**: `russh` is SSH-only, so this is a new transport,
-      not a flag. Wanted for old gear that has nothing else. Must be opt-in
-      per run and say plainly that credentials cross the network in clear text
+- [x] **Telnet transport**, for equipment that offers nothing else. Opt-in per
+      run — "SSH only", "SSH then telnet if nothing answers", or "Telnet only"
+      — with the cost stated next to the choice rather than in a manual.
+      Never falls back to telnet after a password is *rejected*: the account
+      exists and the credentials are wrong, and sending them again in clear
+      text would be worse than failing.
+
+      **Never tested against a real telnet device** — everything on the test
+      network runs SSH. Covered by unit tests for the option negotiation and
+      by an end-to-end test against a server that answers the way a Cisco
+      does. The same standing as Duo
 - [x] A device that announces a name and no address is found by the port it is
       on: the switch learned exactly one address there, so the far end is what
       holds it. WORKSTATION1 on the test network is found this way and no

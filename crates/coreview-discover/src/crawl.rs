@@ -26,7 +26,7 @@ use crate::hostkeys::HostKeyStore;
 use crate::interfaces::{addresses_from, parse_ip_interface_brief};
 use crate::lldp::parse_lldp_detail;
 use crate::snmp::{classify_identity, identify, SnmpAuth};
-use crate::ssh::{Credentials, Device, SshError, SshOptions, SshProgress};
+use crate::ssh::{Credentials, Device, SshError, SshOptions, SshProgress, Secret};
 use crate::types::{AddressPreference, DeviceAddress, DeviceClass, Neighbor};
 
 #[derive(Clone, Debug)]
@@ -57,6 +57,9 @@ pub struct CrawlOptions {
     /// FortiSwitch take different passwords, so one crawl could reach one or
     /// the other and never both.
     pub fallback_credentials: Vec<Credentials>,
+    /// How to reach a command line. Telnet is never chosen on its own — a run
+    /// has to ask for it.
+    pub transport: Transport,
     /// When set, a device that refuses SSH is still identified over SNMP.
     ///
     /// Worth having because the two are not interchangeable and not equally
@@ -79,6 +82,7 @@ impl Default for CrawlOptions {
             address_preference: AddressPreference::default(),
             ssh: SshOptions::default(),
             fallback_credentials: Vec::new(),
+            transport: Transport::default(),
             snmp: None,
             snmp_timeout: Duration::from_secs(5),
         }
@@ -187,6 +191,80 @@ pub struct CrawlResult {
 struct Visit {
     device: CrawledDevice,
     neighbors: Vec<Neighbor>,
+}
+
+/// How to reach a device's command line.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Transport {
+    /// SSH only. The default, and the only one that protects anything.
+    #[default]
+    Ssh,
+    /// Telnet only, for equipment that offers nothing else.
+    Telnet,
+    /// SSH, then telnet if nothing is listening. Never after a *rejected*
+    /// password: the account exists and the credentials are wrong, and
+    /// sending them again in clear text would be worse than failing.
+    SshThenTelnet,
+}
+
+/// A command-line session, however it was reached.
+///
+/// The parsers, the prompt handling and the command set are the same either
+/// way; only the bytes underneath differ.
+enum Session {
+    Ssh(Box<Device>),
+    Telnet(Box<crate::telnet::TelnetDevice>),
+}
+
+impl Session {
+    async fn run(&mut self, command: &str) -> Result<String, SshError> {
+        match self {
+            Session::Ssh(d) => d.run(command).await,
+            Session::Telnet(d) => d.run(command).await,
+        }
+    }
+
+    async fn enable(&mut self, password: Option<&Secret>) -> Result<bool, SshError> {
+        match self {
+            Session::Ssh(d) => d.enable(password).await,
+            Session::Telnet(d) => d.enable(password).await,
+        }
+    }
+
+    fn hostname(&self) -> &str {
+        match self {
+            Session::Ssh(d) => d.hostname(),
+            Session::Telnet(d) => d.hostname(),
+        }
+    }
+
+    async fn close(self) {
+        match self {
+            Session::Ssh(d) => d.close().await,
+            Session::Telnet(d) => d.close().await,
+        }
+    }
+}
+
+/// Opens a telnet session with the crawl's timeouts.
+async fn telnet_session(
+    address: &str,
+    credentials: &Credentials,
+    options: &CrawlOptions,
+) -> Result<Session, SshError> {
+    // Telnet has no port of its own in the options: 23 is the only one it is
+    // ever on, and a device with telnet somewhere else is not the common case
+    // this exists for.
+    crate::telnet::TelnetDevice::connect(
+        address,
+        23,
+        credentials,
+        options.ssh.connect_timeout,
+        options.ssh.command_timeout,
+    )
+    .await
+    .map(|d| Session::Telnet(Box::new(d)))
 }
 
 /// Crawls from a seed address.
@@ -451,14 +529,34 @@ async fn visit(
         let mut connected = None;
         let mut rejected = None;
         for cred in std::iter::once(credentials).chain(options.fallback_credentials.iter()) {
-            match Device::connect(
-                address,
-                cred,
-                options.ssh.clone(),
-                Arc::clone(&store),
-                Some(tx.clone()),
-            )
-            .await
+            let attempt = match options.transport {
+                Transport::Telnet => telnet_session(address, cred, options).await,
+                Transport::Ssh | Transport::SshThenTelnet => {
+                    let ssh = Device::connect(
+                        address,
+                        cred,
+                        options.ssh.clone(),
+                        Arc::clone(&store),
+                        Some(tx.clone()),
+                    )
+                    .await
+                    .map(|d| Session::Ssh(Box::new(d)));
+                    match ssh {
+                        // Nothing listening on 22, and the run said telnet is
+                        // acceptable. Not after a rejected password: the
+                        // account exists and the credentials are wrong, and
+                        // sending them again in clear text would be worse
+                        // than failing.
+                        Err(SshError::Connect { .. } | SshError::ConnectTimeout { .. })
+                            if options.transport == Transport::SshThenTelnet =>
+                        {
+                            telnet_session(address, cred, options).await
+                        }
+                        other => other,
+                    }
+                }
+            };
+            match attempt
             {
                 Ok(d) => {
                     connected = Some((d, cred));

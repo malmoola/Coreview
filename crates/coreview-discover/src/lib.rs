@@ -35,6 +35,7 @@ pub mod snmp;
 pub mod ssh;
 pub mod lldp;
 pub mod mac_table;
+pub mod telnet;
 pub mod types;
 pub mod vault;
 

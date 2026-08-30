@@ -76,6 +76,8 @@ pub struct CrawlInput {
     /// Named interface, when `address_preference` is "interface".
     pub interface_name: Option<String>,
     pub port: u16,
+    /// "ssh", "telnet", or "sshThenTelnet". Absent means SSH.
+    pub transport: Option<String>,
     /// Optional SNMP credentials, used only for devices that refuse SSH.
     pub snmp: Option<SnmpInput>,
     /// A saved credential to use instead of typed ones. The interface sends an
@@ -237,6 +239,14 @@ pub async fn start_crawl(
         ssh: SshOptions {
             port: input.port,
             ..SshOptions::default()
+        },
+        transport: match input.transport.as_deref() {
+            Some("telnet") => coreview_discover::crawl::Transport::Telnet,
+            Some("sshThenTelnet") => coreview_discover::crawl::Transport::SshThenTelnet,
+            // Anything unrecognised is SSH. Falling back to telnet because a
+            // string was misspelled would put credentials on the wire in
+            // clear text without anyone asking for it.
+            _ => coreview_discover::crawl::Transport::Ssh,
         },
         fallback_credentials: fallback_credentials
             .unwrap_or_default()

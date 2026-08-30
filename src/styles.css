@@ -833,3 +833,8 @@ textarea.cv-input { resize: vertical; }
 /* How long ago a result was actually confirmed. Dim, because it is context
    for the status rather than the status itself. */
 .cv-stale { color: var(--text-dim); white-space: nowrap; }
+
+/* Choosing telnet is a decision with a cost, so the warning is attached to
+   the choice rather than left to a manual nobody reads. */
+.cv-transport { margin-top: 8px; max-width: 320px; }
+.cv-transport-warning { color: var(--warning); max-width: 70ch; }
