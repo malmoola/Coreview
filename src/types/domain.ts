@@ -114,9 +114,11 @@ export interface NoteNodeData extends Record<string, unknown> {
   /** Change-note styling for pre-check / rollback / risk annotations. */
   variant: 'plain' | 'change';
   fontSize: number;
-  textColor: string;
-  background: string;
-  borderColor: string;
+  /** Left unset means "follow the ground". A colour here is a decision and is
+   *  kept whichever ground the diagram is being drawn on. */
+  textColor?: string;
+  background?: string;
+  borderColor?: string;
   locked: boolean;
   /** See DeviceNodeData.groupId. */
   groupId?: string;

@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 
 import { ICONS } from '../icons';
-import { canvasPalette, statusColors } from '../../theme';
+import { canvasPalette, deviceColor, statusColors } from '../../theme';
 import { useStore } from '../../state/store';
 import type { DeviceNodeData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
@@ -116,7 +116,16 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const rename = useStore((s) => s.updateNodeData);
 
   const Icon = ICONS[d.deviceType] ?? ICONS.generic;
-  const color = statusColors(ground)[status];
+  // Health when something is watching, otherwise what the device is. A
+  // diagram nobody has pointed at anything yet is a drawing, and an all-grey
+  // drawing is a worse drawing.
+  const color = deviceColor(d.deviceType, status, ground);
+  // The status line reports health and must not borrow the device's own
+  // colour, or a blue switch reads as though blue meant something. When
+  // nothing is watching it says so quietly rather than in the device's paint.
+  const statusInk =
+    status === 'unknown' ? 'var(--text-faint)' : statusColors(ground)[status];
+  const amber = statusColors(ground).warning;
   const primary = probes.find((p) => p.isPrimary && p.enabled) ?? probes.find((p) => p.enabled);
   const live = primary ? runtime.get(primary.id) : undefined;
   const address =
@@ -186,7 +195,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
           {d.showDetails && (
             <>
               {primaryAddress && <div className="cv-glyph-addr">{primaryAddress}</div>}
-              <div className="cv-glyph-status" style={{ color: failing ? '#e8a33d' : color }}>
+              <div className="cv-glyph-status" style={{ color: failing ? amber : statusInk }}>
                 {STATUS_LABEL[status]}
                 {missedLabel
                   ? ` · ${missedLabel}`
@@ -288,7 +297,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
           {d.showDetails && !isText && (
             <div className="cv-node-detail">
               {primaryAddress && <div className="cv-mono">{primaryAddress}</div>}
-              <div className="cv-node-status-line" style={{ color: failing ? '#e8a33d' : color }}>
+              <div className="cv-node-status-line" style={{ color: failing ? amber : statusInk }}>
                 {STATUS_LABEL[status]}
                 {missedLabel
                   ? ` · ${missedLabel}`

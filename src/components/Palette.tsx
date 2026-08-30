@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { deviceColor } from '../theme';
 import { useStore } from '../state/store';
 import { isDesktop } from '../lib/ipc';
 import { DEVICE_LABEL, ICONS, PALETTE_GROUPS } from './icons';
 import type { DeviceType } from '../types/domain';
 
 export function Palette() {
+  const ground = useStore((s) => s.settings.ground);
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
 
@@ -63,7 +65,13 @@ export function Palette() {
                     onDragStart={(e) => drag(e, type)}
                     title={`Drag ${DEVICE_LABEL[type]} on to the canvas`}
                   >
-                    <Icon className="cv-palette-icon" />
+                    <Icon
+                      className="cv-palette-icon"
+                      /* The same colour it will be on the canvas, so the
+                         palette is a preview rather than a list of grey
+                         outlines that turn out different when dropped. */
+                      style={{ color: deviceColor(type, 'unknown', ground) }}
+                    />
                     {DEVICE_LABEL[type]}
                   </button>
                 );

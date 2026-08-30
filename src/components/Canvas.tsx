@@ -66,9 +66,9 @@ export function makeNote(x: number, y: number, variant: NoteNodeData['variant'] 
         : 'Note',
     variant,
     fontSize: 13,
-    textColor: variant === 'change' ? '#f2e6c8' : '#d8e2ec',
-    background: variant === 'change' ? '#2a2313' : '#141c26',
-    borderColor: variant === 'change' ? '#8a6d1f' : '#25313f',
+    // Left unset on purpose: a note nobody has coloured follows the ground,
+    // so a diagram drawn on black and printed on white does not carry dark
+    // blocks through the middle of the page.
     locked: false,
   };
   return { id: uid(), type: 'note', position: { x, y }, width: 260, height: 160, data };

@@ -16,23 +16,26 @@ import type { HealthStatus } from './types/domain';
 export type Ground = 'dark' | 'light';
 
 export const STATUS_COLOR_DARK: Record<HealthStatus, string> = {
-  unknown: '#5b6b7c',
+  // Lifted from #5b6b7c and #3d4a58, which read as smudges rather than as
+  // colours once a diagram had more than a few of them on it.
+  unknown: '#7c8fa3',
   healthy: '#2fbf6b',
   warning: '#e8a33d',
   down: '#e4564a',
-  disabled: '#3d4a58',
+  disabled: '#55677a',
   maintenance: '#8b7ff0',
 };
 
 export const STATUS_COLOR_LIGHT: Record<HealthStatus, string> = {
-  // Darker and more saturated. On white, the dark palette's green reads as a
-  // pale mint and its amber all but disappears.
-  unknown: '#5a6b7d',
-  healthy: '#128a45',
-  warning: '#a5620a',
-  down: '#c02a1d',
-  disabled: '#94a3b1',
-  maintenance: '#5b46c9',
+  // Full strength, not the dark palette dimmed. Each has to read as itself on
+  // white at a 1.5px stroke, which is how thin a link actually is — the first
+  // attempt used lighter versions of these and every diagram looked faded.
+  unknown: '#44576e',
+  healthy: '#0a8a3f',
+  warning: '#b45c00',
+  down: '#c81e1e',
+  disabled: '#7d8ea1',
+  maintenance: '#5323b8',
 };
 
 export function statusColors(ground: Ground): Record<HealthStatus, string> {
@@ -65,13 +68,13 @@ export const CANVAS_DARK: CanvasPalette = {
 };
 
 export const CANVAS_LIGHT: CanvasPalette = {
-  grid: '#d3dae2',
-  minimapNode: '#93a7bd',
-  minimapNote: '#b3bfcd',
-  minimapMask: 'rgba(226,232,239,0.78)',
-  selection: '#1668c4',
-  labelBackground: 'rgba(255, 255, 255, 0.94)',
-  neutralNode: '#4a5a6b',
+  grid: '#c8d3de',
+  minimapNode: '#7d93ab',
+  minimapNote: '#a3b2c2',
+  minimapMask: 'rgba(233,239,245,0.8)',
+  selection: '#0b5fce',
+  labelBackground: 'rgba(255, 255, 255, 0.96)',
+  neutralNode: '#3d4e63',
 };
 
 export function canvasPalette(ground: Ground): CanvasPalette {
@@ -112,4 +115,109 @@ function parseHex(hex: string): [number, number, number] | null {
  *  the eye closely enough for that. */
 function luminance([r, g, b]: [number, number, number]): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/**
+ * The colour a device is drawn in when nothing is watching it.
+ *
+ * Health colour is the right answer for a monitored diagram and the wrong one
+ * for a drawing: with no probes every device is "unknown", so a diagram that
+ * has not been pointed at anything yet comes out entirely grey. That is the
+ * honest reading of the data and a poor picture, and people draw the picture
+ * first.
+ *
+ * So an unmonitored device is drawn by what it is — the way every network
+ * diagram has been drawn since before any of them were live — and the moment
+ * a probe is attached, health takes the colour back. Nothing is invented: a
+ * device with a real status still shows it.
+ */
+export const DEVICE_TINT_DARK: Record<string, string> = {
+  firewall: '#ff7a45',
+  router: '#4ea8f0',
+  'core-switch': '#38bdf8',
+  'distribution-switch': '#22b8cf',
+  'access-switch': '#2dd4bf',
+  'wireless-controller': '#a78bfa',
+  'access-point': '#67e8f9',
+  server: '#c084fc',
+  vm: '#d8b4fe',
+  storage: '#fbbf24',
+  database: '#818cf8',
+  application: '#f472b6',
+  endpoint: '#94a3b8',
+  printer: '#a3e635',
+  camera: '#fb7185',
+  internet: '#60a5fa',
+  'private-cloud': '#7dd3fc',
+  site: '#facc15',
+  vpn: '#f0abfc',
+  zone: '#60a5fa',
+  generic: '#94a3b8',
+};
+
+export const DEVICE_TINT_LIGHT: Record<string, string> = {
+  firewall: '#d1440a',
+  router: '#0b5fce',
+  'core-switch': '#0369a1',
+  'distribution-switch': '#0e7490',
+  'access-switch': '#0f766e',
+  'wireless-controller': '#6d28d9',
+  'access-point': '#0891b2',
+  server: '#7e22ce',
+  vm: '#9333ea',
+  storage: '#a16207',
+  database: '#4338ca',
+  application: '#be1a68',
+  endpoint: '#475569',
+  printer: '#4d7c0f',
+  camera: '#be123c',
+  internet: '#1d4ed8',
+  'private-cloud': '#0284c7',
+  site: '#a16207',
+  vpn: '#a21caf',
+  zone: '#0b5fce',
+  generic: '#475569',
+};
+
+/**
+ * What colour to draw a device in.
+ *
+ * A real status always wins — that is the whole point of the app. 'unknown'
+ * is the only status that gives way, because it means nobody is watching
+ * rather than that something is wrong.
+ */
+export function deviceColor(
+  deviceType: string,
+  status: HealthStatus,
+  ground: Ground,
+): string {
+  if (status !== 'unknown') return statusColors(ground)[status];
+  const tints = ground === 'light' ? DEVICE_TINT_LIGHT : DEVICE_TINT_DARK;
+  return tints[deviceType] ?? statusColors(ground).unknown;
+}
+
+/** What a note looks like when nobody has chosen colours for it.
+ *
+ *  Stored colours are a decision and are left alone. An uncoloured note has
+ *  made no decision, so it follows the ground — otherwise a diagram drawn on
+ *  black and then switched to white for a document carries dark blocks
+ *  through the middle of the page. */
+export interface NotePalette {
+  text: string;
+  background: string;
+  border: string;
+}
+
+export const NOTE_DARK: Record<'plain' | 'change', NotePalette> = {
+  plain: { text: '#d8e2ec', background: '#141c26', border: '#25313f' },
+  change: { text: '#f2e6c8', background: '#2a2313', border: '#8a6d1f' },
+};
+
+export const NOTE_LIGHT: Record<'plain' | 'change', NotePalette> = {
+  plain: { text: '#16212e', background: '#ffffff', border: '#c3ceda' },
+  change: { text: '#4a3506', background: '#fff8e3', border: '#d3a83c' },
+};
+
+export function notePalette(variant: 'plain' | 'change', ground: Ground): NotePalette {
+  return (ground === 'light' ? NOTE_LIGHT : NOTE_DARK)[variant] ?? NOTE_LIGHT.plain;
 }

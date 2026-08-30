@@ -16,6 +16,7 @@
  * browser.
  */
 import { getBezierPath, getSmoothStepPath, getStraightPath, Position } from '@xyflow/react';
+import { notePalette } from '../theme';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { ICONS } from '../components/icons';
@@ -131,14 +132,15 @@ function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'car
     const lines = [d.title ? `**${d.title}**` : null, ...d.body.split('\n')]
       .filter((l): l is string => l !== null)
       .slice(0, Math.max(1, Math.floor((h - 18) / (fs * 1.5))));
+    const ink = notePalette(d.variant === 'change' ? 'change' : 'plain', 'light');
     const body = lines
       .map((line, i) => {
         const bold = line.startsWith('**') || line.startsWith('#');
         const text = line.replace(/^#{1,2}\s*/, '').replace(/\*\*/g, '').replace(/^- \[[ xX]\] /, '☐ ').replace(/^- /, '• ');
-        return `<text x="${x + 11}" y="${y + 18 + i * fs * 1.5}" fill="${esc(d.textColor)}" font-size="${fs}"${bold ? ' font-weight="700"' : ''}>${esc(fit(text, w - 22, fs))}</text>`;
+        return `<text x="${x + 11}" y="${y + 18 + i * fs * 1.5}" fill="${esc(d.textColor ?? ink.text)}" font-size="${fs}"${bold ? ' font-weight="700"' : ''}>${esc(fit(text, w - 22, fs))}</text>`;
       })
       .join('');
-    return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${esc(d.background)}" stroke="${esc(d.borderColor)}" stroke-width="1.5"/>${body}</g>`;
+    return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${esc(d.background ?? ink.background)}" stroke="${esc(d.borderColor ?? ink.border)}" stroke-width="1.5"/>${body}</g>`;
   }
 
   const d = n.data as DeviceNodeData;

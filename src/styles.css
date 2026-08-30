@@ -7,14 +7,14 @@
   --line-strong: #2b3a4b;
   --text: #dce6f0;
   --text-dim: #8fa2b5;
-  --text-faint: #64798d;
+  --text-faint: #7d90a4;
   --accent: #4ea8f0;
 
   --healthy: #2fbf6b;
   --warning: #e8a33d;
   --down: #e4564a;
-  --unknown: #5b6b7c;
-  --disabled: #3d4a58;
+  --unknown: #7c8fa3;
+  --disabled: #55677a;
   --maintenance: #8b7ff0;
 
   --hover: #1c2836;
@@ -46,40 +46,47 @@
  * harsh at this size. */
 .is-light {
   --label-bg: rgba(255, 255, 255, 0.94);
-  --bg: #ffffff;
-  --bg-raised: #f4f6f9;
-  --panel: #f7f9fb;
-  --panel-2: #eaeef3;
-  --line: #d7dee6;
-  --line-strong: #b6c1cd;
-  --text: #16202b;
-  --text-dim: #4a5a6b;
-  --text-faint: #6b7c8d;
-  --accent: #1668c4;
+  /* The ground is a hair off white and the surfaces are pure white. That way
+     a device reads as a card sitting on a page rather than as an outline
+     floating on the same colour as itself — the thing that made the first
+     attempt at this look washed out. */
+  --bg: #f4f7fa;
+  --bg-raised: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #e9eff5;
+  --line: #ccd6e0;
+  --line-strong: #93a5b8;
+  --text: #0d1722;
+  --text-dim: #3d4e63;
+  --text-faint: #5b6b7e;
+  --accent: #0b5fce;
 
-  --healthy: #128a45;
-  --warning: #a5620a;
-  --down: #c02a1d;
-  --unknown: #5a6b7d;
-  --disabled: #94a3b1;
-  --maintenance: #5b46c9;
+  /* Full-strength colours, not the dark palette dimmed. Each is dark enough
+     to read as itself on white at a 1.5px stroke, which is how thin a link
+     actually is. */
+  --healthy: #0a8a3f;
+  --warning: #b45c00;
+  --down: #c81e1e;
+  --unknown: #44576e;
+  --disabled: #7d8ea1;
+  --maintenance: #5323b8;
 
-  --hover: #e2e8ef;
-  --danger-line: #e2b3ae;
+  --hover: #dde5ee;
+  --danger-line: #d99b95;
   --danger-hover: #fbeceb;
   /* Text sitting on a status-coloured disc. The discs stay saturated on both
-     grounds, so what reads on them is near-white here, not near-black. */
+     grounds, so what reads on them is white here, not near-black. */
   --on-status: #ffffff;
-  --shadow: rgba(24, 40, 60, 0.16);
-  --shadow-deep: rgba(24, 40, 60, 0.24);
-  --scrim: rgba(240, 244, 248, 0.78);
-  --code-bg: rgba(20, 32, 45, 0.07);
-  --notice-bg: #fdf4dc;
-  --notice-line: #d9b45a;
-  --notice-text: #5a4510;
-  --zone-fill: rgba(22, 104, 196, 0.05);
-  --zone-line: rgba(22, 104, 196, 0.36);
-  --zone-title: rgba(22, 104, 196, 0.12);
+  --shadow: rgba(15, 32, 51, 0.14);
+  --shadow-deep: rgba(15, 32, 51, 0.22);
+  --scrim: rgba(238, 243, 248, 0.8);
+  --code-bg: rgba(13, 23, 34, 0.07);
+  --notice-bg: #fdf3d6;
+  --notice-line: #c9a03d;
+  --notice-text: #4d3b06;
+  --zone-fill: rgba(11, 95, 206, 0.045);
+  --zone-line: rgba(11, 95, 206, 0.4);
+  --zone-title: rgba(11, 95, 206, 0.13);
 }
 
 .is-contrast {

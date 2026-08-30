@@ -5,7 +5,7 @@
  */
 import type { DeviceType } from '../types/domain';
 
-type P = { className?: string };
+type P = { className?: string; style?: React.CSSProperties };
 const S = (children: React.ReactNode) => (props: P) => (
   <svg
     viewBox="0 0 24 24"
@@ -15,6 +15,7 @@ const S = (children: React.ReactNode) => (props: P) => (
     strokeLinecap="round"
     strokeLinejoin="round"
     className={props.className}
+    style={props.style}
     aria-hidden
   >
     {children}
