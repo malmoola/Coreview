@@ -103,8 +103,11 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const color = STATUS_COLOR[status];
   const primary = probes.find((p) => p.isPrimary && p.enabled) ?? probes.find((p) => p.enabled);
   const live = primary ? runtime.get(primary.id) : undefined;
-  const primaryAddress =
+  const address =
     d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';
+  // A device with no name of its own is labelled with its address, and showing
+  // that address again underneath is the same string twice.
+  const primaryAddress = address === d.label ? '' : address;
 
   // A device that has stopped answering but has not yet failed enough times
   // to be called down. It is still drawn as healthy, because that is what the

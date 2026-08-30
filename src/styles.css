@@ -849,3 +849,50 @@ textarea.cv-input { resize: vertical; }
 .cv-attached { margin: 10px 0 4px; border-left: 2px solid var(--line); padding-left: 10px; }
 .cv-attached > summary { cursor: pointer; color: var(--text-dim); font-size: 12px; }
 .cv-attached > summary:hover { color: var(--text); }
+
+/* Connection points belong on the shape, not on the node's box.
+   
+   A glyph node is a 46px symbol inside a 176x96 hit area, and React Flow puts
+   handles on the box — so they floated well clear of the thing they connect
+   to, and links terminated in empty space beside the device. These sit on the
+   glyph's own edges instead.
+   
+   The offsets are half the glyph (23px) from its centre, which is the top of
+   the node because the layout stacks the symbol above the text. */
+.cv-glyph-node .react-flow__handle {
+  width: 7px; height: 7px;
+  background: var(--panel-2);
+  border: 1.5px solid var(--line-strong);
+  /* Out of the way until wanted: four dots around every device is clutter on
+     a diagram of any size. The hit area stays full size. */
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.cv-glyph-node .react-flow__handle::after {
+  /* A bigger target than the dot, so grabbing one does not need precision. */
+  content: ''; position: absolute; inset: -7px;
+}
+.cv-glyph-node:hover .react-flow__handle,
+.cv-glyph-node.is-selected .react-flow__handle,
+.react-flow.is-connecting .cv-glyph-node .react-flow__handle { opacity: 1; }
+
+.cv-glyph-node .react-flow__handle-top { top: 0; left: 50%; }
+.cv-glyph-node .react-flow__handle-bottom { top: 46px; bottom: auto; left: 50%; }
+.cv-glyph-node .react-flow__handle-left { top: 23px; left: calc(50% - 23px); }
+.cv-glyph-node .react-flow__handle-right { top: 23px; left: calc(50% + 23px); right: auto; }
+
+/* A halo behind node text, so a link crossing it stays readable.
+   
+   Without a box to sit in, a label and a line that pass through each other
+   are both hard to read. A shadow the colour of the canvas separates them
+   without drawing anything anyone has to look at — and without putting the
+   boxes back. */
+.cv-glyph-label,
+.cv-glyph-addr,
+.cv-glyph-status,
+.cv-node-maint {
+  text-shadow:
+    0 0 3px var(--bg), 0 0 3px var(--bg),
+    1px 0 2px var(--bg), -1px 0 2px var(--bg),
+    0 1px 2px var(--bg), 0 -1px 2px var(--bg);
+}
