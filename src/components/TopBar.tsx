@@ -87,6 +87,9 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       linkStatus: (id) => store.linkStatus(id),
       includeTitleBlock: true,
       nodeStyle: store.doc.canvas.nodeStyle ?? 'glyph',
+      // What you are looking at is what comes out. Exporting dark from a
+      // white screen put a black rectangle in the middle of a white page.
+      ground: settings.ground,
     });
 
   const exportSvg = () => {

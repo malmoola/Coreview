@@ -16,11 +16,17 @@
  * browser.
  */
 import { getBezierPath, getSmoothStepPath, getStraightPath, Position } from '@xyflow/react';
-import { notePalette } from '../theme';
+import {
+  deviceColor,
+  notePalette,
+  readableOn,
+  statusColors,
+  type Ground,
+} from '../theme';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { ICONS } from '../components/icons';
-import { STATUS_COLOR } from '../components/edges/LiveEdge';
+import { capPath, capsFor, dashFor } from './linkStyle';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type {
   DeviceNodeData,
@@ -36,7 +42,55 @@ const NODE_W = 176;
 const NODE_H = 96;
 const PAD = 48;
 const HEADER_H = 86;
-const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text']);
+const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'zone']);
+
+/**
+ * What the exported sheet is painted on.
+ *
+ * The export used to be dark whatever the operator was working on, so a
+ * diagram drawn for a document came out as a black rectangle in the middle of
+ * a white page. It now follows the ground on screen, which also means the
+ * colours are the ones that were chosen against that ground.
+ */
+interface Sheet {
+  ground: Ground;
+  paper: string;
+  ink: string;
+  inkDim: string;
+  surface: string;
+  line: string;
+  header: string;
+  onStatus: string;
+}
+
+/** An edge id as something an `id` attribute and a `url(#…)` can both carry. */
+function cssId(id: string): string {
+  return id.replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+function sheetFor(ground: Ground): Sheet {
+  return ground === 'light'
+    ? {
+        ground,
+        paper: '#ffffff',
+        ink: '#0d1722',
+        inkDim: '#41536a',
+        surface: '#f4f7fa',
+        line: '#ccd6e0',
+        header: '#eef3f8',
+        onStatus: '#ffffff',
+      }
+    : {
+        ground,
+        paper: '#0a0e13',
+        ink: '#e6eef7',
+        inkDim: '#8ea2b5',
+        surface: '#111823',
+        line: '#2a3644',
+        header: '#0e141b',
+        onStatus: '#07110c',
+      };
+}
 
 export interface DiagramInput {
   meta: ProjectMeta;
@@ -49,6 +103,10 @@ export interface DiagramInput {
   includeTitleBlock: boolean;
   /** Mirrors the canvas setting, so the file matches the screen. */
   nodeStyle?: 'glyph' | 'card';
+  /** Which ground the diagram is drawn on. The export follows it, so a
+   *  diagram prepared for a document does not come out as a black rectangle
+   *  in the middle of a white page. */
+  ground?: Ground;
   /** Injected so the output is deterministic in tests. */
   now?: Date;
 }
@@ -122,7 +180,12 @@ function iconMarkup(type: DeviceNodeData['deviceType'], color: string, x: number
     .replaceAll('currentColor', color);
 }
 
-function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'card'): string {
+function nodeMarkup(
+  n: TopoNode,
+  status: HealthStatus,
+  nodeStyle: 'glyph' | 'card',
+  sheet: Sheet,
+): string {
   const { w, h } = sizeOf(n);
   const { x, y } = n.position;
 
@@ -144,9 +207,14 @@ function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'car
   }
 
   const d = n.data as DeviceNodeData;
-  const color = STATUS_COLOR[status];
+  // The same rule the canvas uses: what a device is, until something is
+  // watching it.
+  const color = deviceColor(d.deviceType, status, sheet.ground);
+  // Health, not the device's own paint — a blue switch must not read as
+  // though blue said something about its state.
+  const statusInk = status === 'unknown' ? sheet.inkDim : statusColors(sheet.ground)[status];
   const border = d.style?.border ?? color;
-  const bg = d.style?.background ?? '#111823';
+  const bg = d.style?.background ?? sheet.surface;
   const isShape = SHAPE_TYPES.has(d.deviceType);
   const isText = d.deviceType === 'text';
   const primary =
@@ -162,26 +230,26 @@ function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'car
       d.imageDataUrl
         ? `<image x="${cx - size / 2}" y="${iconY}" width="${size}" height="${size}" href="${esc(d.imageDataUrl)}" preserveAspectRatio="xMidYMid meet"/>`
         : iconMarkup(d.deviceType, d.style?.iconColor ?? color, cx - size / 2, iconY, size),
-      `<g><circle cx="${cx + size / 2 - 2}" cy="${iconY + 4}" r="7.5" fill="${color}" stroke="#0a0e13" stroke-width="2"/>` +
-        `<text x="${cx + size / 2 - 2}" y="${iconY + 7.5}" text-anchor="middle" fill="#07110c" font-size="9" font-weight="700">${esc(STATUS_GLYPH[status])}</text></g>`,
+      `<g><circle cx="${cx + size / 2 - 2}" cy="${iconY + 4}" r="7.5" fill="${color}" stroke="${sheet.paper}" stroke-width="2"/>` +
+        `<text x="${cx + size / 2 - 2}" y="${iconY + 7.5}" text-anchor="middle" fill="${sheet.onStatus}" font-size="9" font-weight="700">${esc(STATUS_GLYPH[status])}</text></g>`,
     ];
 
     let ty = iconY + size + 14;
     // Text may be wider than the node box, exactly as on screen.
     const textW = Math.max(w, 170);
     parts.push(
-      `<text x="${cx}" y="${ty}" text-anchor="middle" fill="#e6eef7" font-size="12" font-weight="600">${esc(fit(d.label, textW, 12))}</text>`,
+      `<text x="${cx}" y="${ty}" text-anchor="middle" fill="${sheet.ink}" font-size="12" font-weight="600">${esc(fit(d.label, textW, 12))}</text>`,
     );
     if (d.showDetails) {
       if (primary) {
         ty += 13;
         parts.push(
-          `<text x="${cx}" y="${ty}" text-anchor="middle" fill="#8ea2b5" font-size="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">${esc(fit(primary, textW, 10))}</text>`,
+          `<text x="${cx}" y="${ty}" text-anchor="middle" fill="${sheet.inkDim}" font-size="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">${esc(fit(primary, textW, 10))}</text>`,
         );
       }
       ty += 13;
       parts.push(
-        `<text x="${cx}" y="${ty}" text-anchor="middle" fill="${color}" font-size="10" font-weight="600">${esc(STATUS_LABEL[status])}</text>`,
+        `<text x="${cx}" y="${ty}" text-anchor="middle" fill="${statusInk}" font-size="10" font-weight="600">${esc(STATUS_LABEL[status])}</text>`,
       );
       if (d.maintenance) {
         ty += 13;
@@ -193,12 +261,42 @@ function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'car
     return `<g>${parts.join('')}</g>`;
   }
 
+  // A section is an area, not a device: it carries its name in the corner,
+  // has no health of its own, and everything else stands inside it.
+  if (d.deviceType === 'zone') {
+    const tint = sheet.ground === 'light' ? '#0b5fce' : '#4ea8f0';
+    const label = d.label ? esc(fit(d.label, w - 30, 12)) : '';
+    return (
+      // fill-opacity rather than an eight-digit hex: SVG 1.1 has no alpha in a
+      // colour literal, and a renderer that does not understand one falls back
+      // to black — which drew the section as a solid slab over its contents.
+      `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="${tint}" fill-opacity="0.05" ` +
+      `stroke="${tint}" stroke-width="1.5" stroke-dasharray="6 4"/>` +
+      (label
+        ? `<rect x="${x}" y="${y}" width="${Math.min(w, label.length * 7 + 20)}" height="21" rx="4" fill="${tint}" fill-opacity="0.14"/>` +
+          `<text x="${x + 10}" y="${y + 15}" fill="${sheet.ink}" font-size="12" font-weight="600">${label}</text>`
+        : '') +
+      `</g>`
+    );
+  }
+
   let box: string;
   if (d.deviceType === 'circle') {
     box = `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${esc(bg)}" stroke="${esc(border)}" stroke-width="1.5"/>`;
   } else if (d.deviceType === 'diamond') {
     const pts = `${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`;
     box = `<polygon points="${pts}" fill="${esc(bg)}" stroke="${esc(border)}" stroke-width="1.5"/>`;
+  } else if (d.deviceType === 'cloud') {
+    // Drawn in a 200x100 box and stretched, exactly as the node does it — a
+    // border and a radius cannot make a cloud.
+    const sx = w / 200;
+    const sy = h / 100;
+    box =
+      `<g transform="translate(${x},${y}) scale(${sx},${sy})">` +
+      `<path d="M46,88 C22,88 8,74 10,58 C12,44 26,36 38,39 C43,17 63,6 84,11 ` +
+      `C99,15 109,26 112,39 C126,29 148,32 157,47 C176,46 192,58 189,73 ` +
+      `C187,84 174,88 160,88 Z" fill="${esc(bg)}" stroke="${esc(border)}" ` +
+      `stroke-width="1.5" vector-effect="non-scaling-stroke"/></g>`;
   } else if (isText) {
     box = '';
   } else {
@@ -231,18 +329,18 @@ function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'car
     );
   }
   parts.push(
-    `<text x="${textX}" y="${ty}"${anchorAttr} fill="#e6eef7" font-size="12" font-weight="600">${esc(fit(d.label, textW, 12))}</text>`,
+    `<text x="${textX}" y="${ty}"${anchorAttr} fill="${sheet.ink}" font-size="12" font-weight="600">${esc(fit(d.label, textW, 12))}</text>`,
   );
   if (detail) {
     if (primaryAddress) {
       ty += 14;
       parts.push(
-        `<text x="${textX}" y="${ty}"${anchorAttr} fill="#8ea2b5" font-size="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">${esc(fit(primaryAddress, textW, 10))}</text>`,
+        `<text x="${textX}" y="${ty}"${anchorAttr} fill="${sheet.inkDim}" font-size="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">${esc(fit(primaryAddress, textW, 10))}</text>`,
       );
     }
     ty += 14;
     parts.push(
-      `<text x="${textX}" y="${ty}"${anchorAttr} fill="${color}" font-size="10" font-weight="600">${esc(STATUS_LABEL[status])}</text>`,
+      `<text x="${textX}" y="${ty}"${anchorAttr} fill="${statusInk}" font-size="10" font-weight="600">${esc(STATUS_LABEL[status])}</text>`,
     );
     if (d.maintenance) {
       ty += 14;
@@ -255,15 +353,20 @@ function nodeMarkup(n: TopoNode, status: HealthStatus, nodeStyle: 'glyph' | 'car
   if (!isText) {
     // Status is never carried by colour alone; the badge repeats it as a glyph.
     parts.push(
-      `<g><circle cx="${x + w}" cy="${y}" r="8.5" fill="${color}" stroke="#0a0e13" stroke-width="2"/>` +
-        `<text x="${x + w}" y="${y + 3.5}" text-anchor="middle" fill="#07110c" font-size="10" font-weight="700">${esc(STATUS_GLYPH[status])}</text></g>`,
+      `<g><circle cx="${x + w}" cy="${y}" r="8.5" fill="${color}" stroke="${sheet.paper}" stroke-width="2"/>` +
+        `<text x="${x + w}" y="${y + 3.5}" text-anchor="middle" fill="${sheet.onStatus}" font-size="10" font-weight="700">${esc(STATUS_GLYPH[status])}</text></g>`,
     );
   }
 
   return `<g>${parts.join('')}</g>`;
 }
 
-function edgeMarkup(e: TopoEdge, nodes: Map<string, TopoNode>, status: HealthStatus): string {
+function edgeMarkup(
+  e: TopoEdge,
+  nodes: Map<string, TopoNode>,
+  status: HealthStatus,
+  sheet: Sheet,
+): string {
   const s = nodes.get(e.source);
   const t = nodes.get(e.target);
   if (!s || !t) return '';
@@ -278,19 +381,36 @@ function edgeMarkup(e: TopoEdge, nodes: Map<string, TopoNode>, status: HealthSta
     sourcePosition: a.side, targetPosition: b.side,
   });
 
-  const color = STATUS_COLOR[status];
+  const color = statusColors(sheet.ground)[status];
+  // A link given a colour of its own keeps it, darkened only as far as the
+  // ground needs — the same rule the canvas applies.
+  const lineColor =
+    data.colorMode === 'fixed' && data.color ? readableOn(data.color, sheet.ground) : color;
   const width = data.width ?? 2;
-  const dash =
-    status === 'down' ? '10 6'
-    : status === 'disabled' ? '2 6'
-    : status === 'maintenance' ? '12 6'
-    : null;
-  const direction = data.direction ?? 'forward';
-  const arrowEnd = direction === 'forward' || direction === 'both' ? ` marker-end="url(#cv-arrow-${status})"` : '';
-  const arrowStart = direction === 'reverse' || direction === 'both' ? ` marker-start="url(#cv-arrow-rev-${status})"` : '';
+  const dash = dashFor(data.lineStyle, status);
+  const caps = capsFor(data);
+  const capId = (which: 'start' | 'end') => `cv-cap-${cssId(e.id)}-${which}`;
+  const startShape = capPath(caps.start);
+  const endShape = capPath(caps.end);
+  const arrowEnd = endShape ? ` marker-end="url(#${capId('end')})"` : '';
+  const arrowStart = startShape ? ` marker-start="url(#${capId('start')})"` : '';
+
+  const marker = (which: 'start' | 'end', shape: { d: string; filled: boolean }) =>
+    `<marker id="${capId(which)}" markerWidth="12" markerHeight="12" refX="${
+      which === 'end' ? 8 : 0
+    }" refY="4" orient="${
+      which === 'end' ? 'auto' : 'auto-start-reverse'
+    }" markerUnits="strokeWidth"><path d="${shape.d}" fill="${
+      shape.filled ? lineColor : 'none'
+    }" stroke="${lineColor}" stroke-width="${shape.filled ? 0 : 1.4}"/></marker>`;
 
   const parts = [
-    `<path d="${path}" fill="none" stroke="${color}" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}${status === 'disabled' ? ' opacity="0.55"' : ''}${arrowEnd}${arrowStart}/>`,
+    startShape || endShape
+      ? `<defs>${startShape ? marker('start', startShape) : ''}${
+          endShape ? marker('end', endShape) : ''
+        }</defs>`
+      : '',
+    `<path d="${path}" fill="none" stroke="${lineColor}" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}${status === 'disabled' ? ' opacity="0.55"' : ''}${arrowEnd}${arrowStart}/>`,
   ];
 
   // The centre label's box is worked out first because the port labels are
@@ -326,8 +446,8 @@ function edgeMarkup(e: TopoEdge, nodes: Map<string, TopoNode>, status: HealthSta
     if (nearCentre) off = centreW / 2 + w / 2 + 6;
     const px = from.x + ux * along + -uy * off;
     const py = from.y + uy * along + ux * off;
-    return `<g><rect x="${px - w / 2}" y="${py - 8}" width="${w}" height="15" rx="3" fill="#0a0e13" stroke="#2a3644"/>` +
-      `<text x="${px}" y="${py + 3}" text-anchor="middle" fill="#8ea2b5" font-size="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">${esc(text)}</text></g>`;
+    return `<g><rect x="${px - w / 2}" y="${py - 8}" width="${w}" height="15" rx="3" fill="${sheet.paper}" stroke="${sheet.line}"/>` +
+      `<text x="${px}" y="${py + 3}" text-anchor="middle" fill="${sheet.inkDim}" font-size="10" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">${esc(text)}</text></g>`;
   };
   if (data.sourcePortLabel) parts.push(portLabel(data.sourcePortLabel, a, b));
   if (data.targetPortLabel) parts.push(portLabel(data.targetPortLabel, b, a));
@@ -335,16 +455,17 @@ function edgeMarkup(e: TopoEdge, nodes: Map<string, TopoNode>, status: HealthSta
   if (centreText) {
     parts.push(
       `<g><rect x="${labelX - centreW / 2}" y="${labelY - 9}" width="${centreW}" height="18" rx="4" fill="#111823" stroke="${color}"/>` +
-        `<text x="${labelX}" y="${labelY + 4}" text-anchor="middle" fill="#e6eef7" font-size="11">${esc(centreText)}</text></g>`,
+        `<text x="${labelX}" y="${labelY + 4}" text-anchor="middle" fill="${sheet.ink}" font-size="11">${esc(centreText)}</text></g>`,
     );
   }
   return `<g>${parts.join('')}</g>`;
 }
 
-function markerDefs(): string {
-  return (Object.keys(STATUS_COLOR) as HealthStatus[])
+function markerDefs(sheet: Sheet): string {
+  const colors = statusColors(sheet.ground);
+  return (Object.keys(colors) as HealthStatus[])
     .map((s) => {
-      const c = STATUS_COLOR[s];
+      const c = colors[s];
       return (
         `<marker id="cv-arrow-${s}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">` +
         `<path d="M0 0 L10 5 L0 10 z" fill="${c}"/></marker>` +
@@ -355,12 +476,13 @@ function markerDefs(): string {
     .join('');
 }
 
-function legend(width: number): string {
+function legend(width: number, sheet: Sheet): string {
   const items: HealthStatus[] = ['healthy', 'warning', 'down', 'unknown', 'maintenance'];
+  const colors = statusColors(sheet.ground);
   return items
     .map((s, i) => {
       const x = width - 520 + i * 104;
-      return `<g><circle cx="${x}" cy="46" r="5" fill="${STATUS_COLOR[s]}"/><text x="${x + 12}" y="50" fill="#c3d2e0" font-size="11">${STATUS_LABEL[s]}</text></g>`;
+      return `<g><circle cx="${x}" cy="46" r="5" fill="${colors[s]}"/><text x="${x + 12}" y="50" fill="${sheet.inkDim}" font-size="11">${STATUS_LABEL[s]}</text></g>`;
     })
     .join('');
 }
@@ -368,6 +490,7 @@ function legend(width: number): string {
 /** The whole diagram as a standalone SVG document. */
 export function renderDiagramSvg(input: DiagramInput): string {
   const { meta, nodes, edges, includeTitleBlock } = input;
+  const sheet = sheetFor(input.ground ?? 'dark');
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
   // Bounds come from the model, so the export holds every object rather than
@@ -390,25 +513,34 @@ export function renderDiagramSvg(input: DiagramInput): string {
   const subtitle = [meta.customer, meta.site, meta.ticket, meta.engineer].filter(Boolean).join('  ·  ');
   const header = includeTitleBlock
     ? `<g font-family="ui-sans-serif, Segoe UI, sans-serif">
-    <rect x="0" y="0" width="${contentW}" height="${HEADER_H}" fill="#0e141b"/>
-    <text x="18" y="30" fill="#e6eef7" font-size="18" font-weight="600">${esc(meta.name)}</text>
-    <text x="18" y="52" fill="#8ea2b5" font-size="12">${esc(subtitle)}</text>
-    <text x="18" y="72" fill="#8ea2b5" font-size="11">Exported ${esc(
+    <rect x="0" y="0" width="${contentW}" height="${HEADER_H}" fill="${sheet.header}"/>
+    <text x="18" y="30" fill="${sheet.ink}" font-size="18" font-weight="600">${esc(meta.name)}</text>
+    <text x="18" y="52" fill="${sheet.inkDim}" font-size="12">${esc(subtitle)}</text>
+    <text x="18" y="72" fill="${sheet.inkDim}" font-size="11">Exported ${esc(
       (input.now ?? new Date()).toLocaleString(),
     )} · Status reflects checks run from the exporting machine</text>
-    ${legend(contentW)}
+    ${legend(contentW, sheet)}
   </g>`
     : '';
 
   // Edges first, so a line never covers the device it lands on.
+  // Sections first, then links, then devices. A section drawn over its
+  // contents makes a sheet of empty boxes, and a line drawn over a device
+  // makes it look connected to the middle of the box.
+  const isSection = (n: TopoNode) =>
+    n.type === 'device' && (n.data as DeviceNodeData).deviceType === 'zone';
   const body =
-    edges.map((e) => edgeMarkup(e, byId, input.linkStatus(e.id))).join('') +
-    nodes.map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph')).join('');
+    nodes.filter(isSection).map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph', sheet)).join('') +
+    edges.map((e) => edgeMarkup(e, byId, input.linkStatus(e.id), sheet)).join('') +
+    nodes
+      .filter((n) => !isSection(n))
+      .map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph', sheet))
+      .join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${contentW}" height="${totalH}" viewBox="0 0 ${contentW} ${totalH}" font-family="ui-sans-serif, Segoe UI, Roboto, sans-serif">
-  <defs>${markerDefs()}</defs>
-  <rect width="100%" height="100%" fill="#0a0e13"/>
+  <defs>${markerDefs(sheet)}</defs>
+  <rect width="100%" height="100%" fill="${sheet.paper}"/>
   ${header}
   <g transform="translate(${PAD - minX}, ${headerH + PAD - minY})">${body}</g>
 </svg>`;

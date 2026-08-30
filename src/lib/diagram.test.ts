@@ -59,7 +59,25 @@ describe('renderDiagramSvg', () => {
     expect(svg).toContain('Gi1/0/1');
     expect(svg).toContain('Gi0/1');
     expect(svg).toContain('Uplink');
-    expect(svg).toContain('marker-end="url(#cv-arrow-healthy)"');
+    // The arrow has to be referenced *and* defined. A reference to a marker
+    // that is not in the file draws nothing, and it draws nothing silently.
+    const ref = /marker-end="url\(#([^)]+)\)"/.exec(svg);
+    expect(ref, 'no marker-end on the link').not.toBeNull();
+    expect(svg).toContain(`<marker id="${ref![1]}"`);
+  });
+
+  it('paints the arrowhead in the link own colour', () => {
+    // Markers used to be shared per status, and a marker in a shared defs
+    // cannot see the colour of the path using it — every arrowhead stayed the
+    // health colour however the link was painted.
+    const painted = {
+      ...link,
+      data: { ...link.data, colorMode: 'fixed' as const, color: '#b76eff' },
+    } as TopoEdge;
+    const svg = render([device('n1', 0, 0), device('n2', 400, 0)], [painted]);
+    const ref = /marker-end="url\(#([^)]+)\)"/.exec(svg);
+    const marker = svg.slice(svg.indexOf(`<marker id="${ref![1]}"`));
+    expect(marker.slice(0, 400).toLowerCase()).toContain('#b76eff');
   });
 
   it('draws the device glyph as real paths', () => {
@@ -181,5 +199,103 @@ describe('fit', () => {
     const out = fit('a-very-long-hostname-that-will-not-fit', 60, 12);
     expect(out.endsWith('…')).toBe(true);
     expect(out.length).toBeLessThan(12);
+  });
+});
+
+describe('the ground the sheet is printed on', () => {
+  const nodes = [
+    {
+      id: 'n1', type: 'device', position: { x: 0, y: 0 }, width: 176, height: 96,
+      data: {
+        label: 'CORE-SW', deviceType: 'core-switch', tags: [],
+        addresses: [{ id: 'a', label: 'Mgmt', address: '10.0.0.1', isPrimary: true }],
+        locked: false, maintenance: false, showDetails: true,
+      },
+    },
+  ] as unknown as Parameters<typeof renderDiagramSvg>[0]['nodes'];
+
+  const sheet = (ground?: 'dark' | 'light') =>
+    renderDiagramSvg({
+      meta, nodes, edges: [], nodeStatus: () => 'healthy', linkStatus: () => 'healthy',
+      includeTitleBlock: true, now: new Date(0), ground,
+    });
+
+  it('prints on white when the diagram is drawn on white', () => {
+    // A diagram prepared for a document used to come out as a black rectangle
+    // in the middle of a white page.
+    expect(sheet('light')).toContain('fill="#ffffff"');
+    expect(sheet('light')).not.toContain('fill="#0a0e13"');
+  });
+
+  it('still prints dark when that is what is on screen', () => {
+    expect(sheet('dark')).toContain('fill="#0a0e13"');
+  });
+
+  it('stays dark for a caller that has not said', () => {
+    // Every existing caller and test predates the option.
+    expect(sheet()).toContain('fill="#0a0e13"');
+  });
+
+  it('uses the colours chosen for that ground, not the other one', () => {
+    const light = sheet('light');
+    const dark = sheet('dark');
+    // Healthy is #0a8a3f on white and #2fbf6b on black.
+    expect(light).toContain('#0a8a3f');
+    expect(light).not.toContain('#2fbf6b');
+    expect(dark).toContain('#2fbf6b');
+  });
+
+  it('writes text in ink that reads on the paper', () => {
+    expect(sheet('light')).toContain('fill="#0d1722"');
+    expect(sheet('dark')).toContain('fill="#e6eef7"');
+  });
+});
+
+describe('sections in the export', () => {
+  const zone = {
+    id: 'z1', type: 'device', position: { x: -40, y: -40 }, width: 400, height: 300,
+    data: { label: 'DMZ', deviceType: 'zone', tags: [], addresses: [],
+      locked: false, maintenance: false, showDetails: true },
+  } as unknown as Parameters<typeof renderDiagramSvg>[0]['nodes'][number];
+
+  const dev = {
+    id: 'n1', type: 'device', position: { x: 60, y: 60 }, width: 176, height: 96,
+    data: { label: 'FW-1', deviceType: 'firewall', tags: [], addresses: [],
+      locked: false, maintenance: false, showDetails: true },
+  } as unknown as Parameters<typeof renderDiagramSvg>[0]['nodes'][number];
+
+  it('never puts colour alpha in a hex literal', () => {
+    // SVG 1.1 has no alpha in a colour, and a renderer that meets an
+    // eight-digit hex falls back to black — which drew the section as a solid
+    // slab over everything standing in it.
+    const svg = renderDiagramSvg({
+      meta, nodes: [zone, dev], edges: [], nodeStatus: () => 'unknown',
+      linkStatus: () => 'unknown', includeTitleBlock: false, now: new Date(0),
+    });
+    expect(svg).not.toMatch(/#[0-9a-fA-F]{8}\b/);
+    expect(svg).toContain('fill-opacity');
+  });
+
+  it('gives a section its name and no health of its own', () => {
+    // A section is an area. Nothing probes it, and a badge on it would be
+    // reporting on nothing.
+    const svg = renderDiagramSvg({
+      meta, nodes: [zone], edges: [], nodeStatus: () => 'unknown',
+      linkStatus: () => 'unknown', includeTitleBlock: false, now: new Date(0),
+    });
+    expect(svg).toContain('DMZ');
+    expect(svg).not.toContain('Unknown');
+  });
+
+  it('draws a section behind what stands in it', () => {
+    // Drawn in document order, so a section after its contents covers them
+    // and the sheet is a set of empty boxes.
+    const svg = renderDiagramSvg({
+      meta, nodes: [dev, zone], edges: [], nodeStatus: () => 'unknown',
+      linkStatus: () => 'unknown', includeTitleBlock: false, now: new Date(0),
+    });
+    expect(svg).toContain('DMZ');
+    expect(svg).toContain('FW-1');
+    expect(svg.indexOf('DMZ')).toBeLessThan(svg.indexOf('FW-1'));
   });
 });
