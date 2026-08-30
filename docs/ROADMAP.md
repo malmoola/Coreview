@@ -10,7 +10,28 @@ shipped differs from what was asked, the Done entry says so.
 
 ## Now
 
-*In progress or picked up next. Never more than three.*
+*In progress or picked up next. Never more than three — LT-029 is a standing
+bar rather than a piece of work, and does not count against that.*
+
+### LT-029 — No known bugs
+**Source:** asked 2026-08-30 — "I don't want any bugs".
+**Acceptance:** a standing bar rather than a task that finishes.
+- Every bug you report gets its own roadmap item the moment it is reported,
+  with the symptom in your words. It is not folded into whatever else is being
+  worked on.
+- A bug is not fixed until it has been *reproduced* first — by a test that
+  fails without the fix — and then verified by running it. "It compiles" is
+  not "it works", and neither is "I changed the thing that looked wrong".
+- The known-bug list is the items below tagged **bug**. When that list is
+  empty, this item says so with a date. It goes back to Now the moment
+  anything lands on it.
+- Where a bug cannot be fixed, it says why in plain words rather than being
+  quietly closed.
+
+**Known bugs, open:** LT-003 (custom shapes import scrambled, transforms
+dropped, "Untitled Drawing"), LT-004 (selection draws a box round a round
+shape), LT-005 (icon library cannot be cleared).
+**Known bugs, closed:** LT-030.
 
 ### LT-001 — Neutral desk, white page, one colour token file
 **Source:** asked 2026-08-30.
@@ -63,12 +84,13 @@ shipped differs from what was asked, the Done entry says so.
 - Expand `<p:grpSp>` groups into separate icons with the group transform
   applied — not merged into one shape.
 - Output `stencils/cisco/<category>/<slug>.svg` plus `manifest.json`
-  (`[{ id, name, category, file, slide }]`).
+  (`[{ id, name, category, file, slide }]`), **committed to the repository** —
+  see D-019, which overrules the earlier policy.
 - Render a contact sheet of every produced SVG and confirm each icon is
   centred, fills its tile and is recognisable, before wiring the palette to it.
   Report converted / skipped / unnamed counts.
 
-### LT-003 — Custom shape import bugs
+### LT-003 — **bug** Custom shape import bugs
 **Source:** asked 2026-08-30, with screenshots.
 **Acceptance:**
 - A multi-element SVG imports as one palette entry and one node whose renderer
@@ -88,13 +110,13 @@ shipped differs from what was asked, the Done entry says so.
 
 *Accepted, not started.*
 
-### LT-004 — A selected shape is outlined by its own outline
+### LT-004 — **bug** A selected shape is outlined by its own outline
 **Source:** asked 2026-08-30, with a screenshot of a router showing a square
 selection box round a circular glyph.
 **Acceptance:** selecting a shape highlights the shape itself, not a
 rectangular bounding box round it. Resize handles may still sit on the box.
 
-### LT-005 — Clearing the icon library
+### LT-005 — **bug** Clearing the icon library
 **Source:** reported 2026-08-30: "Icon library stuck and can't clear it".
 **Acceptance:** a loaded icon library folder can be cleared or changed from the
 palette without restarting the app, and the stored `iconLibraryDir` setting is
@@ -225,6 +247,23 @@ invisible connection handles were keeping their hit area and swallowing clicks
 meant for neighbours; left-drag on bare canvas rubber-band selects and the
 catch moves together; space held drags the whole diagram; double-click on bare
 canvas writes borderless text that moves and groups like any other object.
+
+### LT-030 — **bug** A click in the middle of a device did nothing — 2026-08-30
+**Source:** flagged 2026-08-30 — "clicking a node's centre selected nothing — a
+neighbouring node's connection handle covers the middle after a tidy, and
+swallows the click... if a click on a device does nothing, aim at the icon."
+**Shipped, in `d81b91b`, before this was raised:** connection handles are
+hidden until a device is pointed at, but hidden was not the same as
+untouchable — an invisible handle kept its hit area, and that area is larger
+than the dot it draws, so the handles of one device sat over its neighbours.
+They now take the pointer only while they are visible.
+**Verified by:** the check "a click in the middle of a device selects it" in
+`e2e/interact.mjs`, which clicks the geometric centre of a device on a tidied
+diagram where the neighbours are close. It fails without the fix.
+**Not done the way it was offered:** the suggestion was to make handles ignore
+clicks that are not drags. Making them untouchable until shown is simpler,
+needs no drag-versus-click guess, and matches what the handles already did
+visually.
 
 ### LT-023 — Work tracking in the repository — 2026-08-30
 This file, `docs/DECISIONS.md`, `docs/OPEN-QUESTIONS.md` and `CLAUDE.md`.

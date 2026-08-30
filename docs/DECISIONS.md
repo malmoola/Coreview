@@ -151,3 +151,37 @@ written to `unresolved.json` with their names and urls and reported as a count.
 **Why (the operator's):** "Do not fabricate a placeholder that looks like a
 real icon." A placeholder that looks real is worse than an absence.
 **Status:** accepted, not yet implemented — LT-006.
+
+### D-019 — Vendor stencils are committed to the repository — 2026-08-30
+**Supersedes D-003** in part, on the operator's instruction: "you can put the
+vendor stencils in the repo, everything goes into the [repo] except passwords
+that we set locally after installing the device".
+**Decision:** converted stencils — the Cisco set, the Lucid set, the fetched
+Tabler and Simple Icons shapes — are committed. `stencils/` is not
+git-ignored. Q-002 is closed by this.
+**Rejected:** git-ignoring `stencils/` and treating converted artwork as build
+output, which is what D-003 implied and what I had assumed.
+**What still stands from D-003:** the *application* ships no third-party
+artwork. Nothing under `stencils/` is bundled into the binary or drawn unless
+the operator points the icon library at it, and Coreview's own 26 glyphs remain
+self-drawn. The reason for that half of D-003 was never repository tidiness; it
+was that the app should not carry someone else's trademarks in its installer.
+**Worth saying once, not repeatedly:** Tabler is MIT and Simple Icons is CC0,
+so both are fine to redistribute. The Cisco deck's artwork is Cisco's, under
+whatever terms it was published; committing it to a repository you control is
+your call and this records that you made it. If the repository ever becomes
+public that is worth another look.
+**Consequence:** D-006 is unaffected and unchanged — secrets are still never
+committed and never exported unless explicitly asked for. "Everything except
+passwords" is exactly the line D-006 already draws.
+
+### D-020 — A bug is reproduced before it is fixed — 2026-08-30
+**Decision:** every reported bug gets a roadmap item and a test that fails
+without the fix, before the fix is written. Nothing is marked Done on the
+strength of having changed the thing that looked wrong.
+**Rejected:** fixing what looks like the cause and moving on.
+**Why (the operator's):** "I don't want any bugs." The only version of that
+which means anything is a bar on how a fix is confirmed, because the failures
+that survive are the ones where the fix looked obviously right — hidden
+handles that still took the pointer, a document that saved but dropped a
+field, an eight-digit hex that renders black. Each of those compiled.

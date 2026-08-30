@@ -3,6 +3,9 @@
 Things deferred, or needing a decision that is not mine to make. Each one moves
 to ROADMAP.md or DECISIONS.md when it is answered.
 
+*Closed: Q-002 (where converted stencils live) — answered 2026-08-30, see
+D-019.*
+
 ---
 
 ### Q-001 — Install `libvisio-tools` for legacy `.vss`?
@@ -11,13 +14,6 @@ nothing here can open; `libvisio-tools` reads it. Installing a system package
 is not a call I should make on your machine. Deferred by you the same day
 ("Skip the .vss for now"), so this is only live again if the `.zip` twins in
 your shape folder turn out not to cover the same sets. See LT-012.
-
-### Q-002 — Where do converted stencils live?
-Raised 2026-08-30 by LT-002. D-003 says no vendor artwork in the repository,
-and the pipeline writes to `stencils/<source>/...` inside the repo. Either
-`stencils/` is git-ignored and treated as build output, or the output goes
-somewhere under your own folder. My assumption unless you say otherwise:
-`stencils/` is git-ignored, the scripts are committed, the artwork is not.
 
 ### Q-003 — What should the page default to?
 Raised 2026-08-30 by LT-008. The spec says 1584x1224 (11x8.5in @ 144dpi),

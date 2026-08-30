@@ -22,6 +22,9 @@ the **Now** and **Blocked** sections back in three lines or fewer.
 - **Something mentioned in passing goes in Icebox**, not in the bin.
 - **Never mark something Done without having run it.** "It compiles" is not
   "it works"; say which one you mean.
+- **A bug is reproduced before it is fixed** (D-020): a reported bug gets its
+  own roadmap item and a test that fails without the fix, then the fix. The
+  standing bar is LT-029 and the open list lives there.
 - **Commit roadmap and decision changes in the same commit as the code they
   describe.**
 - At the end of a session, or whenever asked to **checkpoint**, update all three
@@ -33,6 +36,8 @@ the **Now** and **Blocked** sections back in three lines or fewer.
 
 - No stubs, no mocks, no "TODO: implement". If something cannot work, say so
   plainly and stop.
+- Converted vendor stencils are committed under `stencils/` (D-019). Secrets
+  never are (D-006). The application itself still ships no third-party artwork.
 - A failing test is not fixed by weakening the test.
 - Prefer editing an existing file to rewriting it.
 - `crates/coreview-probe` is Tauri-free on purpose.
