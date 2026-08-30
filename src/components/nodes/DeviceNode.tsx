@@ -9,6 +9,21 @@ import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 
 const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text']);
 
+/** Shapes a border and a border-radius cannot draw.
+ *
+ *  A rectangle, a rounded rectangle, a circle and a diamond are all a box with
+ *  the right corners. A cloud is not, and it was quietly falling through to a
+ *  plain rectangle — the shape was in the palette and drew a box on the
+ *  canvas. These get a stretched outline drawn behind them instead. */
+const OUTLINES: Partial<Record<string, string>> = {
+  // Drawn in a 200x100 box and stretched to whatever the node is, so a wide
+  // cloud looks like a wide cloud rather than a small one in a big box.
+  cloud:
+    'M46,88 C22,88 8,74 10,58 C12,44 26,36 38,39 C43,17 63,6 84,11 ' +
+    'C99,15 109,26 112,39 C126,29 148,32 157,47 C176,46 192,58 189,73 ' +
+    'C187,84 174,88 160,88 Z',
+};
+
 /**
  * A node label that can be typed on directly.
  *
@@ -186,16 +201,37 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
     );
   }
 
+  const outline = OUTLINES[d.deviceType];
+  const strokeColor = selected ? '#5eb8ff' : (d.style?.border ?? color);
+
   return (
     <div
       className={`cv-node ${isShape ? 'cv-node-shape' : ''} ${selected ? 'is-selected' : ''}`}
       data-shape={d.deviceType}
       style={{
-        borderColor: selected ? '#5eb8ff' : (d.style?.border ?? color),
-        background: d.style?.background ?? undefined,
+        // A shape with its own outline must not also draw the box's border,
+        // and an inline colour would beat the stylesheet rule that hides it.
+        borderColor: outline || isText ? 'transparent' : strokeColor,
+        background: outline ? 'transparent' : (d.style?.background ?? undefined),
       }}
       title={`${d.label} — ${STATUS_LABEL[status]}`}
     >
+      {outline && (
+        <svg
+          className="cv-node-outline"
+          viewBox="0 0 200 100"
+          preserveAspectRatio="none"
+          aria-hidden
+        >
+          <path
+            d={outline}
+            fill={d.style?.background ?? 'none'}
+            stroke={strokeColor}
+            strokeWidth={selected ? 3 : 2}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      )}
       <NodeResizer
         isVisible={Boolean(selected) && !d.locked}
         minWidth={80}
