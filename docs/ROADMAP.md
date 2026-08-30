@@ -63,11 +63,6 @@ variables that were meant.
 
 *Accepted, not started.*
 
-### LT-041 — Export renders exactly the page rect
-**Source:** asked 2026-08-30 (Item D5).
-**Acceptance:** PNG and SVG export render exactly the LT-036 page rect, in
-whichever theme is active, minimap and selection chrome excluded.
-
 ### LT-042 — Autosave and restore
 **Source:** asked 2026-08-30 (Item D6).
 **Acceptance:** snapshot the open document to the local store every 60s and on
@@ -265,6 +260,14 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-041 — Export renders exactly the page rect — 2026-08-30
+Shipped: SVG and PNG exports render exactly the LT-036 sheet — same function,
+same visible-view nodes, so hidden views do not hold the exported sheet open —
+in whichever ground is active, with devices staying where they sit on the
+sheet rather than being slid to a shrink-wrapped margin. The export never
+contained the minimap or selection chrome (it draws from the model, D-001);
+that is now asserted rather than assumed.
 
 ### LT-040 — The filter box finds on the canvas — 2026-08-30
 Shipped: typing in the monitored-objects filter lights every canvas match with

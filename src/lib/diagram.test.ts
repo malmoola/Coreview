@@ -348,3 +348,43 @@ describe('putting the diagram on a sheet', () => {
     expect(scale).toBe(1);
   });
 });
+
+describe('rendering exactly the on-screen page', () => {
+  const nodes = [
+    {
+      id: 'n1', type: 'device', position: { x: 300, y: 200 }, width: 176, height: 96,
+      data: { label: 'CORE-SW', deviceType: 'core-switch', tags: [], addresses: [],
+        locked: false, maintenance: false, showDetails: true },
+    },
+  ] as unknown as Parameters<typeof renderDiagramSvg>[0]['nodes'];
+
+  const sheetRect = { x: 0, y: 0, w: 2340, h: 1224 };
+  const render = () =>
+    renderDiagramSvg({
+      meta, nodes, edges: [], nodeStatus: () => 'healthy', linkStatus: () => 'healthy',
+      includeTitleBlock: false, now: new Date(0), sheetRect,
+    });
+
+  it('is the sheet, not a shrink-wrap of the content', () => {
+    // The page grew on screen; the file is that page, so what you see is
+    // what whoever receives the file sees.
+    const svg = render();
+    expect(svg).toContain('width="2340"');
+    expect(svg).toContain('height="1224"');
+  });
+
+  it('keeps the device where it sits on the sheet', () => {
+    // One node at 300,200 on a sheet anchored at 0,0: shrink-wrapping would
+    // slide it to the margin and every export would recompose the layout.
+    const svg = render();
+    const m = /<g transform="translate\((-?[\d.]+), (-?[\d.]+)\)">/.exec(svg)!;
+    expect(Number(m[1])).toBeCloseTo(0);
+  });
+
+  it('carries no selection chrome and no minimap', () => {
+    const svg = render();
+    expect(svg).not.toContain('cv-minimap');
+    expect(svg).not.toContain('is-selected');
+    expect(svg).not.toContain('cv-guide');
+  });
+});

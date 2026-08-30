@@ -135,6 +135,13 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       // white screen put a black rectangle in the middle of a white page.
       ground: settings.ground,
       page: sheet.w > 0 ? { width: sheet.w, height: sheet.h } : undefined,
+      // The on-screen page, computed from the same function the canvas draws
+      // it with, and from the same visible nodes — hidden views do not hold
+      // the exported sheet open either.
+      sheetRect:
+        (store.doc.canvas.page ?? true)
+          ? effectivePage(store.doc.canvas.pageRect, shown.nodes)
+          : undefined,
     });
 
   const exportSvg = () => {

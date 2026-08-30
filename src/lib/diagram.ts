@@ -84,6 +84,9 @@ export interface DiagramInput {
   /** The sheet to place the diagram on. Absent means the file is sized to the
    *  diagram, which is right for the screen and wrong for a document. */
   page?: { width: number; height: number; margin?: number };
+  /** Render exactly this rect — the on-screen page — rather than shrink-wrap
+   *  the content. What you see on the sheet is what the file holds. */
+  sheetRect?: { x: number; y: number; w: number; h: number };
   /** Injected so the output is deterministic in tests. */
   now?: Date;
 }
@@ -470,20 +473,29 @@ export function renderDiagramSvg(input: DiagramInput): string {
   const sheet = sheetFor(input.ground ?? 'dark');
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
-  // Bounds come from the model, so the export holds every object rather than
-  // whatever happened to be scrolled into view.
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const n of nodes) {
-    const { w, h } = sizeOf(n);
-    minX = Math.min(minX, n.position.x);
-    minY = Math.min(minY, n.position.y);
-    maxX = Math.max(maxX, n.position.x + w);
-    maxY = Math.max(maxY, n.position.y + h);
+  // Bounds: the on-screen sheet when the caller passes it — what you see on
+  // the page is what the file holds — otherwise shrink-wrapped to the model,
+  // so the export never depends on what is scrolled into view.
+  let minX: number, minY: number, contentW: number, contentH: number;
+  if (input.sheetRect) {
+    minX = input.sheetRect.x + PAD;
+    minY = input.sheetRect.y + PAD;
+    contentW = input.sheetRect.w;
+    contentH = input.sheetRect.h;
+  } else {
+    minX = Infinity; minY = Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      const { w, h } = sizeOf(n);
+      minX = Math.min(minX, n.position.x);
+      minY = Math.min(minY, n.position.y);
+      maxX = Math.max(maxX, n.position.x + w);
+      maxY = Math.max(maxY, n.position.y + h);
+    }
+    if (!nodes.length) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
+    contentW = Math.max(560, Math.round(maxX - minX) + PAD * 2);
+    contentH = Math.max(360, Math.round(maxY - minY) + PAD * 2);
   }
-  if (!nodes.length) { minX = 0; minY = 0; maxX = 800; maxY = 600; }
-
-  const contentW = Math.max(560, Math.round(maxX - minX) + PAD * 2);
-  const contentH = Math.max(360, Math.round(maxY - minY) + PAD * 2);
   const headerH = includeTitleBlock ? HEADER_H : 0;
   const totalH = contentH + headerH;
 
