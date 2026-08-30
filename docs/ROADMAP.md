@@ -43,34 +43,6 @@ ground entirely and stayed dark-theme coloured on a white page.
 **Fixed:** they read `--text-dim`, `--warning` and `--accent`, which are the
 variables that were meant.
 
-### LT-034 — Light chrome must not be white
-**Source:** asked 2026-08-30 (Item A).
-**Acceptance:** in light mode, toolbar, side panels, bottom panel, desk and
-page are four distinguishable surfaces at a glance — "if any two are within a
-few RGB points of each other, it fails". `--page #FFFFFF` stays the only pure
-white; `--desk` darker (#E4E4E4 suggested); `--chrome #F1F1F1`-ish;
-`--chrome-edge #D6D6D6`. Inputs, table rows and cards inside panels sit on
-`--page`; frames and headers stay on `--chrome`; the bottom panel gets a 1px
-top border. Minimap restyled per theme — "right now it's a washed-out gray
-blob on light". Dark theme untouched — approved as-is. Verified by a
-light-mode screenshot with a device selected and the bottom panel open, plus
-measured RGB distances.
-
-### LT-035 — Minimap show/hide in the top bar
-**Source:** asked 2026-08-30 (Item B).
-**Acceptance:** a toggle with the existing view controls near "Dark
-background" / "Reduce motion", persisted in the same settings store those use,
-default ON. Toggling must not shift the canvas layout or reset zoom.
-
-### LT-036 — Page auto-grows with content
-**Source:** asked 2026-08-30 (Item C).
-**Acceptance:** page rect = union of node bounds in the *current view* + 120px
-margin, never smaller than the default page, snapped outward to the 60px major
-grid. Grows live (throttled) during a drag past the edge; never shrinks
-automatically; a "Fit page to content" action next to Fit view shrinks on
-demand. One function computes the rect — Fit view, grid clipping and any
-export using page bounds all read it. Multi-view aware.
-
 ### LT-003 — **bug** Custom shape import bugs
 **Source:** asked 2026-08-30, with screenshots.
 **Acceptance:**
@@ -316,6 +288,32 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-034 — Light chrome must not be white — 2026-08-30
+Shipped: `--desk #E4E4E4`, `--chrome #F1F1F1`, `--chrome-edge #D6D6D6`, page
+stays the only pure white. Measured, not eyeballed: page–chrome 14 RGB points
+apart, chrome–desk 13, page–desk 27 — all above the "few points" failure bar.
+Table rows sit on the page inside a chrome frame; the header stays chrome.
+Minimap: desk-coloured map, chrome edge, ink-dark node marks — the old
+blue-grey marks were within a few points of the mask, which is what made it a
+blob. Dark theme untouched. Both-theme screenshots attached to the checkpoint.
+
+### LT-035 — Minimap show/hide in the top bar — 2026-08-30
+Shipped: an "Overview" checkbox beside Reduce motion, default on, persisted as
+a view preference for this machine (like which panels are open — not part of
+any project). Verified that toggling moves nothing: the viewport transform is
+read before and after and must be identical.
+
+### LT-036 — Page auto-grows with content — 2026-08-30
+Shipped: one function (`src/lib/pageRect.ts`) computes the sheet — content
+bounds of the current view + 120px margin, snapped outward in 60px steps,
+never below the default sheet, never shrinking on its own. The renderer, Fit
+view, the top-bar fit and the grid all read it. Growth is live during a drag
+and remembered a moment later, without dirtying the document when nothing
+grew. "Fit page to content" on the canvas menu is the one deliberate shrink.
+**One reading settled while testing:** the 120px margin is the rule even
+inside the default sheet — a device 100px from an edge grows that edge a step,
+because the margin is what was asked for, not "grow only past the border".
 
 ### LT-032 — A handover document — 2026-08-30
 **Source:** asked 2026-08-30 — a doc covering "this app and its code and

@@ -46,6 +46,10 @@ export interface ProjectDocument {
     /** The sheet the diagram is drawn on. On by default; turning it off gives
      *  back the endless desk for a diagram that is not going on paper. */
     page?: boolean;
+    /** What the sheet has grown to. Grows automatically, shrinks only through
+     *  "Fit page to content" — a sheet that snaps smaller mid-drag makes the
+     *  whole layout jump. */
+    pageRect?: { x: number; y: number; w: number; h: number };
     /** The views this document is drawn in. A network is documented more than
      *  once — physical, logical, the change on Saturday — and three files that
      *  disagree within a fortnight is what this exists to avoid. */
@@ -64,6 +68,9 @@ export interface ProjectDocument {
 export interface AppSettings {
   reduceMotion: boolean;
   highContrast: boolean;
+  /** The overview box, bottom-right. A view preference for this machine, like
+   *  which panels are open — not part of any project. */
+  minimap: boolean;
   /** Paper for exports and printing. 'fit' sizes the file to the diagram. */
   paper: string;
   orientation: 'portrait' | 'landscape';
@@ -329,6 +336,7 @@ export const useStore = create<Store>((set, get) => ({
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
     highContrast: false,
+    minimap: viewPref('minimap'),
     paper: 'fit',
     orientation: 'landscape',
     ground: 'dark',
@@ -1065,6 +1073,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   setSettings(patch) {
+    if (patch.minimap !== undefined) rememberView('minimap', patch.minimap);
     set((s) => ({ settings: { ...s.settings, ...patch } }));
   },
 

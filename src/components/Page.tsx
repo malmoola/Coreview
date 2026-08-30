@@ -12,13 +12,12 @@
  * remember and one to forget. Nothing here is in `doc.nodes`, so there is
  * nothing to filter.
  */
+import { useEffect, useMemo } from 'react';
 import { ViewportPortal } from '@xyflow/react';
 
 import { useStore } from '../state/store';
-
-/** 11 by 8.5 inches at 144 dpi. Landscape, because a network diagram is. */
-export const PAGE_WIDTH = 1584;
-export const PAGE_HEIGHT = 1224;
+import { isVisible, layersOf } from '../lib/layers';
+import { effectivePage, sameRect } from '../lib/pageRect';
 
 /** Where the grid lines fall, in diagram units. */
 const MINOR = 12;
@@ -29,6 +28,30 @@ export function Page() {
   // and reading that as "off" leaves a blank sheet with no grid on it.
   const gridEnabled = useStore((s) => s.doc.canvas.gridEnabled ?? true);
   const pageEnabled = useStore((s) => s.doc.canvas.page ?? true);
+  const nodes = useStore((s) => s.doc.nodes);
+  const canvasLayers = useStore((s) => s.doc.canvas.layers);
+  const stored = useStore((s) => s.doc.canvas.pageRect);
+  const setCanvas = useStore((s) => s.setCanvas);
+
+  // The sheet as it should be drawn right now: grown live while a node is
+  // dragged past the edge. Only the nodes of the current view hold it open —
+  // a device on a hidden view should not.
+  const rect = useMemo(() => {
+    const layers = layersOf(canvasLayers);
+    const shown = layers.some((l) => !l.visible)
+      ? nodes.filter((n) => isVisible((n.data as { layers?: string[] }).layers, layers))
+      : nodes;
+    return effectivePage(stored, shown);
+  }, [nodes, canvasLayers, stored]);
+
+  // Growth is remembered a moment after it happens, not on every frame of the
+  // drag — and never written when nothing grew, so dragging inside the sheet
+  // does not dirty the document.
+  useEffect(() => {
+    if (stored && sameRect(stored, rect)) return;
+    const t = setTimeout(() => setCanvas({ pageRect: rect }), 400);
+    return () => clearTimeout(t);
+  }, [rect, stored, setCanvas]);
 
   if (!pageEnabled) return null;
 
@@ -38,10 +61,10 @@ export function Page() {
         className="cv-page"
         style={{
           position: 'absolute',
-          left: 0,
-          top: 0,
-          width: PAGE_WIDTH,
-          height: PAGE_HEIGHT,
+          left: rect.x,
+          top: rect.y,
+          width: rect.w,
+          height: rect.h,
         }}
       >
         {/* The grid lives inside the page, so it stops at the paper's edge

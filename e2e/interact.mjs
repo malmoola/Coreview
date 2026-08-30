@@ -846,7 +846,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     const light = await sample();
 
     check("the ground turns white",
-      (luminance(light.ground) ?? 0) > 0.9, String(light.ground));
+      (luminance(light.ground) ?? 0) > 0.85, String(light.ground));
     check("the text turns dark with it",
       (luminance(light.text) ?? 1) < 0.3 && (luminance(dark.text) ?? 0) > 0.6,
       `${dark.text} -> ${light.text}`);
@@ -1883,11 +1883,11 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     page.locator(sel).first().evaluate((el, p) => getComputedStyle(el)[p], prop);
 
   check("the desk is the neutral grey it is meant to be",
-    (await read(".react-flow__pane", "backgroundColor")) === "rgb(237, 237, 237)",
+    (await read(".react-flow__pane", "backgroundColor")) === "rgb(228, 228, 228)",
     await read(".react-flow__pane", "backgroundColor"));
   check("the page is white and has an edge",
     (await read(".cv-page", "backgroundColor")) === "rgb(255, 255, 255)" &&
-      (await read(".cv-page", "borderTopColor")) === "rgb(212, 212, 212)",
+      (await read(".cv-page", "borderTopColor")) === "rgb(207, 207, 207)",
     `${await read(".cv-page", "backgroundColor")} / ${await read(".cv-page", "borderTopColor")}`);
   check("the grid is inside the page, not on the desk",
     (await page.locator(".cv-page .cv-page-grid").count()) === 1 &&
@@ -1916,6 +1916,100 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     (await read(".react-flow__pane", "backgroundColor")) === "rgb(10, 14, 19)" &&
       (await page.locator(".cv-page").count()) === 1,
     await read(".react-flow__pane", "backgroundColor"));
+}
+
+// ---------------------------------------------------------------- sheet
+// The page grows to hold what is drawn on it, never shrinks on its own, and
+// the minimap toggle moves nothing else.
+{
+  await page.locator("button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+
+  const pageRect = () => page.locator(".cv-page").first()
+    .evaluate((el) => ({ w: el.offsetWidth, h: el.offsetHeight, x: el.offsetLeft, y: el.offsetTop }));
+  const before = await pageRect();
+
+  // Drag a device past the sheet's current right edge — wherever earlier
+  // checks have left it — not a fixed distance that may land inside it.
+  const dev = page.locator(".react-flow__node", { hasText: "Bystander" }).first();
+  const b = await dev.boundingBox();
+  const sheetBox = await page.locator(".cv-page").first().boundingBox();
+  const target = Math.min(sheetBox.x + sheetBox.width + 80, 1560);
+  await page.mouse.move(b.x + 30, b.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(target, b.y + 20, { steps: 16 });
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+  const draggedTo = target - (b.x + 30);
+  const grown = await pageRect();
+  check("the page grows when a device is dragged past its edge",
+    grown.w > before.w, `${before.w} -> ${grown.w}`);
+  check("and grows in whole grid steps", grown.w % 60 === 0, `${grown.w}`);
+
+  // Drag it back to where it was — in flow units, closed-loop, because after
+  // the growth the device may sit under the inspector where a screen-relative
+  // drag cannot grab it. Fit view first so it is reachable at all.
+  void draggedTo;
+  const flowX = () => dev.evaluate((el) => {
+    const m = /translate\((-?[\d.]+)px/.exec(el.style.transform ?? "");
+    return m ? Number(m[1]) : 0;
+  });
+  const wantX = await flowX() - 900;
+  for (let i = 0; i < 8; i++) {
+    const now = await flowX();
+    if (now <= wantX + 10) break;
+    // The device may sit under the inspector where no pointer reaches it, and
+    // the sheet fit will not bring it in. Do what a person does: hold space,
+    // drag the diagram until the device is in the middle of the canvas.
+    let art = await dev.locator(".cv-glyph-art").boundingBox();
+    if (!art || art.x > 1100 || art.x < 260) {
+      await page.keyboard.down("Space");
+      await page.waitForTimeout(150);
+      await page.mouse.move(700, 400);
+      await page.mouse.down();
+      await page.mouse.move(700 - ((art?.x ?? 1400) - 700), 400, { steps: 10 });
+      await page.mouse.up();
+      await page.keyboard.up("Space");
+      await page.waitForTimeout(300);
+      art = await dev.locator(".cv-glyph-art").boundingBox();
+    }
+    if (!art) continue;
+    const zoom = art.width / 46; // the glyph is 46 flow units wide
+    await page.mouse.move(art.x + art.width / 2, art.y + art.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      art.x + art.width / 2 - Math.min(480, (now - wantX) * zoom),
+      art.y + art.height / 2,
+      { steps: 10 },
+    );
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+  }
+  check("moving it back does not shrink the sheet",
+    (await pageRect()).w === grown.w, `${(await pageRect()).w}`);
+  check("the device really did come back", (await flowX()) < wantX + 200,
+    `${await flowX()} vs ${wantX}`);
+
+  // The explicit shrink.
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.waitForTimeout(250);
+  await page.locator(".cv-menu button", { hasText: "Fit page to content" }).click();
+  await page.waitForTimeout(500);
+  const refit = await pageRect();
+  check("fit page to content shrinks it on demand",
+    refit.w < grown.w, `${grown.w} -> ${refit.w} (was ${before.w})`);
+
+  // Minimap: on by default, off and on without touching the viewport.
+  const vp = () => page.locator(".react-flow__viewport").evaluate((el) => el.style.transform);
+  check("the overview box is on by default", (await page.locator(".cv-minimap").count()) === 1);
+  const vpBefore = await vp();
+  await page.locator("label", { hasText: "Overview" }).locator("input").uncheck();
+  await page.waitForTimeout(300);
+  check("the toggle hides it", (await page.locator(".cv-minimap").count()) === 0);
+  check("without moving the canvas", (await vp()) === vpBefore);
+  await page.locator("label", { hasText: "Overview" }).locator("input").check();
+  await page.waitForTimeout(300);
+  check("and brings it back", (await page.locator(".cv-minimap").count()) === 1);
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });

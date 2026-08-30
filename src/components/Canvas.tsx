@@ -21,7 +21,8 @@ import { STATUS_COLOR_DARK, canvasPalette } from '../theme';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { ColourLegend } from './ColourLegend';
-import { Page, PAGE_HEIGHT, PAGE_WIDTH } from './Page';
+import { Page } from './Page';
+import { effectivePage, pageForContent } from '../lib/pageRect';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
 import { alignmentFor, spacingHint, type Box, type Guide } from '../lib/alignment';
@@ -90,6 +91,7 @@ export function Canvas() {
   const wrapper = useRef<HTMLDivElement>(null);
   const rf = useReactFlow();
   const ground = useStore((s) => s.settings.ground);
+  const settings = useStore((s) => s.settings);
   const palette = canvasPalette(ground);
 
   const [finding, setFinding] = useState(false);
@@ -326,6 +328,16 @@ export function Canvas() {
       { label: 'Add change note', onSelect: () => store.addNode(makeNote(p.x, p.y, 'change')) },
       { label: 'Add container', onSelect: () => store.addNode(makeDeviceNode('site', p.x, p.y)) },
       { label: 'Fit view', onSelect: () => fitEverything() },
+      {
+        label: 'Fit page to content',
+        onSelect: () => {
+          // The one deliberate shrink. Growth is automatic; going back is not,
+          // because a sheet that snaps smaller on its own makes the layout
+          // jump under the pointer.
+          store.setCanvas({ pageRect: pageForContent(doc.nodes) });
+          store.setStatusMessage('The page now fits what is on it.');
+        },
+      },
       { label: 'Find a device…', onSelect: () => setFinding(true) },
       ...(folded.size > 0
         ? [
@@ -404,8 +416,8 @@ export function Canvas() {
         },
       },
       {
-        label: doc.canvas.minimap ? 'Hide the overview box' : 'Show the overview box',
-        onSelect: () => store.setCanvas({ minimap: !doc.canvas.minimap }),
+        label: settings.minimap ? 'Hide the overview box' : 'Show the overview box',
+        onSelect: () => store.setSettings({ minimap: !settings.minimap }),
       },
     ];
   };
@@ -448,25 +460,10 @@ export function Canvas() {
       rf.fitView({ padding: 0.2 });
       return;
     }
-    const bounds = doc.nodes.reduce(
-      (acc, n) => ({
-        minX: Math.min(acc.minX, n.position.x),
-        minY: Math.min(acc.minY, n.position.y),
-        maxX: Math.max(acc.maxX, n.position.x + (n.width ?? 176)),
-        maxY: Math.max(acc.maxY, n.position.y + (n.height ?? 96)),
-      }),
-      { minX: 0, minY: 0, maxX: PAGE_WIDTH, maxY: PAGE_HEIGHT },
-    );
-    rf.fitBounds(
-      {
-        x: bounds.minX,
-        y: bounds.minY,
-        width: bounds.maxX - bounds.minX,
-        height: bounds.maxY - bounds.minY,
-      },
-      { padding: 0.08 },
-    );
-  }, [doc.canvas.page, doc.nodes, rf]);
+    // The same rect the page renderer draws — one function, not two copies.
+    const sheet = effectivePage(doc.canvas.pageRect, doc.nodes);
+    rf.fitBounds({ x: sheet.x, y: sheet.y, width: sheet.w, height: sheet.h }, { padding: 0.08 });
+  }, [doc.canvas.page, doc.canvas.pageRect, doc.nodes, rf]);
 
   // Space held is "grab the diagram". Kept separate from the shortcut handler
   // below because it has to watch both the press and the release, and must
@@ -803,7 +800,7 @@ export function Canvas() {
             is what made the desk and the page look like one surface. */}
         <Page />
         <Controls showInteractive={false} />
-        {doc.canvas.minimap && (
+        {settings.minimap && (
           <MiniMap
             pannable
             zoomable

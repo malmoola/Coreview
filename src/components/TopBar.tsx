@@ -6,7 +6,7 @@ import { ipc } from '../lib/ipc';
 import { buildMarkdownReport, saveExport, slug, svgToPng } from '../lib/exports';
 import { renderDiagramSvg } from '../lib/diagram';
 import { isVisible, layersOf } from '../lib/layers';
-import { PAGE_HEIGHT, PAGE_WIDTH } from './Page';
+import { effectivePage } from '../lib/pageRect';
 import { PAPERS, describePage, paperById, sheetSize, sheetsFor } from '../lib/paper';
 import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
 import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
@@ -307,7 +307,10 @@ export function TopBar({ onExit }: { onExit: () => void }) {
              that says where the drawing surface is. */
           onClick={() =>
             (store.doc.canvas.page ?? true)
-              ? rf.fitBounds({ x: 0, y: 0, width: PAGE_WIDTH, height: PAGE_HEIGHT }, { padding: 0.08 })
+              ? (() => {
+                  const sheet = effectivePage(store.doc.canvas.pageRect, store.doc.nodes);
+                  rf.fitBounds({ x: sheet.x, y: sheet.y, width: sheet.w, height: sheet.h }, { padding: 0.08 });
+                })()
               : rf.fitView({ padding: 0.2 })
           }
         >
@@ -439,6 +442,15 @@ export function TopBar({ onExit }: { onExit: () => void }) {
         >
           {settings.ground === 'light' ? 'Dark background' : 'White background'}
         </button>
+
+        <label className="cv-check cv-check-inline" title="The overview box, bottom-right">
+          <input
+            type="checkbox"
+            checked={settings.minimap}
+            onChange={(e) => store.setSettings({ minimap: e.target.checked })}
+          />
+          Overview
+        </label>
 
         <label className="cv-check cv-check-inline" title="Stops all packet-dot animation">
           <input

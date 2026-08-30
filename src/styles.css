@@ -69,13 +69,17 @@
  * off-white next to a true white page makes the page look yellow. */
 .is-light {
   /* The named palette. Everything below is expressed in these. */
-  --desk: #ededed;
+  /* Four surfaces a glance can tell apart: page (the only pure white), chrome
+     a clear step below it, desk a clear step below that. The first cut used
+     #FAFAFA chrome on an #EDEDED desk beside a white page and the three read
+     as one flat sheet. */
+  --desk: #e4e4e4;
   --page: #ffffff;
-  --page-border: #d4d4d4;
+  --page-border: #cfcfcf;
   --grid-minor: #eaeaea;
   --grid-major: #dcdcdc;
-  --chrome: #fafafa;
-  --chrome-edge: #e2e2e2;
+  --chrome: #f1f1f1;
+  --chrome-edge: #d6d6d6;
   --ink: #1a1a1a;
   --ink-muted: #6b6b6b;
 
@@ -84,7 +88,7 @@
   --bg: var(--desk);
   --bg-raised: var(--page);
   --panel: var(--chrome);
-  --panel-2: #efefef;
+  --panel-2: #e7e7e7;
   --line: var(--chrome-edge);
   --line-strong: #b8b8b8;
   --text: var(--ink);
@@ -99,7 +103,7 @@
   --disabled: #949494;
   --maintenance: #5323b8;
 
-  --hover: #e6e6e6;
+  --hover: #e2e2e2;
   --danger-line: #d99b95;
   --danger-hover: #fbeceb;
   /* Text on a status-coloured disc. The discs stay saturated on both grounds,
@@ -392,7 +396,12 @@ textarea.cv-input { resize: vertical; }
   background: var(--panel-2); border-bottom: 1px solid var(--line); fill: var(--text-dim);
 }
 .react-flow__controls button:hover { background: var(--hover); }
-.cv-minimap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.cv-minimap {
+  background: var(--desk);
+  border: 1px solid var(--chrome-edge); border-radius: var(--radius);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.cv-minimap svg { border-radius: var(--radius); }
 
 /* Near the minimum window size (1100x700) the canvas viewport is only about
    590x380, and React Flow's default 200x150 minimap covers a third of it.
@@ -562,11 +571,15 @@ textarea.cv-input { resize: vertical; }
 .cv-table th {
   position: sticky; top: 0; z-index: 1;
   text-align: left; font-weight: 600; color: var(--text-faint);
-  background: var(--panel); border-bottom: 1px solid var(--line);
+  background: var(--chrome); border-bottom: 1px solid var(--chrome-edge);
   padding: 6px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
 }
+/* Rows are content and sit on the page; the frame and header stay chrome.
+   Inside a chrome panel that split is what makes a table read as data rather
+   than as more furniture. */
+.cv-table tbody { background: var(--page); }
 .cv-table td { padding: 5px 10px; border-bottom: 1px solid var(--line); }
-.cv-table tbody tr:hover { background: var(--panel-2); cursor: pointer; }
+.cv-table tbody tr:hover { background: var(--hover); cursor: pointer; }
 
 /* ---------------------------------------------------------------- welcome */
 

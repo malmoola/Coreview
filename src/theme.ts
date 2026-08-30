@@ -69,9 +69,11 @@ export const CANVAS_DARK: CanvasPalette = {
 
 export const CANVAS_LIGHT: CanvasPalette = {
   grid: '#c8d3de',
-  minimapNode: '#7d93ab',
-  minimapNote: '#a3b2c2',
-  minimapMask: 'rgba(233,239,245,0.8)',
+  // Ink-dark marks on the light map. The old blue-greys were within a few
+  // points of the mask, which is what made the minimap a washed-out blob.
+  minimapNode: '#55606c',
+  minimapNote: '#8a939e',
+  minimapMask: 'rgba(228, 228, 228, 0.72)',
   selection: '#0b5fce',
   labelBackground: 'rgba(255, 255, 255, 0.96)',
   neutralNode: '#3d4e63',
