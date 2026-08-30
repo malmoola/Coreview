@@ -1468,6 +1468,49 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- printing
+// Paper is white. A diagram printed straight from the dark ground comes out as
+// pale grey lines on a white page.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  // Make sure we are on the dark ground, which is the case that used to fail.
+  const toggle = page.locator("button", { hasText: /background$/ }).first();
+  if ((await toggle.innerText()) === "Dark background") {
+    await toggle.click();
+    await page.waitForTimeout(500);
+  }
+
+  const inkNow = () =>
+    page.evaluate(() => {
+      const el = document.querySelector(".cv-glyph-label, .cv-node-label");
+      return el ? getComputedStyle(el).color : null;
+    });
+  const luminance = (css) => {
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(css ?? "");
+    return m ? (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) / 255 : null;
+  };
+
+  check("the diagram is on the dark ground to begin with",
+    (luminance(await inkNow()) ?? 0) > 0.6, String(await inkNow()));
+
+  // Print styling is applied without actually printing.
+  await page.emulateMedia({ media: "print" });
+  await page.waitForTimeout(300);
+  const printed = await inkNow();
+  check("printing puts the text in ink that reads on paper",
+    (luminance(printed) ?? 1) < 0.3, String(printed));
+
+  const chrome = await page.locator(".cv-topbar").evaluate((el) => getComputedStyle(el).display);
+  check("the tools are not printed", chrome === "none", chrome);
+
+  await page.emulateMedia({ media: "screen" });
+  await page.waitForTimeout(300);
+  check("and the screen is unchanged afterwards",
+    (luminance(await inkNow()) ?? 0) > 0.6, String(await inkNow()));
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

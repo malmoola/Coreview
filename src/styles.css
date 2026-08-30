@@ -590,8 +590,35 @@ textarea.cv-input { resize: vertical; }
 .cv-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 @media print {
-  .cv-topbar, .cv-palette, .cv-inspector, .cv-panel, .react-flow__controls, .cv-minimap { display: none !important; }
-  body, .cv-app { background: #fff; }
+  .cv-topbar, .cv-palette, .cv-inspector, .cv-panel, .react-flow__controls, .cv-minimap,
+  .cv-guide, .cv-find { display: none !important; }
+
+  /* Paper is white, so the diagram is drawn for white — not the dark palette
+     on a white page, which is how a printed diagram ends up as pale grey text
+     nobody can read. These are the same values the white ground uses; the
+     colours set from script follow because printing switches the ground
+     first, and this covers a plain Ctrl+P as well. */
+  body, .cv-app {
+    --bg: #ffffff;
+    --bg-raised: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #e9eff5;
+    --line: #ccd6e0;
+    --line-strong: #93a5b8;
+    --text: #0d1722;
+    --text-dim: #3d4e63;
+    --text-faint: #5b6b7e;
+    --accent: #0b5fce;
+    --healthy: #0a8a3f;
+    --warning: #b45c00;
+    --down: #c81e1e;
+    --unknown: #44576e;
+    --disabled: #7d8ea1;
+    --maintenance: #5323b8;
+    --label-bg: #ffffff;
+    background: #fff;
+    color: #0d1722;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

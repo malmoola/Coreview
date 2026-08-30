@@ -184,6 +184,30 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     void runExport(`${slug(meta.name)}-links.csv`, () => linksToCsv(links), 'text/csv');
   };
 
+  /**
+   * Print on paper, which is white.
+   *
+   * The colours on the canvas are chosen against the ground they are drawn on
+   * and half of them are set from script, so a diagram printed straight from
+   * the dark ground comes out as pale grey lines on a white page. Switching
+   * the ground first is the only way the printed sheet is the one that was
+   * designed; it is put back afterwards, so nothing about the session changes.
+   */
+  const printOnPaper = async () => {
+    const was = settings.ground;
+    if (was !== 'light') {
+      store.setSettings({ ground: 'light' });
+      // Two frames: one for React to render the new ground, one for the
+      // browser to paint it. Printing before the paint captures the old one.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }
+    try {
+      window.print();
+    } finally {
+      if (was !== 'light') store.setSettings({ ground: was });
+    }
+  };
+
   const exportReport = () => {
     const md = buildMarkdownReport({
       meta,
@@ -296,7 +320,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             <button type="button" onClick={exportSvg}>
               Diagram as SVG
             </button>
-            <button type="button" onClick={() => window.print()}>
+            <button type="button" onClick={() => void printOnPaper()}>
               Print / save as PDF
             </button>
             <button type="button" onClick={exportCsv}>
