@@ -237,6 +237,18 @@ Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
 
+### LT-032 — A handover document — 2026-08-30
+**Source:** asked 2026-08-30 — a doc covering "this app and its code and
+everything we need to know about" to hand the work to a different model and
+have it continue.
+**Shipped:** `docs/HANDOVER.md`. The map (what the app is, the shape of the
+code, how to run and verify it, what "done" means here) and the minefield —
+six categories of trap that have actually cost time on this project, each with
+the specific failure and how it was found. Plus the lab hardware and what each
+device proved, and the things that are true but written nowhere else.
+**Deliberately not in it:** credentials. They belong in the vault, and any
+that appeared in conversation should be rotated.
+
 ### LT-030 — **bug** A click in the middle of a device did nothing — 2026-08-30
 **Source:** flagged 2026-08-30 — "clicking a node's centre selected nothing — a
 neighbouring node's connection handle covers the middle after a tidy, and
@@ -272,6 +284,11 @@ the conversion path produces pictures, so there is nothing to read yet.
 `ROADMAP.md` at the repo root (64 lines, MVP-era) and `docs/ROADMAP.md` (310
 lines) both existed and had drifted apart. `docs/ROADMAP.md` is now this file
 and is authoritative; the root one should be deleted or made a pointer.
+
+### LT-033 — Stale debug scripts in `e2e/`
+`e2e/dbg.mjs` and `e2e/dbg2.mjs` are one-off debugging leftovers that were
+committed and never removed. Harmless, but they are the first thing a newcomer
+opens. Delete them when next in that directory.
 
 ### LT-026 — Canvas performance above ~400 devices
 Measured 2026-08-30: 400 devices open in ~2s, drag at ~15fps, pan at ~8fps;

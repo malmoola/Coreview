@@ -8,7 +8,8 @@ no telemetry, no cloud.
 ## Standing rules
 
 **Read these first, every session, before doing anything else:**
-`docs/ROADMAP.md`, `docs/DECISIONS.md`, `docs/OPEN-QUESTIONS.md`. Then summarise
+`docs/ROADMAP.md`, `docs/DECISIONS.md`, `docs/OPEN-QUESTIONS.md`. New here?
+`docs/HANDOVER.md` is the map and the minefield — read it once, in full. Then summarise
 the **Now** and **Blocked** sections back in three lines or fewer.
 
 - **A new task goes into `docs/ROADMAP.md` before the work starts.** Several
