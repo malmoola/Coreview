@@ -1649,6 +1649,49 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   await page.keyboard.press("Escape");
 }
 
+// ---------------------------------------------------------------- arrange
+// The guides handle the device being dragged. This is the other half: several
+// already placed and none of them quite in line, which is one command rather
+// than five careful drags.
+{
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.waitForTimeout(250);
+  await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
+  await page.waitForTimeout(400);
+  await page.locator("button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+
+  const devs = page.locator(".react-flow__node:not(:has(.cv-note))");
+  const posOf = async (i) =>
+    devs.nth(i).evaluate((el) => {
+      const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(el.style.transform ?? "");
+      return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+    });
+
+  await devs.nth(0).locator(".cv-glyph-art").click();
+  await devs.nth(1).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+  await page.waitForTimeout(300);
+
+  await devs.nth(0).click({ button: "right", position: { x: 10, y: 10 } });
+  await page.waitForTimeout(300);
+  const item = page.locator(".cv-menu button", { hasText: "Line up their left edges" });
+  check("a multiple selection can be lined up", (await item.count()) === 1);
+
+  if (await item.count()) {
+    const before = [await posOf(0), await posOf(1)];
+    await item.click();
+    await page.waitForTimeout(450);
+    const after = [await posOf(0), await posOf(1)];
+    check("their left edges end up the same",
+      Math.abs(after[0].x - after[1].x) < 0.5,
+      `${after[0].x.toFixed(1)} vs ${after[1].x.toFixed(1)}`);
+    check("at the leftmost of them, not the average",
+      Math.abs(after[0].x - Math.min(before[0].x, before[1].x)) < 0.5,
+      `${after[0].x.toFixed(1)} from ${before.map((b) => b.x.toFixed(1)).join(", ")}`);
+    check("and nothing is added or removed", (await devs.count()) >= 2);
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

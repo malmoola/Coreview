@@ -152,3 +152,91 @@ export function spacingHint(
   }
   return null;
 }
+
+export type AlignEdge = 'left' | 'centre' | 'right' | 'top' | 'middle' | 'bottom';
+
+/**
+ * Where a set of boxes should sit to line up on one edge.
+ *
+ * The guides handle the device being dragged. This is the other half: five
+ * switches already placed and none of them quite in line, which is a job for
+ * one command rather than five careful drags.
+ *
+ * Returns only what moves, so nothing is written for a selection that is
+ * already lined up and there is no undo step for a command that did nothing.
+ */
+export function alignTo(boxes: Box[], edge: AlignEdge): Map<string, { x: number; y: number }> {
+  const moved = new Map<string, { x: number; y: number }>();
+  if (boxes.length < 2) return moved;
+
+  // The outermost box sets the line, which is what people expect: aligning
+  // left moves everything to the leftmost, not to the average.
+  const at = (() => {
+    switch (edge) {
+      case 'left':
+        return Math.min(...boxes.map((b) => b.x));
+      case 'right':
+        return Math.max(...boxes.map((b) => b.x + b.w));
+      case 'centre':
+        return (
+          (Math.min(...boxes.map((b) => b.x)) + Math.max(...boxes.map((b) => b.x + b.w))) / 2
+        );
+      case 'top':
+        return Math.min(...boxes.map((b) => b.y));
+      case 'bottom':
+        return Math.max(...boxes.map((b) => b.y + b.h));
+      default:
+        return (
+          (Math.min(...boxes.map((b) => b.y)) + Math.max(...boxes.map((b) => b.y + b.h))) / 2
+        );
+    }
+  })();
+
+  for (const b of boxes) {
+    let { x, y } = b;
+    if (edge === 'left') x = at;
+    else if (edge === 'right') x = at - b.w;
+    else if (edge === 'centre') x = at - b.w / 2;
+    else if (edge === 'top') y = at;
+    else if (edge === 'bottom') y = at - b.h;
+    else y = at - b.h / 2;
+    if (x !== b.x || y !== b.y) moved.set(b.id, { x, y });
+  }
+  return moved;
+}
+
+/**
+ * Even gaps between three or more boxes, along one axis.
+ *
+ * The two on the ends stay where they are — they are what defines the span —
+ * and everything between them is spread so the gaps are equal. Equal gaps
+ * rather than equal centres, because boxes are different widths and equal
+ * centres leaves a wide one looking crowded.
+ */
+export function distribute(
+  boxes: Box[],
+  axis: 'x' | 'y',
+): Map<string, { x: number; y: number }> {
+  const moved = new Map<string, { x: number; y: number }>();
+  if (boxes.length < 3) return moved;
+
+  const size = axis === 'x' ? 'w' : 'h';
+  const order = [...boxes].sort((a, b) => a[axis] - b[axis]);
+  const first = order[0]!;
+  const last = order[order.length - 1]!;
+
+  const span = last[axis] + last[size] - first[axis];
+  const occupied = order.reduce((sum, b) => sum + b[size], 0);
+  const gap = (span - occupied) / (order.length - 1);
+
+  let at = first[axis] + first[size] + gap;
+  for (let i = 1; i < order.length - 1; i += 1) {
+    const b = order[i]!;
+    const want = Math.round(at * 100) / 100;
+    if (want !== b[axis]) {
+      moved.set(b.id, axis === 'x' ? { x: want, y: b.y } : { x: b.x, y: want });
+    }
+    at += b[size] + gap;
+  }
+  return moved;
+}

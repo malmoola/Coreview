@@ -8,6 +8,7 @@ import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
 import { zoneDeltas } from '../lib/zones';
+import { alignTo, distribute } from '../lib/alignment';
 import { layersOf, withNewLayer, withoutLayer, type Layer } from '../lib/layers';
 import type { ColourBy } from '../lib/tinting';
 import {
@@ -135,6 +136,11 @@ interface Store {
   setLayer: (id: string, patch: Partial<Layer>) => void;
   /** Releases every link somebody pinned, so they all follow again. */
   unpinLinks: () => number;
+  /** Lines a selection up on one edge, or evens the gaps between them. */
+  arrange: (
+    ids: string[],
+    how: 'left' | 'centre' | 'right' | 'top' | 'middle' | 'bottom' | 'across' | 'down',
+  ) => number;
   onEdgesChange: (changes: EdgeChange<TopoEdge>[]) => void;
   addNode: (node: TopoNode) => void;
   addEdge: (edge: TopoEdge) => void;
@@ -574,6 +580,38 @@ export const useStore = create<Store>((set, get) => ({
       // Which views are on is part of how the diagram was left.
       dirty: true,
     }));
+  },
+
+  arrange(ids, how) {
+    const wanted = new Set(ids);
+    const boxes = get()
+      .doc.nodes.filter((n) => wanted.has(n.id) && !(n.data as { locked?: boolean }).locked)
+      .map((n) => ({
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        w: n.width ?? n.measured?.width ?? 168,
+        h: n.height ?? n.measured?.height ?? 92,
+      }));
+    const moved =
+      how === 'across'
+        ? distribute(boxes, 'x')
+        : how === 'down'
+          ? distribute(boxes, 'y')
+          : alignTo(boxes, how);
+    if (moved.size === 0) return 0;
+    get().commit('Arrange');
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        nodes: state.doc.nodes.map((n) => {
+          const at = moved.get(n.id);
+          return at ? ({ ...n, position: at } as TopoNode) : n;
+        }),
+      },
+      dirty: true,
+    }));
+    return moved.size;
   },
 
   unpinLinks() {

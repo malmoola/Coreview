@@ -209,6 +209,29 @@ export function Canvas() {
         label: locked ? 'Unlock' : 'Lock',
         onSelect: () => store.updateNodeData(nodeId, { locked: !locked }),
       },
+      ...(selectedCount > 1
+        ? ([
+            ['left', 'Line up their left edges'],
+            ['centre', 'Line up their centres'],
+            ['right', 'Line up their right edges'],
+            ['top', 'Line up their tops'],
+            ['middle', 'Line up their middles'],
+            ['bottom', 'Line up their bottoms'],
+            ['across', 'Even the gaps across'],
+            ['down', 'Even the gaps down'],
+          ] as const).map(([how, label]) => ({
+            label,
+            onSelect: () => {
+              const ids = doc.nodes.filter((n) => n.selected).map((n) => n.id);
+              const moved = store.arrange(ids, how);
+              store.setStatusMessage(
+                moved === 0
+                  ? 'They are already arranged that way.'
+                  : `Moved ${moved} object${moved === 1 ? '' : 's'}.`,
+              );
+            },
+          }))
+        : []),
       ...(members.length > 1
         ? [
             {

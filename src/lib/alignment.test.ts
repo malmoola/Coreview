@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { alignmentFor, spacingHint, type Box } from './alignment';
+import { alignTo, alignmentFor, distribute, spacingHint, type Box } from './alignment';
 
 const box = (id: string, x: number, y: number, w = 100, h = 60): Box => ({ id, x, y, w, h });
 
@@ -89,5 +89,77 @@ describe('spacingHint', () => {
 
   it('says nothing when the drag is nowhere near the rhythm', () => {
     expect(spacingHint(box('c', 340, 0), [box('a', 0, 0), box('b', 200, 0)], 'x')).toBeNull();
+  });
+});
+
+describe('alignTo', () => {
+  it('lines boxes up on their left edges, at the leftmost', () => {
+    // Not the average: aligning left means "put them where the left one is".
+    const moved = alignTo([box('a', 100, 0), box('b', 140, 100), box('c', 180, 200)], 'left');
+    expect([...moved.values()].map((p) => p.x)).toEqual([100, 100]);
+    expect(moved.has('a')).toBe(false);
+  });
+
+  it('lines them up on their right edges', () => {
+    const moved = alignTo([box('a', 0, 0, 100), box('b', 40, 100, 200)], 'right');
+    // b ends at 240, so a must end there too.
+    expect(moved.get('a')).toEqual({ x: 140, y: 0 });
+  });
+
+  it('centres on the middle of the whole span, allowing for width', () => {
+    const moved = alignTo([box('a', 0, 0, 100), box('b', 200, 100, 200)], 'centre');
+    // Span 0..400, centre 200.
+    expect(moved.get('a')).toEqual({ x: 150, y: 0 });
+    expect(moved.get('b')).toEqual({ x: 100, y: 100 });
+  });
+
+  it('does the same the other way up', () => {
+    const moved = alignTo([box('a', 0, 100), box('b', 0, 40)], 'top');
+    expect(moved.get('a')).toEqual({ x: 0, y: 40 });
+  });
+
+  it('reports only what actually moves', () => {
+    // No undo step for a command that did nothing.
+    expect(alignTo([box('a', 0, 0), box('b', 0, 100)], 'left').size).toBe(0);
+  });
+
+  it('has nothing to do with fewer than two', () => {
+    expect(alignTo([box('a', 5, 5)], 'left').size).toBe(0);
+  });
+});
+
+describe('distribute', () => {
+  it('evens the gaps and leaves the ends alone', () => {
+    // 100 wide each, from 0 to 500: span 600, occupied 300, so gaps of 150.
+    const moved = distribute(
+      [box('a', 0, 0), box('b', 130, 0), box('c', 500, 0)],
+      'x',
+    );
+    expect(moved.get('b')).toEqual({ x: 250, y: 0 });
+    expect(moved.has('a')).toBe(false);
+    expect(moved.has('c')).toBe(false);
+  });
+
+  it('measures gaps rather than centres, so a wide box is not crowded', () => {
+    const moved = distribute(
+      [box('a', 0, 0, 100), box('b', 200, 0, 300), box('c', 900, 0, 100)],
+      'x',
+    );
+    // Span 0..1000, occupied 500, two gaps of 250 each.
+    expect(moved.get('b')).toEqual({ x: 350, y: 0 });
+  });
+
+  it('works down the page as well as across', () => {
+    const moved = distribute([box('a', 0, 0), box('b', 0, 50), box('c', 0, 400)], 'y');
+    expect(moved.get('b')!.y).toBeGreaterThan(100);
+  });
+
+  it('takes them in the order they sit, not the order they were given', () => {
+    const moved = distribute([box('c', 500, 0), box('a', 0, 0), box('b', 130, 0)], 'x');
+    expect(moved.get('b')).toEqual({ x: 250, y: 0 });
+  });
+
+  it('needs three to have anything to say', () => {
+    expect(distribute([box('a', 0, 0), box('b', 400, 0)], 'x').size).toBe(0);
   });
 });
