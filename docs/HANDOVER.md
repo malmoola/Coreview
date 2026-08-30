@@ -216,6 +216,17 @@ The single most common failure here.
 
 ### 6.6 Playwright
 
+- **One dev server, and no edits while a run is in flight.** Three zombie
+  vites once watched the tree at the same time, pushing stale full-reloads
+  into the page mid-run; and editing an app file seconds before a run lets
+  HMR reload the page under the harness. Both produced deterministic-looking
+  failures in blocks nobody had touched, and poisoned two bisects before the
+  cause was found. `pgrep -f vite` before you trust a red run.
+- Long runs occasionally suffer an environmental page reload. The recovery
+  banner then appears — correctly — and shifts the canvas down 34px, breaking
+  every screen measurement taken before it. The harness dismisses it before
+  measuring; keep doing that in new blocks.
+
 - The bottom panel overlaps the canvas. A node placed low is under it and a
   pointer-down aimed at it hits the panel.
 - A context menu that runs off the bottom of the window has unreachable items.

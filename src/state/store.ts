@@ -105,6 +105,8 @@ interface Store {
   /** Devices the panel filter currently matches, lit up on the canvas so the
    *  table and the drawing answer the same question at the same time. */
   canvasHighlight: Set<string> | null;
+  /** Unsaved work recovered from a previous session that ended badly. */
+  recovery: { savedAt: number } | null;
   selectedEdgeId: string | null;
   settings: AppSettings;
   /** Runtime-indexed icon library. Never persisted with the project — the
@@ -159,6 +161,8 @@ interface Store {
   selectNone: () => void;
   beginEditing: (id: string | null) => void;
   setCanvasHighlight: (ids: Set<string> | null) => void;
+  restoreRecovery: () => void;
+  discardRecovery: () => void;
   arrange: (
     ids: string[],
     how: 'left' | 'centre' | 'right' | 'top' | 'middle' | 'bottom' | 'across' | 'down',
@@ -316,6 +320,52 @@ function moveGroups(changes: NodeChange<TopoNode>[], before: TopoNode[]): TopoNo
  *  of one diagram can be pasted into another. */
 let clipboard: Clipping | null = null;
 
+/**
+ * Crash recovery.
+ *
+ * Edits are already saved for real 2.5 seconds after they stop, so the slot
+ * here covers only the window that save can miss: the app dying mid-edit, or
+ * the machine going down before the debounce fires. Written every minute and
+ * on the way out, offered back only when it is newer than the last real save
+ * — an old slot is stale, not a recovery.
+ */
+const recoveryKey = (id: string) => `coreview.recovery.${id}`;
+let recoveryTimer: ReturnType<typeof setInterval> | null = null;
+let recoveryUnload: (() => void) | null = null;
+
+function writeRecovery(get: () => Store): void {
+  const { meta, doc, dirty } = get();
+  if (!meta || !dirty) return;
+  try {
+    localStorage.setItem(
+      recoveryKey(meta.id),
+      JSON.stringify({ savedAt: Date.now(), document: doc }),
+    );
+  } catch {
+    /* storage full or blocked — the debounced real save still runs */
+  }
+}
+
+function clearRecovery(id: string): void {
+  try {
+    localStorage.removeItem(recoveryKey(id));
+  } catch {
+    /* nothing to clear */
+  }
+}
+
+function readRecovery(id: string): { savedAt: number; document: ProjectDocument } | null {
+  try {
+    const raw = localStorage.getItem(recoveryKey(id));
+    if (!raw) return null;
+    const slot = JSON.parse(raw) as { savedAt?: number; document?: ProjectDocument };
+    if (typeof slot.savedAt !== 'number' || !slot.document?.nodes) return null;
+    return { savedAt: slot.savedAt, document: slot.document };
+  } catch {
+    return null;
+  }
+}
+
 function snapshot(doc: ProjectDocument): HistoryEntry {
   return {
     nodes: JSON.parse(JSON.stringify(doc.nodes)),
@@ -333,6 +383,7 @@ export const useStore = create<Store>((set, get) => ({
   selectedNodeId: null,
   editingNodeId: null,
   canvasHighlight: null,
+  recovery: null,
   selectedEdgeId: null,
   iconLibrary: [],
   iconLibraryDir: null,
@@ -409,9 +460,54 @@ export const useStore = create<Store>((set, get) => ({
       selectedEdgeId: null,
     });
     await get().loadEvents();
+
+    // Anything left behind by a session that ended badly. Only offered when
+    // it is newer than the last real save; an older slot is stale.
+    const slot = readRecovery(pkg.meta.id);
+    set({ recovery: slot && slot.savedAt > pkg.meta.updatedAt ? { savedAt: slot.savedAt } : null });
+    if (slot && slot.savedAt <= pkg.meta.updatedAt) clearRecovery(pkg.meta.id);
+
+    if (recoveryTimer) clearInterval(recoveryTimer);
+    recoveryTimer = setInterval(() => writeRecovery(get), 60_000);
+    const onUnload = () => writeRecovery(get);
+    window.addEventListener('beforeunload', onUnload);
+    recoveryUnload = () => window.removeEventListener('beforeunload', onUnload);
+  },
+
+  restoreRecovery() {
+    const { meta } = get();
+    if (!meta) return;
+    const slot = readRecovery(meta.id);
+    if (!slot) {
+      set({ recovery: null });
+      return;
+    }
+    // The restored state is an edit on top of what was loaded, so undo can
+    // take it back and the debounced save will make it real.
+    get().commit('Restore unsaved work');
+    set({
+      doc: { ...emptyDocument(), ...slot.document },
+      dirty: true,
+      recovery: null,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+    });
+    clearRecovery(meta.id);
+  },
+
+  discardRecovery() {
+    const { meta } = get();
+    if (meta) clearRecovery(meta.id);
+    set({ recovery: null });
   },
 
   async closeProject() {
+    if (recoveryTimer) {
+      clearInterval(recoveryTimer);
+      recoveryTimer = null;
+    }
+    recoveryUnload?.();
+    recoveryUnload = null;
     // Closing always stops probing first (test cases 14, 15).
     if (get().session.state !== 'stopped') await get().stopValidation();
     if (get().meta && get().dirty) await get().saveProject();
@@ -433,6 +529,8 @@ export const useStore = create<Store>((set, get) => ({
     if (!meta) return;
     const updated = { ...meta, updatedAt: Date.now() };
     await ipc.saveProject({ meta: updated, documentVersion: 1, document: doc });
+    // The save is real, so the crash slot for it is stale.
+    clearRecovery(meta.id);
     set({ meta: updated, dirty: false, lastSavedAt: updated.updatedAt });
     await get().refreshProjects();
   },

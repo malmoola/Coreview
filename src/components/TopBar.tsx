@@ -278,7 +278,24 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     );
   };
 
+  const recovery = useStore((s) => s.recovery);
+
   return (
+    <div className="cv-topbar-wrap">
+      {recovery && (
+        <div className="cv-recovery" role="alert">
+          <span>
+            Unsaved work from {new Date(recovery.savedAt).toLocaleTimeString()} was found —
+            this session ended before it could be saved.
+          </span>
+          <button type="button" className="cv-btn cv-btn-small" onClick={() => store.restoreRecovery()}>
+            Restore it
+          </button>
+          <button type="button" className="cv-btn cv-btn-small" onClick={() => store.discardRecovery()}>
+            Keep what was saved
+          </button>
+        </div>
+      )}
     <header className="cv-topbar">
       <div className="cv-topbar-left">
         <span className="cv-brand">Coreview</span>
@@ -484,6 +501,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
 
       {about && <AboutDialog onClose={() => setAbout(false)} />}
     </header>
+    </div>
   );
 }
 

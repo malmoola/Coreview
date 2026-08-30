@@ -100,6 +100,16 @@ await page.locator(".cv-project-open").first().click();
 await page.waitForSelector(".react-flow__node", { timeout: 15000 });
 await page.waitForTimeout(400);
 
+
+/** The recovery banner is the app being right about an unexpected reload —
+ *  which long harness runs occasionally suffer. It shifts the canvas down,
+ *  so any block about to measure dismisses it first. */
+const dismissRecovery = async () => {
+  if (await page.locator(".cv-recovery").count()) {
+    await page.locator(".cv-recovery button", { hasText: "Keep what was saved" }).click();
+    await page.waitForTimeout(300);
+  }
+};
 const nodeCount = () => page.locator(".react-flow__node").count();
 const boxOf = async (sel) => {
   const b = await page.locator(sel).first().boundingBox();
@@ -1145,6 +1155,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("one undo reverses the whole bulk change", !/site-hq/.test(undone), undone.slice(0, 120).replace(/\n/g, " "));
 }
 
+await dismissRecovery();
 // ---------------------------------------------------------------- sections
 // A labelled area that holds whatever is standing in it. Membership is
 // geometric, so nothing has to be re-assigned when a device is dragged in.
@@ -1216,6 +1227,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+await dismissRecovery();
 // ---------------------------------------------------------------- guides
 // Grid snapping is not the same as being in line: two devices can both sit on
 // the grid and still be a few pixels out from each other, and a few pixels out
@@ -1666,6 +1678,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   await page.keyboard.press("Escape");
 }
 
+await dismissRecovery();
 // ---------------------------------------------------------------- arrange
 // The guides handle the device being dragged. This is the other half: several
 // already placed and none of them quite in line, which is one command rather
@@ -1815,6 +1828,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("select all takes everything", selected === before, `${selected} of ${before}`);
 }
 
+await dismissRecovery();
 // ---------------------------------------------------------------- handling
 // How it is driven, which is the way Lucidchart and Visio do it because that
 // is what anyone opening this already knows.
@@ -1929,6 +1943,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     /rgba\(0, 0, 0, 0\)|transparent/.test(border), border);
 }
 
+await dismissRecovery();
 // ---------------------------------------------------------------- desk
 // A white viewport is a flat field with objects floating in it and no edge
 // anywhere. The page has to be a real object against a neutral desk.
@@ -1977,6 +1992,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     await read(".react-flow__pane", "backgroundColor"));
 }
 
+await dismissRecovery();
 // ---------------------------------------------------------------- sheet
 // The page grows to hold what is drawn on it, never shrinks on its own, and
 // the minimap toggle moves nothing else.
@@ -2156,6 +2172,70 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("clearing the filter puts the canvas back",
     (await page.locator(".is-hit").count()) === 0 &&
       (await page.locator(".is-dimmed").count()) === 0);
+}
+
+// ---------------------------------------------------------------- recovery
+// A session that ends badly leaves its unsaved work behind, and the next
+// launch offers it back — only when it is newer than what was really saved.
+{
+  // The debounced real save has to land first: reloading while dirty makes
+  // the beforeunload writer overwrite the planted slot with a genuine one.
+  await page.waitForTimeout(3200);
+  // Plant a recovery slot newer than the project's last save, then reload.
+  const projectId = await page.evaluate(() => {
+    const all = JSON.parse(localStorage.getItem("coreview.projects.v1") ?? "{}");
+    const id = Object.keys(all)[0];
+    const doc = all[id].document;
+    const marked = {
+      ...doc,
+      nodes: [...doc.nodes, {
+        id: "recovered-node", type: "device", position: { x: 900, y: 900 },
+        width: 168, height: 92,
+        data: { label: "RECOVERED-SW", deviceType: "access-switch", tags: [],
+          addresses: [], locked: false, maintenance: false, showDetails: true },
+      }],
+    };
+    localStorage.setItem(`coreview.recovery.${id}`,
+      JSON.stringify({ savedAt: Date.now() + 60_000, document: marked }));
+    return id;
+  });
+  void projectId;
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".cv-project-open").first().click();
+  await page.waitForSelector(".react-flow__node");
+  await page.waitForTimeout(600);
+
+  check("unsaved work from a dead session is offered back",
+    (await page.locator(".cv-recovery").count()) === 1);
+
+  const before = await nodeCount();
+  await page.locator(".cv-recovery button", { hasText: "Restore it" }).click();
+  await page.waitForTimeout(600);
+  check("restoring brings the lost work back",
+    (await page.locator(".react-flow__node", { hasText: "RECOVERED-SW" }).count()) === 1,
+    `${before} -> ${await nodeCount()}`);
+  check("and the offer is answered once", (await page.locator(".cv-recovery").count()) === 0);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  check("a restore is an edit, so undo can take it back",
+    (await page.locator(".react-flow__node", { hasText: "RECOVERED-SW" }).count()) === 0);
+
+  // A stale slot — older than the last save — is not offered. The debounced
+  // real save must land first, or the beforeunload writer replaces the
+  // planted stale slot with a genuine fresh one on the way out.
+  await page.waitForTimeout(3200);
+  await page.evaluate(() => {
+    const all = JSON.parse(localStorage.getItem("coreview.projects.v1") ?? "{}");
+    const id = Object.keys(all)[0];
+    localStorage.setItem(`coreview.recovery.${id}`,
+      JSON.stringify({ savedAt: 1, document: all[id].document }));
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".cv-project-open").first().click();
+  await page.waitForSelector(".react-flow__node");
+  await page.waitForTimeout(600);
+  check("a slot older than the last save is stale, not a recovery",
+    (await page.locator(".cv-recovery").count()) === 0);
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });

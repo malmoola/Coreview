@@ -63,12 +63,6 @@ variables that were meant.
 
 *Accepted, not started.*
 
-### LT-042 — Autosave and restore
-**Source:** asked 2026-08-30 (Item D6).
-**Acceptance:** snapshot the open document to the local store every 60s and on
-window close; on next launch offer restore if newer than the last manual save.
-No cloud, no new deps.
-
 ### LT-043 — Hover card during validation
 **Source:** asked 2026-08-30 (Item D7).
 **Acceptance:** hovering a device while validation runs shows last result, RTT
@@ -260,6 +254,24 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-042 — Autosave and restore — 2026-08-30
+Shipped as crash recovery, composing with what already existed: edits are
+saved for real 2.5 seconds after they stop, so the new slot covers only the
+window that save can miss — the app dying mid-edit, or the machine going down
+before the debounce fires. Written every 60s while dirty and on the way out,
+offered back on the next open only when newer than the last real save (an
+older slot is stale and is silently cleared), restored as an edit so undo can
+take it back, cleared by every successful save. No cloud, no new dependencies.
+**A day of debugging worth recording:** the harness intermittently reloads
+mid-run (environmental — a renderer hiccup on two-hundred-check runs), and the
+banner then appears exactly as designed, shifting the canvas 34px and breaking
+every geometry measured before it. Bisecting was poisoned twice: first by
+three zombie vite dev-servers all watching the tree and pushing stale reloads
+into the page, then by editing app files seconds before runs against a live
+HMR server. The harness now dismisses a recovery banner before any block that
+measures, and the lesson — one dev server, no edits mid-run — is in the
+handover.
 
 ### LT-041 — Export renders exactly the page rect — 2026-08-30
 Shipped: SVG and PNG exports render exactly the LT-036 sheet — same function,

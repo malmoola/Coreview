@@ -1416,3 +1416,11 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
 }
 .cv-glyph-node.is-hit .cv-glyph-art::after { border-radius: 50%; }
 .cv-glyph-node.is-dimmed, .cv-node.is-dimmed { opacity: 0.3; }
+
+/* Unsaved work found from a session that ended badly. Loud on purpose: it is
+   answered once and gone, and quiet recovery prompts get dismissed unread. */
+.cv-recovery {
+  display: flex; align-items: center; gap: 10px; padding: 7px 12px;
+  background: var(--notice-bg); border-bottom: 1px solid var(--notice-line);
+  color: var(--notice-text); font-size: 12px;
+}
