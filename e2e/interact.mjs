@@ -1258,6 +1258,74 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("the device lands exactly in line", gap < 2, `${gap.toFixed(1)}px out`);
 }
 
+// ---------------------------------------------------------------- spacing
+// Lining up is half of tidy; the other half is the gaps being equal. Three
+// devices dropped in a row should end up evenly spaced without measuring.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  const drop = async (at) => {
+    const before = await nodeCount();
+    await page.locator(".cv-palette-item", { hasText: "Router" }).first()
+      .dragTo(page.locator(".react-flow__pane"), { targetPosition: at });
+    await page.waitForTimeout(350);
+    return (await nodeCount()) === before + 1;
+  };
+
+  // Kept well clear of the bottom panel, which overlaps the canvas and will
+  // swallow a pointer-down aimed at a device placed under it.
+  check("three devices can be placed", (await drop({ x: 200, y: 470 }))
+    && (await drop({ x: 460, y: 470 })) && (await drop({ x: 760, y: 470 })));
+
+  // A freshly dropped device is selected, and a selected device is not a
+  // target to line up against — it may be moving too.
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  const routers = page.locator(".react-flow__node", { hasText: "Router" });
+  const boxOf = async (i) => routers.nth(i).boundingBox();
+  /** The node's own position, in diagram units, straight off its transform.
+   *  Screen pixels carry the zoom and a rounding at every step; this is the
+   *  number the app is actually reasoning about. */
+  const posOf = async (i) =>
+    routers.nth(i).evaluate((el) => {
+      const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(el.style.transform ?? "");
+      return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
+    });
+
+  const [p0, p1] = [await posOf(0), await posOf(1)];
+  const wantsDiagram = p1.x + (p1.x - p0.x);
+  const r1 = await boxOf(1);
+  const r2 = await boxOf(2);
+  const wants = r1.x + (r1.x - (await boxOf(0)).x);
+
+  // Nudged to just inside the tolerance of where the rhythm says it belongs.
+  let pointer = { x: r2.x + 30, y: r2.y + 22 };
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.mouse.down();
+  await page.mouse.move(wants + 2, r1.y + 22, { steps: 18 });
+  for (let i = 0; i < 8; i++) {
+    await page.waitForTimeout(110);
+    const now = await boxOf(2);
+    const dx = wants + 2 - now.x;
+    const dy = r1.y - now.y;
+    if (Math.abs(dx) < 0.4 && Math.abs(dy) < 0.4) break;
+    pointer = { x: pointer.x + dx, y: pointer.y + dy };
+    await page.mouse.move(pointer.x, pointer.y, { steps: 3 });
+  }
+  await page.waitForTimeout(200);
+  check("a guide shows the rhythm it has found",
+    (await page.locator(".cv-guide").count()) >= 1);
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+
+  const landedAt = await posOf(2);
+  check("the third device lands at the same gap as the first two",
+    Math.abs(landedAt.x - wantsDiagram) < 1,
+    `${Math.abs(landedAt.x - wantsDiagram).toFixed(1)} units out (at ${landedAt.x.toFixed(0)}, wanted ${wantsDiagram.toFixed(0)})`);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

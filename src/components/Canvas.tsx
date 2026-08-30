@@ -23,7 +23,7 @@ import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
-import { alignmentFor, type Box, type Guide } from '../lib/alignment';
+import { alignmentFor, spacingHint, type Box, type Guide } from '../lib/alignment';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
@@ -473,11 +473,58 @@ export function Canvas() {
       // taken out of your hands.
       const tolerance = 7 / Math.max(0.2, rf.getZoom());
       const others = doc.nodes.filter((n) => n.id !== moving.id && !n.selected).map(boxOf);
-      const found = alignmentFor({ ...boxOf(node), ...moving.position }, others, tolerance);
-      setGuides(found.guides);
+      const dragged = { ...boxOf(node), ...moving.position };
+      const found = alignmentFor(dragged, others, tolerance);
+
+      // Lining up is half of tidy; the other half is the gaps being equal.
+      // Where both an edge and a rhythm are within reach on the same axis,
+      // the one asking for the smaller correction wins: whichever the device
+      // was already closer to is the one the person was aiming at.
+      const settled = { x: found.x, y: found.y };
+      const spacingGuides: Guide[] = [];
+      const span = (from: number[], to: number[]) => ({
+        from: Math.min(...from),
+        to: Math.max(...to),
+      });
+
+      const rhythmX = spacingHint(dragged, others, 'x', tolerance);
+      if (rhythmX !== null && Math.abs(rhythmX - dragged.x) <= Math.abs(found.x - dragged.x)) {
+        settled.x = rhythmX;
+        const edges = span(
+          [rhythmX, ...others.map((o) => o.x)],
+          [rhythmX + dragged.w, ...others.map((o) => o.x + o.w)],
+        );
+        spacingGuides.push({
+          orientation: 'horizontal',
+          at: settled.y + dragged.h / 2,
+          ...edges,
+        });
+      }
+
+      const rhythmY = spacingHint(dragged, others, 'y', tolerance);
+      if (rhythmY !== null && Math.abs(rhythmY - dragged.y) <= Math.abs(found.y - dragged.y)) {
+        settled.y = rhythmY;
+        const edges = span(
+          [rhythmY, ...others.map((o) => o.y)],
+          [rhythmY + dragged.h, ...others.map((o) => o.y + o.h)],
+        );
+        spacingGuides.push({
+          orientation: 'vertical',
+          at: settled.x + dragged.w / 2,
+          ...edges,
+        });
+      }
+
+      // A guide for an edge the device is no longer snapped to would be a
+      // line pointing at nothing.
+      const keptGuides = found.guides.filter((g) =>
+        g.orientation === 'vertical' ? settled.x === found.x : settled.y === found.y,
+      );
+
+      setGuides([...keptGuides, ...spacingGuides]);
       store.onNodesChange(
         changes.map((c) =>
-          c === moving ? { ...c, position: { x: found.x, y: found.y } } : c,
+          c === moving ? { ...c, position: { x: settled.x, y: settled.y } } : c,
         ) as NodeChange<TopoNode>[],
       );
     },
