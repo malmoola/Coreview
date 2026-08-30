@@ -30,10 +30,14 @@ const WHEEL_LIGHT = [
   '#c2410c', '#4d7c0f', '#be123c', '#0369a1', '#8a6d00', '#7e22ce',
 ];
 
-/** What a device is being grouped by, or null when it has no answer. */
-export function keyFor(node: TopoNode, by: ColourBy): string | null {
-  if (node.type !== 'device') return null;
-  const d = node.data as DeviceNodeData;
+/** What a device is being grouped by, or null when it has no answer.
+ *
+ *  Takes the node's data rather than the node, because a node component
+ *  already has its own data as a prop. Looking the node back up in the store
+ *  made every device search the whole diagram on every change — quadratic in
+ *  the number of devices, on a canvas whose whole job is to hold a lot of
+ *  them. */
+export function keyForData(d: DeviceNodeData, by: ColourBy): string | null {
   switch (by) {
     case 'role':
       return d.deviceType ?? null;
@@ -54,6 +58,11 @@ export function keyFor(node: TopoNode, by: ColourBy): string | null {
     default:
       return null;
   }
+}
+
+export function keyFor(node: TopoNode, by: ColourBy): string | null {
+  if (node.type !== 'device') return null;
+  return keyForData(node.data as DeviceNodeData, by);
 }
 
 /** A small, stable hash. The same key gives the same colour every session. */

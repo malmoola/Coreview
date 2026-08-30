@@ -981,3 +981,125 @@ mod tests {
         assert!(list_events(&c, "p1", 100).unwrap().is_empty());
     }
 }
+
+#[cfg(test)]
+mod document_round_trip {
+    use super::*;
+
+    fn mem() -> Connection {
+        let c = Connection::open_in_memory().expect("in-memory database");
+        migrate(&c).expect("schema");
+        c
+    }
+
+    /// A document carrying every field the interface has added since this
+    /// storage was written, plus one it has not.
+    fn document() -> serde_json::Value {
+        serde_json::json!({
+            "nodes": [{
+                "id": "n1",
+                "type": "device",
+                "position": { "x": 10.5, "y": -20.25 },
+                "width": 176,
+                "height": 96,
+                "data": {
+                    "label": "CORE-SW",
+                    "deviceType": "core-switch",
+                    "tags": ["site-hq"],
+                    "addresses": [{ "id": "a", "label": "Mgmt", "address": "10.0.0.1", "isPrimary": true }],
+                    "layers": ["logical"],
+                    "locked": false,
+                    "maintenance": false,
+                    "showDetails": true,
+                    "somethingAddedNextYear": { "deeply": ["nested", 1, true, null] }
+                }
+            }],
+            "edges": [{
+                "id": "e1",
+                "source": "n1",
+                "target": "n1",
+                "data": {
+                    "kind": "leader",
+                    "lineStyle": "dash-dot",
+                    "startCap": "circle",
+                    "endCap": "open-arrow",
+                    "colorMode": "fixed",
+                    "color": "#b76eff",
+                    "pinnedSides": true,
+                    "layers": ["physical"]
+                }
+            }],
+            "probes": [],
+            "canvas": {
+                "gridEnabled": true,
+                "colourBy": "subnet",
+                "lineJumps": false,
+                "layers": [{ "id": "logical", "name": "Logical", "visible": false, "locked": true }]
+            }
+        })
+    }
+
+    fn package() -> ProjectPackage {
+        ProjectPackage {
+            meta: ProjectMeta {
+                id: "p1".into(),
+                name: "Round trip".into(),
+                customer: String::new(),
+                site: String::new(),
+                ticket: String::new(),
+                engineer: String::new(),
+                description: String::new(),
+                created_at: 1,
+                updated_at: 2,
+                archived: false,
+            },
+            document_version: 1,
+            document: document(),
+        }
+    }
+
+    #[test]
+    fn a_document_comes_back_byte_for_byte() {
+        // The diagram's shape belongs to the interface, and this layer stores
+        // it as opaque JSON on purpose. If it were ever parsed into a typed
+        // struct here, every field added to the interface after that struct
+        // was written would be silently dropped on the next save — and the
+        // person would find out when their diagram reopened without its
+        // views, its leaders or its colours.
+        let c = mem();
+        upsert_project(&c, &package()).expect("save");
+        let back = load_project(&c, "p1").expect("load").expect("a project");
+        assert_eq!(back.document, document());
+    }
+
+    #[test]
+    fn a_field_this_version_has_never_heard_of_survives() {
+        let c = mem();
+        upsert_project(&c, &package()).expect("save");
+        let back = load_project(&c, "p1").expect("load").expect("a project");
+        let node = &back.document["nodes"][0]["data"];
+        assert_eq!(node["somethingAddedNextYear"]["deeply"][0], "nested");
+    }
+
+    #[test]
+    fn saving_twice_does_not_erode_it() {
+        // Round-tripping through the database and back has to be stable, or a
+        // diagram loses a little each time it is opened and saved.
+        let c = mem();
+        upsert_project(&c, &package()).expect("save");
+        let once = load_project(&c, "p1").expect("load").expect("a project");
+        upsert_project(&c, &once).expect("save again");
+        let twice = load_project(&c, "p1").expect("load").expect("a project");
+        assert_eq!(twice.document, document());
+    }
+
+    #[test]
+    fn numbers_keep_their_precision() {
+        // A position rounded to an integer on every save walks a diagram out
+        // of alignment over a few sessions.
+        let c = mem();
+        upsert_project(&c, &package()).expect("save");
+        let back = load_project(&c, "p1").expect("load").expect("a project");
+        assert_eq!(back.document["nodes"][0]["position"]["y"], -20.25);
+    }
+}

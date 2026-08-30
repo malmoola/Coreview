@@ -256,6 +256,23 @@ watches them.
       are assigned from the key, so the same subnet is the same colour every
       session and adding a device does not repaint the diagram
 
+## Measured, not assumed
+
+- **A document is stored opaquely and comes back byte for byte**, including
+  fields this version of the storage layer has never heard of and the fractions
+  in a position. Parsing the diagram into a typed struct in Rust would silently
+  drop every field the interface added afterwards, and the person would find
+  out when their diagram reopened without its views or its colours
+- **400 devices and 400 links**: opens in about 2 seconds, drags at roughly
+  15 frames a second, pans at about 8. At 120 devices — a more usual crawl —
+  it is 33 and 18. The cost is the DOM: about 60 elements per device, 24,000
+  in all. Line jumps cost nothing measurable, which is the edge cap and the
+  debounce doing their job
+- **`onlyRenderVisibleElements` was tried and rejected.** It halves the DOM and
+  improves opening and panning, and makes dragging three times worse — React
+  Flow recalculates what is visible on every frame of the drag. Recorded so it
+  is not tried again
+
 ## Packaging and trust
 
 - [x] Windows installer down from 500 MB to 7 MB (WebView2 bootstrapper)

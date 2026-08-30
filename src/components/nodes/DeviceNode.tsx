@@ -3,7 +3,7 @@ import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 
 import { ICONS } from '../icons';
 import { canvasPalette, deviceColor, statusColors } from '../../theme';
-import { colourForKey, keyFor } from '../../lib/tinting';
+import { colourForKey, keyForData } from '../../lib/tinting';
 import { useStore } from '../../state/store';
 import type { DeviceNodeData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
@@ -117,7 +117,6 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const nodeStyle = useStore((s) => s.doc.canvas.nodeStyle ?? 'glyph');
   const ground = useStore((s) => s.settings.ground);
   const colourBy = useStore((s) => s.doc.canvas.colourBy ?? 'health');
-  const node = useStore((s) => s.doc.nodes.find((n) => n.id === id));
   const rename = useStore((s) => s.updateNodeData);
 
   const Icon = ICONS[d.deviceType] ?? ICONS.generic;
@@ -127,7 +126,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   // Health is the default and is what the app is for. Colouring by subnet or
   // by tag answers a different question, and while it is on it wins — a
   // diagram cannot say two things with one colour.
-  const grouped = colourBy !== 'health' && node ? keyFor(node, colourBy) : null;
+  const grouped = colourBy !== 'health' ? keyForData(d, colourBy) : null;
   const color = grouped
     ? colourForKey(grouped, ground)
     : deviceColor(d.deviceType, status, ground);
