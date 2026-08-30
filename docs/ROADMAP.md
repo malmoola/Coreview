@@ -62,8 +62,17 @@ Ordered by what makes the app more useful, not by what is easiest.
       network exercises it — every port there carries a device that announces
       itself — so the parser is verified against that switch's real output and
       the selection is covered by tests, but the end-to-end path is not
-- [ ] Draw those attached devices on the diagram. The data is collected; what
-      is missing is deciding how much of a flat network belongs on a picture
+- [x] **Draw the silent devices you ask for.** Filtered by maker, subnet, port,
+      or "only ports carrying one device" — a question about what someone is
+      looking for rather than a count. Each hangs off the port it was learned
+      on, labelled with the maker and never a guessed role, and drawn once
+      however many switches saw its MAC through an uplink.
+
+      Verified against the real network by temporarily relaxing the uplink
+      rule to produce data: 38 devices from the switch's MAC table, filtering
+      to 0 for Nokia, 2 for Ubiquiti and 6 for Fortinet. Nothing on that
+      network qualifies under the real rule — every port there carries a
+      device that announces itself — so the panel correctly does not appear
 - [x] **MAC OUI lookup**, from the bundled IEEE registry — a device whose only
       identity is `7456.3c75.fcae` is drawn as "Ubiquiti device". The maker
       only: a vendor does not say what a device *is*, and guessing would put

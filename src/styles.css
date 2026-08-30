@@ -843,3 +843,9 @@ textarea.cv-input { resize: vertical; }
 .cv-timing { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; }
 .cv-timing-row { display: flex; gap: 8px; }
 .cv-timing-row .cv-field { flex: 1; }
+
+/* Silent devices: folded away, because most runs do not want them and the
+   results table is the thing people came for. */
+.cv-attached { margin: 10px 0 4px; border-left: 2px solid var(--line); padding-left: 10px; }
+.cv-attached > summary { cursor: pointer; color: var(--text-dim); font-size: 12px; }
+.cv-attached > summary:hover { color: var(--text); }

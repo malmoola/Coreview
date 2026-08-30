@@ -15,6 +15,7 @@ import { SubnetList } from './SubnetList';
 import { reasonWithoutAddress } from '../lib/failures';
 import { newProbe } from '../lib/probes';
 import { buildTopology } from '../lib/topology';
+import { selectAttached, vendorCounts } from '../lib/attached';
 import type { DeviceNodeData } from '../types/domain';
 
 const CLASS_LABEL: Record<DeviceClassName, string> = {
@@ -121,6 +122,14 @@ export function CrawlPanel({
   // connection attempt, which is what sets off intrusion alerts.
   const [loginClasses, setLoginClasses] = useState<DeviceClassName[]>(INFRASTRUCTURE);
   const [transport, setTransport] = useState<'ssh' | 'telnet' | 'sshThenTelnet'>('ssh');
+  // Silent devices — the ones that announce nothing — are drawn only when
+  // asked for. A flat /24 can hold two hundred, and drawing them all buries
+  // the topology the diagram exists to show.
+  const [showAttached, setShowAttached] = useState(false);
+  const [attachedVendor, setAttachedVendor] = useState('');
+  const [attachedSubnet, setAttachedSubnet] = useState('');
+  const [attachedPort, setAttachedPort] = useState('');
+  const [singlePortOnly, setSinglePortOnly] = useState(true);
   // A second login, tried only where the first is rejected.
   const [backupOpen, setBackupOpen] = useState(false);
   const [backupUsername, setBackupUsername] = useState('');
@@ -344,6 +353,27 @@ export function CrawlPanel({
    * the port at each end, which is what makes this a diagram rather than a
    * grid of boxes.
    */
+  const attachedFilter = useMemo(
+    () => ({
+      vendor: attachedVendor,
+      subnet: attachedSubnet,
+      port: attachedPort,
+      // A port carrying several addresses leads to another switch, and what
+      // is behind it belongs to that switch rather than this one.
+      maxPerPort: singlePortOnly ? 1 : undefined,
+    }),
+    [attachedVendor, attachedSubnet, attachedPort, singlePortOnly],
+  );
+  const chosenAttached = useMemo(
+    () => (result ? selectAttached(result.devices, attachedFilter) : []),
+    [result, attachedFilter],
+  );
+  const makers = useMemo(() => (result ? vendorCounts(result.devices) : []), [result]);
+  const attachedTotal = useMemo(
+    () => (result ? selectAttached(result.devices, {}).length : 0),
+    [result],
+  );
+
   const build = () => {
     if (!result || !store.meta) return;
     const keep = new Set(picked.map((r) => r.key.toLowerCase()));
@@ -351,6 +381,7 @@ export function CrawlPanel({
 
     const topo = buildTopology(result, store.meta.id, {
       origin: { x: 80, y: bottom + 80 },
+      attached: showAttached ? chosenAttached : [],
       // A second crawl updates the diagram rather than drawing another copy
       // of the network beside it, so re-running discovery is something you can
       // do weekly instead of once.
@@ -671,7 +702,8 @@ export function CrawlPanel({
             </button>
             <button type="button" className="cv-btn cv-btn-small cv-btn-start"
               onClick={build} disabled={!picked.length}>
-              Add {picked.length} to diagram
+              Add {picked.length}
+              {showAttached && chosenAttached.length > 0 ? ` + ${chosenAttached.length}` : ''} to diagram
             </button>
             <button type="button" className="cv-btn cv-btn-small" onClick={backUp}
               disabled={!backupable.length}
@@ -728,6 +760,61 @@ export function CrawlPanel({
         <p className="cv-help cv-discover-live-failed">
           {liveFailed} device{liveFailed === 1 ? '' : 's'} could not be reached so far
         </p>
+      )}
+
+      {result && attachedTotal > 0 && (
+        <details className="cv-attached" open={showAttached}
+          onToggle={(e) => setShowAttached((e.currentTarget as HTMLDetailsElement).open)}>
+          <summary>
+            {attachedTotal} more {attachedTotal === 1 ? 'device was' : 'devices were'} seen on
+            switch ports without announcing anything
+          </summary>
+
+          <p className="cv-help">
+            These speak no discovery protocol — printers, cameras, workstations. A switch knows
+            they are there because it learned their address on a port. Nothing here is drawn
+            unless you ask: a flat network can hold hundreds, and all of them at once would bury
+            the topology.
+          </p>
+
+          <div className="cv-discover-form">
+            <label className="cv-field cv-field-narrow">
+              <span>Made by</span>
+              <input className="cv-input" list="cv-makers" value={attachedVendor}
+                placeholder="any" onChange={(e) => setAttachedVendor(e.target.value)} />
+              <datalist id="cv-makers">
+                {makers.map((m) => (
+                  <option key={m.vendor} value={m.vendor}>{`${m.vendor} (${m.count})`}</option>
+                ))}
+              </datalist>
+            </label>
+            <label className="cv-field cv-field-narrow">
+              <span>In subnet</span>
+              <input className="cv-input" value={attachedSubnet} placeholder="any"
+                onChange={(e) => setAttachedSubnet(e.target.value)} />
+            </label>
+            <label className="cv-field cv-field-narrow">
+              <span>On port</span>
+              <input className="cv-input" value={attachedPort} placeholder="any"
+                onChange={(e) => setAttachedPort(e.target.value)} />
+            </label>
+          </div>
+
+          <label className="cv-check cv-check-inline">
+            <input type="checkbox" checked={singlePortOnly}
+              onChange={(e) => setSinglePortOnly(e.target.checked)} />
+            Only ports with one device on them
+          </label>
+          <p className="cv-help">
+            A port carrying several addresses leads to another switch, and what is behind it
+            belongs on that switch's part of the diagram rather than hanging off this one.
+          </p>
+
+          <p className="cv-help">
+            <strong>{chosenAttached.length}</strong> of {attachedTotal} match. They will be added
+            with the devices ticked above, each hanging off the port it was learned on.
+          </p>
+        </details>
       )}
 
       {!running && failures.length > 0 && (
