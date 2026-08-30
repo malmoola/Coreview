@@ -157,8 +157,14 @@ export type AttachedDevice = {
   port: string;
   address: string | null;
   vendor: string | null;
+  /** What the device calls itself, when something on the path knew. A MAC and
+   *  an OUI give "Hewlett Packard"; this gives "HPLJ-3rdfloor". */
+  hostname: string | null;
+  /** What it is, when a device that could actually tell said so. */
+  class: DeviceClassName | null;
   /** Distinct addresses sharing that port. One means something is plugged in;
-   *  many means the port leads to another switch. */
+   *  many means the port leads to another switch. Zero means the count says
+   *  nothing — a firewall interface carries a whole network. */
   portPopulation: number;
 };
 

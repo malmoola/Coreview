@@ -330,6 +330,8 @@ describe('drawing what a switch has learned', () => {
       port: 'GigabitEthernet1/0/7',
       address: '10.0.0.50',
       vendor: 'Axis Communications',
+      hostname: null,
+      class: null,
       portPopulation: 1,
       ...over,
     },
@@ -356,6 +358,37 @@ describe('drawing what a switch has learned', () => {
     );
     expect(t.nodes).toHaveLength(1);
     expect(t.edges).toHaveLength(0);
+  });
+
+  it('prefers a name the device gave over the maker of its chip', () => {
+    // "HPLJ-3rdfloor" can be found on a floor. "Axis Communications device"
+    // cannot, and there may be forty of them.
+    const t = buildTopology(
+      { devices: [device('CORE-SW', '10.0.0.1', [])], notVisited: [] },
+      'p',
+      { attached: [attached({ hostname: 'HPLJ-3rdfloor' })] },
+    );
+    expect(labels(t)).toContain('HPLJ-3rdfloor');
+    expect(labels(t)).not.toContain('Axis Communications device');
+  });
+
+  it('draws the glyph only when something could actually tell us', () => {
+    const known = buildTopology(
+      { devices: [device('CORE-SW', '10.0.0.1', [])], notVisited: [] },
+      'p',
+      { attached: [attached({ class: 'printer' })] },
+    );
+    const printer = known.nodes.find((n) => n.data.label !== 'CORE-SW');
+    expect(printer?.data.deviceType).toBe('printer');
+
+    // With no class, an OUI is not evidence of a role: a plain box is right.
+    const guessed = buildTopology(
+      { devices: [device('CORE-SW', '10.0.0.1', [])], notVisited: [] },
+      'p',
+      { attached: [attached()] },
+    );
+    const box = guessed.nodes.find((n) => n.data.label !== 'CORE-SW');
+    expect(box?.data.deviceType).toBe('generic');
   });
 
   it('falls back to the MAC when the maker is unknown', () => {

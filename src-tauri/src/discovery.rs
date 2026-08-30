@@ -78,6 +78,9 @@ pub struct CrawlInput {
     pub port: u16,
     /// "ssh", "telnet", or "sshThenTelnet". Absent means SSH.
     pub transport: Option<String>,
+    /// Which VDOM to enter on a FortiGate that has them enabled. Absent means
+    /// `root`, which is where a management VDOM usually is.
+    pub vdom: Option<String>,
     /// Optional SNMP credentials, used only for devices that refuse SSH.
     pub snmp: Option<SnmpInput>,
     /// A saved credential to use instead of typed ones. The interface sends an
@@ -248,6 +251,13 @@ pub async fn start_crawl(
             // clear text without anyone asking for it.
             _ => coreview_discover::crawl::Transport::Ssh,
         },
+        vdom: input
+            .vdom
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .unwrap_or("root")
+            .to_string(),
         fallback_credentials: fallback_credentials
             .unwrap_or_default()
             .into_iter()

@@ -60,6 +60,10 @@ pub struct CrawlOptions {
     /// How to reach a command line. Telnet is never chosen on its own — a run
     /// has to ask for it.
     pub transport: Transport,
+    /// Which VDOM to enter on a FortiGate that has them enabled. Almost always
+    /// `root`; a management VDOM under another name is common enough that it
+    /// has to be settable.
+    pub vdom: String,
     /// When set, a device that refuses SSH is still identified over SNMP.
     ///
     /// Worth having because the two are not interchangeable and not equally
@@ -83,6 +87,7 @@ impl Default for CrawlOptions {
             ssh: SshOptions::default(),
             fallback_credentials: Vec::new(),
             transport: Transport::default(),
+            vdom: "root".to_string(),
             snmp: None,
             snmp_timeout: Duration::from_secs(5),
         }
@@ -139,6 +144,13 @@ pub struct AttachedDevice {
     pub port: String,
     pub address: Option<String>,
     pub vendor: Option<String>,
+    /// What the device calls itself, when something on the path knew. A MAC
+    /// and an OUI give "Hewlett Packard"; this gives "HPLJ-3rdfloor".
+    pub hostname: Option<String>,
+    /// What it is, when a device that can actually tell said so. `None` here
+    /// leaves the OUI classifier its turn rather than overriding it with a
+    /// guess.
+    pub class: Option<crate::types::DeviceClass>,
     /// How many distinct addresses share this port. One means something is
     /// plugged into it; many means it leads to another switch.
     pub port_population: usize,
@@ -594,7 +606,7 @@ async fn visit(
     // plenty do not — a FortiSwitch on the network this was built against is
     // named and classified correctly and has nowhere to connect. The switch
     // that sees it knows: the chassis id is a MAC, and this maps it.
-    let arp = crate::arp::parse_arp_table(&device.run("show ip arp").await.unwrap_or_default());
+    let mut arp = crate::arp::parse_arp_table(&device.run("show ip arp").await.unwrap_or_default());
     // What the switch has learned on each port. Discovery protocols only see
     // devices that speak them; a printer or a workstation announces nothing,
     // and on a real diagram those are most of what is plugged in.
@@ -608,17 +620,36 @@ async fn visit(
     // exactly the networks this is for. Asked second because IOS is the usual
     // case and this costs a round trip.
     let forti = if crate::fortios::rejected_command(&version) {
+        // A FIPS-CC FortiGate holds a banner open and reads the next command
+        // as the answer to it. Nothing else works until it is accepted, and
+        // on a box with no banner this sends nothing.
+        if crate::fortios::fips_banner_pending(&version) {
+            let _ = device.run("a").await;
+        }
         let status = device.run("get system status").await.unwrap_or_default();
+        let status = crate::fortios::parse_system_status(&status);
+        // On a VDOM-enabled FortiGate the interesting tables live inside a
+        // VDOM, and asking outside one answers for the wrong network.
+        if status.vdoms_enabled {
+            let _ = device.run("config vdom").await;
+            let _ = device.run(&format!("edit {}", options.vdom)).await;
+        }
         let ifaces = device.run("get system interface").await.unwrap_or_default();
         let neighbours = device
             .run("get switch lldp neighbors-summary")
             .await
             .unwrap_or_default();
-        Some((
-            crate::fortios::parse_system_status(&status),
-            crate::fortios::parse_system_interface(&ifaces),
-            crate::fortios::parse_lldp_summary(&neighbours),
-        ))
+        // A FortiGate's own ARP table, which a FortiSwitch does not have.
+        let forti_arp =
+            crate::arp::parse_arp_table(&device.run("get system arp").await.unwrap_or_default());
+        let endpoints = read_device_store(&mut device).await;
+        Some(FortiFacts {
+            addresses: crate::fortios::parse_system_interface(&ifaces),
+            neighbors: crate::fortios::parse_lldp_summary(&neighbours),
+            arp: forti_arp,
+            endpoints,
+            status,
+        })
     } else {
         None
     };
@@ -626,11 +657,15 @@ async fn visit(
     device.close().await;
     drop(pump);
 
+    if let Some(f) = &forti {
+        arp.extend(f.arp.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
+
     let interfaces = parse_ip_interface_brief(&brief);
     let mut addresses = addresses_from(&interfaces, address);
-    if let Some((_, forti_addresses, _)) = &forti {
+    if let Some(f) = &forti {
         if addresses.is_empty() {
-            addresses = forti_addresses.clone();
+            addresses = f.addresses.clone();
         }
     }
     if addresses.is_empty() {
@@ -703,9 +738,9 @@ async fn visit(
             }
         }
     }
-    if let Some((_, _, forti_neighbors)) = &forti {
+    if let Some(f) = &forti {
         if neighbors.is_empty() {
-            neighbors = forti_neighbors.clone();
+            neighbors = f.neighbors.clone();
         }
     }
     let probe_target = options
@@ -715,7 +750,7 @@ async fn visit(
         .unwrap_or_else(|| address.to_string());
 
     // "FortiSwitch-224E" classifies where an IOS version banner would.
-    let forti_status = forti.as_ref().map(|(s, _, _)| s);
+    let forti_status = forti.as_ref().map(|f| &f.status);
     let platform = match forti_status {
         Some(s) if s.model.is_some() => s.model.clone(),
         _ => platform_from_version(&version),
@@ -745,7 +780,16 @@ async fn visit(
             port_population: population.get(&entry.port).copied().unwrap_or(1),
             mac: entry.mac.clone(),
             port: entry.port.clone(),
+            hostname: None,
+            class: None,
         });
+    }
+
+    // A FortiGate already knows what is on the network by name. Merging it
+    // here rather than beside it means the attached-device filter, the vendor
+    // counts and the drawing all work on one list.
+    if let Some(f) = &forti {
+        merge_endpoints(&mut attached, &f.endpoints);
     }
 
     Ok(Visit {
@@ -764,6 +808,93 @@ async fn visit(
         },
         neighbors,
     })
+}
+
+/// What a FortiOS device answered, once it has been asked in its own language.
+struct FortiFacts {
+    status: crate::fortios::SystemStatus,
+    addresses: Vec<DeviceAddress>,
+    neighbors: Vec<Neighbor>,
+    arp: std::collections::HashMap<String, String>,
+    endpoints: Vec<crate::fortios::Endpoint>,
+}
+
+/// How many times to answer the pager before giving up.
+///
+/// A large FortiGate holds thousands of devices, and each page is a round
+/// trip. The cap is here so a device that answers the pager with the pager
+/// cannot hold a crawl open forever; hitting it costs a truncated list, which
+/// is worth more than a crawl that never ends.
+const MAX_DEVICE_STORE_PAGES: usize = 200;
+
+/// Everything the FortiGate knows about what is on the network.
+///
+/// This is the one command that turns a MAC address into a named device with
+/// an operating system and a hardware type, which is what an accurate diagram
+/// of endpoints needs and what an OUI lookup alone cannot give.
+async fn read_device_store(device: &mut Session) -> Vec<crate::fortios::Endpoint> {
+    let Ok(first) = device
+        .run("diagnose user-device-store device memory list")
+        .await
+    else {
+        return Vec::new();
+    };
+    let mut out = first;
+    let mut pages = 0;
+    while crate::fortios::pagination_pending(&out) && pages < MAX_DEVICE_STORE_PAGES {
+        pages += 1;
+        match device.run("y").await {
+            Ok(next) if !next.is_empty() => out.push_str(&next),
+            // Nothing more is coming; keep what was collected rather than
+            // spinning on an unchanging answer.
+            _ => break,
+        }
+    }
+    crate::fortios::parse_device_store(&out)
+}
+
+/// Folds what the FortiGate knows into what the switches saw.
+///
+/// The same physical device usually appears in both: a MAC in a switch's
+/// table, and a named record in the FortiGate's store. Matching on MAC is
+/// what keeps that one device instead of two, and the FortiGate's name and
+/// class win because it actually knows, where the switch only inferred.
+fn merge_endpoints(attached: &mut Vec<AttachedDevice>, endpoints: &[crate::fortios::Endpoint]) {
+    for e in endpoints {
+        let class = crate::fortios::endpoint_class(e);
+        if let Some(existing) = attached.iter_mut().find(|a| a.mac == e.mac) {
+            if existing.address.is_none() {
+                existing.address.clone_from(&e.address);
+            }
+            if existing.hostname.is_none() {
+                existing.hostname.clone_from(&e.hostname);
+            }
+            if existing.class.is_none() {
+                existing.class = class;
+            }
+            continue;
+        }
+        attached.push(AttachedDevice {
+            mac: e.mac.clone(),
+            // The interface the FortiGate saw it on, or the SSID when it came
+            // in over wireless and there is no wired port to name.
+            port: e
+                .interface
+                .clone()
+                .or_else(|| e.fortiap_ssid.clone())
+                .unwrap_or_default(),
+            address: e.address.clone(),
+            vendor: e
+                .hardware_vendor
+                .clone()
+                .or_else(|| crate::oui::vendor(&e.mac).map(str::to_string)),
+            hostname: e.hostname.clone(),
+            class,
+            // A FortiGate interface carries a whole network, so this is not a
+            // port count and must not be read as one.
+            port_population: 0,
+        });
+    }
 }
 
 /// Combines what the two protocols saw of the same link.
@@ -1040,5 +1171,129 @@ Model number            : WS-C2960X-24TS-L
         assert!(o.max_devices > 0);
         assert!(o.concurrency >= 1);
         assert!(!o.second_factor, "opt in, since most estates do not use it");
+    }
+}
+
+#[cfg(test)]
+mod endpoint_merge_tests {
+    use super::*;
+    use crate::fortios::Endpoint;
+
+    fn switch_saw(mac: &str, port: &str) -> AttachedDevice {
+        AttachedDevice {
+            mac: mac.to_string(),
+            port: port.to_string(),
+            address: None,
+            vendor: Some("Hewlett Packard".to_string()),
+            hostname: None,
+            class: None,
+            port_population: 1,
+        }
+    }
+
+    fn fortigate_knows(mac: &str, hostname: &str, kind: &str) -> Endpoint {
+        Endpoint {
+            mac: mac.to_string(),
+            address: Some("192.168.14.71".to_string()),
+            hostname: Some(hostname.to_string()),
+            hardware_type: Some(kind.to_string()),
+            interface: Some("internal3".to_string()),
+            online: true,
+            ..Endpoint::default()
+        }
+    }
+
+    #[test]
+    fn one_device_seen_twice_stays_one_device() {
+        // The switch has the MAC on a port; the FortiGate has the same MAC
+        // with a name. Two entries here would draw the printer twice.
+        let mut attached = vec![switch_saw("aa:bb:cc:dd:ee:ff", "port5")];
+        merge_endpoints(
+            &mut attached,
+            &[fortigate_knows("aa:bb:cc:dd:ee:ff", "HPLJ-3rdfloor", "Printer")],
+        );
+        assert_eq!(attached.len(), 1);
+        assert_eq!(attached[0].hostname.as_deref(), Some("HPLJ-3rdfloor"));
+        assert_eq!(attached[0].class, Some(crate::types::DeviceClass::Printer));
+    }
+
+    #[test]
+    fn the_port_the_switch_saw_is_kept() {
+        // "port5" is where the cable is. "internal3" is which FortiGate leg
+        // the traffic came in on — true, but useless for finding the device.
+        let mut attached = vec![switch_saw("aa:bb:cc:dd:ee:ff", "port5")];
+        merge_endpoints(
+            &mut attached,
+            &[fortigate_knows("aa:bb:cc:dd:ee:ff", "HPLJ-3rdfloor", "Printer")],
+        );
+        assert_eq!(attached[0].port, "port5");
+    }
+
+    #[test]
+    fn an_address_the_switch_lacked_is_filled_in() {
+        let mut attached = vec![switch_saw("aa:bb:cc:dd:ee:ff", "port5")];
+        merge_endpoints(
+            &mut attached,
+            &[fortigate_knows("aa:bb:cc:dd:ee:ff", "HPLJ-3rdfloor", "Printer")],
+        );
+        assert_eq!(attached[0].address.as_deref(), Some("192.168.14.71"));
+    }
+
+    #[test]
+    fn a_device_only_the_fortigate_saw_is_added() {
+        let mut attached = Vec::new();
+        merge_endpoints(
+            &mut attached,
+            &[fortigate_knows("aa:bb:cc:dd:ee:ff", "DESKTOP-QA1", "Computer")],
+        );
+        assert_eq!(attached.len(), 1);
+        assert_eq!(attached[0].port, "internal3");
+    }
+
+    #[test]
+    fn a_wireless_device_is_labelled_with_its_ssid() {
+        // There is no wired port to name, and an empty port would read as a
+        // device nobody can locate.
+        let mut attached = Vec::new();
+        let wireless = Endpoint {
+            mac: "3c:22:fb:aa:bb:cc".to_string(),
+            hostname: Some("iPhone".to_string()),
+            fortiap_ssid: Some("CorpWiFi".to_string()),
+            ..Endpoint::default()
+        };
+        merge_endpoints(&mut attached, &[wireless]);
+        assert_eq!(attached[0].port, "CorpWiFi");
+    }
+
+    #[test]
+    fn a_fortigate_leg_is_not_reported_as_a_port_count() {
+        // One FortiGate interface carries a whole network. Reporting a
+        // population would make the uplink heuristic treat every endpoint
+        // behind it as a switch.
+        let mut attached = Vec::new();
+        merge_endpoints(
+            &mut attached,
+            &[fortigate_knows("aa:bb:cc:dd:ee:ff", "DESKTOP-QA1", "Computer")],
+        );
+        assert_eq!(attached[0].port_population, 0);
+    }
+
+    #[test]
+    fn the_oui_still_answers_when_the_fortigate_does_not() {
+        let mut attached = Vec::new();
+        let bare = Endpoint {
+            mac: crate::arp::normalise_mac("00:00:0c:11:22:33").expect("a valid MAC"),
+            ..Endpoint::default()
+        };
+        merge_endpoints(&mut attached, &[bare]);
+        assert!(attached[0].vendor.is_some(), "OUI lookup should have named it");
+    }
+
+    #[test]
+    fn nothing_from_the_fortigate_changes_nothing() {
+        let mut attached = vec![switch_saw("aa:bb:cc:dd:ee:ff", "port5")];
+        merge_endpoints(&mut attached, &[]);
+        assert_eq!(attached.len(), 1);
+        assert_eq!(attached[0].hostname, None);
     }
 }

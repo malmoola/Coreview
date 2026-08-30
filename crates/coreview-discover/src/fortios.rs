@@ -30,6 +30,9 @@ pub struct SystemStatus {
     /// The whole version line, for display.
     pub version: Option<String>,
     pub serial: Option<String>,
+    /// Whether the device keeps its configuration in virtual domains, so the
+    /// crawler knows it has to enter one before asking about a network.
+    pub vdoms_enabled: bool,
 }
 
 fn value_after(line: &str, label: &str) -> Option<String> {
@@ -48,6 +51,8 @@ pub fn parse_system_status(out: &str) -> SystemStatus {
             s.hostname = Some(v);
         } else if let Some(v) = value_after(line, "Serial-Number") {
             s.serial = Some(v);
+        } else if let Some(v) = value_after(line, "Virtual domain configuration") {
+            s.vdoms_enabled = parse_vdom_mode(&v);
         } else if let Some(v) = value_after(line, "Version") {
             // "FortiSwitch-224E v7.6.1,build1047,241217 (GA)" — the model is
             // the first word, and it is what identifies the platform.
@@ -274,5 +279,297 @@ MED type codes:
         let empty = LLDP.replace("HOME-MAIN-SW.lab.local", "-                     ")
             .replace("Moe Office AP", "-            ");
         assert!(parse_lldp_summary(&empty).is_empty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FortiGate
+//
+// A FortiSwitch answers the commands above. A FortiGate is a different problem:
+// it can sit behind a FIPS banner that swallows the first command, it can hide
+// everything interesting inside a VDOM, and it knows far more about what is
+// plugged into the network than ARP alone can say — hostnames, operating
+// systems, hardware types, which SSID a device is on.
+//
+// The shapes parsed below come from a working script the operator ran against
+// their own FortiGate, which is evidence of the real format rather than of the
+// documented one. They have not yet been checked against a live FortiGate from
+// inside this app; a FortiSwitch does not have a device store to check against.
+// ---------------------------------------------------------------------------
+
+/// Whether the box is holding a banner open and will ignore anything else.
+///
+/// A FIPS-CC FortiGate prints its banner and waits for a literal `a`. Until it
+/// gets one, every command sent is read as the answer to the banner, so a
+/// crawler that does not notice this collects one long banner and no data.
+pub fn fips_banner_pending(out: &str) -> bool {
+    out.contains("(Press 'a' to accept)")
+}
+
+/// Whether output stopped at a pager rather than at the end.
+pub fn pagination_pending(out: &str) -> bool {
+    out.contains("Do you want to continue? (y/n)")
+}
+
+/// Whether this device keeps its configuration in virtual domains.
+///
+/// When it does, `get system arp` in the wrong place answers for the wrong
+/// network, so the crawler has to enter a VDOM before it asks anything.
+fn parse_vdom_mode(line_value: &str) -> bool {
+    let v = line_value.trim().to_ascii_lowercase();
+    v != "disable"
+}
+
+/// One device as the FortiGate itself understands it.
+///
+/// This is richer than anything a switch can offer. An ARP table gives an
+/// address and a MAC, and an OUI lookup turns the MAC into a manufacturer —
+/// so a printer arrives as "Hewlett Packard". Here it arrives as a printer,
+/// with its name.
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Endpoint {
+    pub mac: String,
+    pub address: Option<String>,
+    pub hostname: Option<String>,
+    pub hardware_vendor: Option<String>,
+    pub hardware_type: Option<String>,
+    pub os_name: Option<String>,
+    pub os_version: Option<String>,
+    pub interface: Option<String>,
+    /// The SSID, when the FortiGate learned about it through a FortiAP.
+    pub fortiap_ssid: Option<String>,
+    pub fortiap_name: Option<String>,
+    pub online: bool,
+}
+
+/// Read `'label' = 'value'` out of one record.
+///
+/// The leading quote in the search is what keeps `'name'` from matching inside
+/// `'os_name'`, so the fields stay distinct without a regex engine.
+fn quoted_field(record: &str, label: &str) -> Option<String> {
+    let needle = format!("'{label}'");
+    let mut rest = record.get(record.find(&needle)? + needle.len()..)?.trim_start();
+    rest = rest.strip_prefix('=')?.trim_start();
+    let value = rest.strip_prefix('\'')?;
+    let end = value.find('\'')?;
+    let v = &value[..end];
+    (!v.is_empty()).then(|| v.to_string())
+}
+
+/// Every device the FortiGate is currently holding in its device store.
+///
+/// Records with no usable MAC are dropped: a device store entry that cannot be
+/// tied to a MAC cannot be matched against anything else the crawl found, so
+/// carrying it forward would only produce a duplicate node.
+pub fn parse_device_store(out: &str) -> Vec<Endpoint> {
+    let mut found = Vec::new();
+    for record in out.split("Record #").skip(1) {
+        let Some(mac) = quoted_field(record, "mac").and_then(|m| crate::arp::normalise_mac(&m))
+        else {
+            continue;
+        };
+        found.push(Endpoint {
+            mac,
+            address: quoted_field(record, "ipv4_address"),
+            hostname: quoted_field(record, "hostname"),
+            hardware_vendor: quoted_field(record, "hardware_vendor"),
+            hardware_type: quoted_field(record, "hardware_type"),
+            os_name: quoted_field(record, "os_name"),
+            os_version: quoted_field(record, "os_version"),
+            interface: quoted_field(record, "detected_interface"),
+            fortiap_ssid: quoted_field(record, "fortiap_ssid"),
+            fortiap_name: quoted_field(record, "fortiap_name"),
+            online: quoted_field(record, "is_online")
+                .is_some_and(|v| v.eq_ignore_ascii_case("1") || v.eq_ignore_ascii_case("true")),
+        });
+    }
+    found
+}
+
+/// What a FortiGate device store entry says this thing is.
+///
+/// The FortiGate's own words are better evidence than an OUI: "Printer" is a
+/// fact about the device, where "Hewlett Packard" is a fact about who made the
+/// chip in it. Where it says nothing useful, this says nothing rather than
+/// guessing, and the OUI classifier keeps its turn.
+pub fn endpoint_class(e: &Endpoint) -> Option<DeviceClass> {
+    let hint = format!(
+        "{} {}",
+        e.hardware_type.as_deref().unwrap_or(""),
+        e.os_name.as_deref().unwrap_or("")
+    )
+    .to_ascii_lowercase();
+    if hint.contains("printer") {
+        Some(DeviceClass::Printer)
+    } else if hint.contains("server") {
+        Some(DeviceClass::Server)
+    } else if hint.contains("phone") || hint.contains("ip-phone") {
+        Some(DeviceClass::Phone)
+    } else if hint.contains("firewall") {
+        Some(DeviceClass::Firewall)
+    } else if hint.contains("router") {
+        Some(DeviceClass::Router)
+    } else if hint.contains("switch") {
+        Some(DeviceClass::Switch)
+    } else if hint.contains("windows") || hint.contains("mac os") || hint.contains("linux") {
+        Some(DeviceClass::Endpoint)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod fortigate_tests {
+    use super::*;
+
+    /// The shape a working script proved, with the fields it actually read.
+    const DEVICE_STORE: &str = r"
+Record #1:
+  'mac' = '00:0c:29:1a:2b:3c'
+  'ipv4_address' = '192.168.14.50'
+  'hostname' = 'DESKTOP-QA1'
+  'hardware_vendor' = 'VMware'
+  'hardware_type' = 'Computer'
+  'os_name' = 'Windows'
+  'os_version' = '10'
+  'detected_interface' = 'internal1'
+  'is_online' = '1'
+  'host_src' = 'arp'
+Record #2:
+  'mac' = 'b8:27:eb:44:55:66'
+  'ipv4_address' = '192.168.14.71'
+  'hostname' = 'HPLJ-3rdfloor'
+  'hardware_vendor' = 'Hewlett Packard'
+  'hardware_type' = 'Printer'
+  'detected_interface' = 'internal3'
+  'is_online' = '0'
+Record #3:
+  'mac' = '3c:22:fb:aa:bb:cc'
+  'hostname' = 'iPhone'
+  'fortiap_ssid' = 'CorpWiFi'
+  'fortiap_name' = 'AP-Lobby'
+  'is_online' = '1'
+";
+
+    #[test]
+    fn reads_every_record() {
+        let found = parse_device_store(DEVICE_STORE);
+        assert_eq!(found.len(), 3);
+        assert_eq!(found[0].hostname.as_deref(), Some("DESKTOP-QA1"));
+        assert_eq!(found[1].address.as_deref(), Some("192.168.14.71"));
+    }
+
+    #[test]
+    fn normalises_the_mac_so_it_matches_the_arp_table() {
+        // The whole value of the device store is being able to attach a name
+        // to something the crawl already found by MAC. Two spellings of the
+        // same MAC would produce two nodes instead of one named node.
+        let found = parse_device_store(DEVICE_STORE);
+        assert_eq!(
+            found[0].mac,
+            crate::arp::normalise_mac("000C.291A.2B3C").expect("a valid MAC normalises")
+        );
+    }
+
+    #[test]
+    fn does_not_confuse_one_field_for_another() {
+        // 'os_name' ends in name'; a looser search would read it as 'name'.
+        let found = parse_device_store(DEVICE_STORE);
+        assert_eq!(found[0].os_name.as_deref(), Some("Windows"));
+        assert_eq!(found[0].hardware_vendor.as_deref(), Some("VMware"));
+    }
+
+    #[test]
+    fn absent_fields_are_absent_rather_than_empty() {
+        let found = parse_device_store(DEVICE_STORE);
+        assert_eq!(found[2].address, None);
+        assert_eq!(found[2].hardware_type, None);
+    }
+
+    #[test]
+    fn reads_whether_a_device_is_online() {
+        let found = parse_device_store(DEVICE_STORE);
+        assert!(found[0].online);
+        assert!(!found[1].online);
+    }
+
+    #[test]
+    fn keeps_the_wireless_details() {
+        let found = parse_device_store(DEVICE_STORE);
+        assert_eq!(found[2].fortiap_ssid.as_deref(), Some("CorpWiFi"));
+        assert_eq!(found[2].fortiap_name.as_deref(), Some("AP-Lobby"));
+    }
+
+    #[test]
+    fn a_record_with_no_mac_is_dropped() {
+        // It could not be matched against anything else the crawl found, so
+        // keeping it would only add a duplicate node.
+        let out = "Record #1:\n  'hostname' = 'ghost'\nRecord #2:\n  'mac' = 'aa:bb:cc:dd:ee:ff'\n";
+        let found = parse_device_store(out);
+        assert_eq!(found.len(), 1);
+    }
+
+    #[test]
+    fn a_record_whose_mac_is_not_a_mac_is_dropped() {
+        let out = "Record #1:\n  'mac' = 'unknown'\n  'hostname' = 'ghost'\n";
+        assert!(parse_device_store(out).is_empty());
+    }
+
+    #[test]
+    fn empty_output_is_no_devices_not_a_panic() {
+        assert!(parse_device_store("").is_empty());
+        assert!(parse_device_store("Record #1:\n").is_empty());
+    }
+
+    #[test]
+    fn classifies_from_what_the_fortigate_says() {
+        let found = parse_device_store(DEVICE_STORE);
+        assert_eq!(endpoint_class(&found[0]), Some(DeviceClass::Endpoint));
+        assert_eq!(endpoint_class(&found[1]), Some(DeviceClass::Printer));
+    }
+
+    #[test]
+    fn says_nothing_rather_than_guessing() {
+        // Record 3 has no hardware type and no OS. Claiming a class here
+        // would overwrite whatever the OUI lookup could have contributed.
+        let found = parse_device_store(DEVICE_STORE);
+        assert_eq!(endpoint_class(&found[2]), None);
+    }
+
+    #[test]
+    fn notices_a_banner_holding_the_session() {
+        assert!(fips_banner_pending(
+            "FIPS-CC mode\nYou are about to access a private network\n(Press 'a' to accept)"
+        ));
+        assert!(!fips_banner_pending("FGT # "));
+    }
+
+    #[test]
+    fn notices_output_that_stopped_at_a_pager() {
+        assert!(pagination_pending(
+            "Record #1:\n  'mac' = 'aa'\n--More--\nDo you want to continue? (y/n)"
+        ));
+        assert!(!pagination_pending("Record #1:\n  'mac' = 'aa'\nFGT # "));
+    }
+
+    #[test]
+    fn reads_whether_vdoms_are_in_use() {
+        let multi = "Hostname: FGT-1\nVirtual domain configuration: multiple\nVersion: FortiGate-60F v7.4.4,build2662,240514 (GA)";
+        assert!(parse_system_status(multi).vdoms_enabled);
+        let single = "Hostname: FGT-1\nVirtual domain configuration: disable\nVersion: FortiGate-60F v7.4.4,build2662,240514 (GA)";
+        assert!(!parse_system_status(single).vdoms_enabled);
+    }
+
+    #[test]
+    fn a_fortiswitch_status_still_parses() {
+        // The FortiSwitch output has no virtual domain line at all, and the
+        // new field must not change what was already working.
+        let s = parse_system_status(
+            "Version: FortiSwitch-224E v7.6.1,build1047,241217 (GA)\nSerial-Number: S224ENTF00000000\nHostname: FSW-224E",
+        );
+        assert_eq!(s.model.as_deref(), Some("FortiSwitch-224E"));
+        assert_eq!(s.hostname.as_deref(), Some("FSW-224E"));
+        assert!(!s.vdoms_enabled);
     }
 }

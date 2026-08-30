@@ -377,7 +377,9 @@ export function buildTopology(
     attachedRows.set(parent, index + 1);
 
     const id = uid();
-    const label = a.vendor ? `${a.vendor} device` : a.mac;
+    // A name the device gave beats a maker inferred from its MAC: "HPLJ-3rdfloor"
+    // is findable on a floor, "Hewlett Packard device" is not.
+    const label = a.hostname || (a.vendor ? `${a.vendor} device` : a.mac);
     nodes.push({
       id,
       type: 'device',
@@ -388,10 +390,11 @@ export function buildTopology(
       width: 176,
       height: 96,
       data: {
-        // The maker, never a role: an OUI says who built something, not what
-        // it does, and a wrong glyph is worse than a plain one.
+        // A glyph only where a device that could actually tell us said so. An
+        // OUI says who built something, not what it does, and a wrong glyph is
+        // worse than a plain one.
         label,
-        deviceType: 'generic',
+        deviceType: a.class ? (CLASS_GLYPH[a.class] ?? 'generic') : 'generic',
         tags: ['seen-only', 'attached'],
         addresses: a.address
           ? [{ id: uid(), label: 'Learned', address: a.address, isPrimary: true }]

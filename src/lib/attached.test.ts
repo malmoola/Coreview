@@ -8,6 +8,8 @@ const thing = (over: Partial<AttachedDevice> = {}): AttachedDevice => ({
   port: 'Gi0/7',
   address: '192.168.14.129',
   vendor: 'Ubiquiti',
+  hostname: null,
+  class: null,
   portPopulation: 1,
   ...over,
 });
