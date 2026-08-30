@@ -239,6 +239,49 @@ export function buildTopology(
     }
   }
 
+  // One more fold, by address. A switch reached over SNMP reports its sysName,
+  // which is not always the name it advertises over LLDP — "sw1" against
+  // "SW1.corp.local" folds already, but "Laundry-SW" against "USW-Lite-8-PoE"
+  // does not, and the same device would be drawn twice. Two things holding one
+  // address are one thing.
+  const byAddress = new Map<string, string>();
+  const merged = new Map<string, string>();
+  for (const e of [...entries.values()].sort((a, b) => Number(b.reached) - Number(a.reached))) {
+    if (!e.address) continue;
+    const seen = byAddress.get(e.address);
+    if (seen === undefined) {
+      byAddress.set(e.address, e.key);
+      continue;
+    }
+    // Keep the entry that was actually reached; it knows more about itself.
+    merged.set(e.key, seen);
+    const keep = entries.get(seen);
+    const drop = entries.get(e.key);
+    if (keep && drop) {
+      if (keep.klass === 'unknown' && drop.klass !== 'unknown') keep.klass = drop.klass;
+      if (!keep.platform && drop.platform) keep.platform = drop.platform;
+      if (!keep.vendor && drop.vendor) keep.vendor = drop.vendor;
+      keep.depth = Math.min(keep.depth, drop.depth);
+    }
+    entries.delete(e.key);
+  }
+  // Links pointed at a folded entry follow it, or they dangle against a node
+  // that is no longer there.
+  if (merged.size > 0) {
+    const follow = (k: string) => merged.get(k) ?? k;
+    const rebuilt = new Map<string, { a: LinkEnd; b: LinkEnd }>();
+    for (const { a, b } of links.values()) {
+      const end = {
+        a: { key: follow(a.key), iface: a.iface },
+        b: { key: follow(b.key), iface: b.iface },
+      };
+      if (end.a.key === end.b.key) continue;
+      rebuilt.set(linkKey(end.a, end.b), end);
+    }
+    links.clear();
+    for (const [k, v] of rebuilt) links.set(k, v);
+  }
+
   const placed = [...entries.values()].filter((e) => !include || include.has(e.klass));
   const placedKeys = new Set(placed.map((e) => e.key));
 

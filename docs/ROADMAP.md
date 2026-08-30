@@ -22,9 +22,11 @@ Ordered by what makes the app more useful, not by what is easiest.
       IOS command, so the crawl used to log in and learn nothing but the
       hostname. Verified against a real FortiSwitch 224E: identity, model,
       interfaces and its LLDP neighbour table
-- [ ] Merge SNMP-only devices into the topology by neighbour identity, so a
-      switch that answers SNMP but refuses SSH still lands in the right place
-      rather than as an island
+- [x] A device reported under two names is one device. A switch reached over
+      SNMP gives its sysName, which is not always what it advertises over
+      LLDP — "Laundry-SW" against "USW-Lite-8-PoE" — so entries are folded by
+      address as well as by name, and links follow the fold rather than
+      dangling
 
 ## Next — reaching more devices
 

@@ -217,6 +217,52 @@ describe('buildTopology', () => {
   });
 });
 
+describe('one device reported under two names', () => {
+  it('folds an SNMP sysName and an LLDP name that share an address', () => {
+    // A switch reached over SNMP reports its sysName, which is not always the
+    // name it advertises over LLDP. Two names, one address, one device.
+    const t = buildTopology(
+      {
+        devices: [
+          device('CORE-SW', '10.0.0.1', [
+            neighbor('Laundry-SW', 'Gi1/0/1', 'Port 1', {
+              addresses: [{ ip: '10.0.0.2', interface: null, isManagement: true }],
+            }),
+          ]),
+          // The same switch, reached over SNMP, calling itself something else.
+          device('USW-Lite-8-PoE', '10.0.0.2', [], { hops: 1, reachedBy: 'snmp' }),
+        ],
+        notVisited: [],
+      },
+      'p',
+    );
+    expect(t.nodes).toHaveLength(2);
+    // The reached device wins, because it knows more about itself.
+    expect(labels(t)).toEqual(['CORE-SW', 'USW-Lite-8-PoE']);
+    // And the link follows the fold rather than dangling.
+    expect(t.edges).toHaveLength(1);
+    expect(t.danglingLinks).toBe(0);
+  });
+
+  it('keeps two devices that merely have no address apart', () => {
+    // Folding on a missing address would collapse every unaddressed device
+    // into one.
+    const t = buildTopology(
+      {
+        devices: [
+          device('SW', '10.0.0.1', [
+            neighbor('PHONE-A', 'Gi1/0/5', 'P1', { class: 'phone', addresses: [] }),
+            neighbor('PHONE-B', 'Gi1/0/6', 'P1', { class: 'phone', addresses: [] }),
+          ]),
+        ],
+        notVisited: [],
+      },
+      'p',
+    );
+    expect(t.nodes).toHaveLength(3);
+  });
+});
+
 describe('a device whose only name is a MAC', () => {
   it('is drawn as its maker rather than as hex', () => {
     // A chassis id of 7456.3c75.fcae on a switch port tells an operator
