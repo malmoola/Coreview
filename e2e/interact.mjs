@@ -550,6 +550,36 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- routing
+// Links must leave the nearer side of a device. The fixture has one link
+// wired right-to-left between two devices that are stacked, which is exactly
+// the case re-routing exists to correct.
+{
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.waitForTimeout(250);
+  const item = page.locator(".cv-menu button", { hasText: "Re-route the links" });
+  check("the canvas menu offers re-routing", (await item.count()) === 1);
+  if (await item.count()) {
+    const edgesBefore = await page.locator(".react-flow__edge").count();
+    await item.click();
+    await page.waitForTimeout(400);
+    const said = (await page.locator(".cv-panel-message").first().textContent()) ?? "";
+    check("re-routing reports what it moved", /Re-routed \d+ link/.test(said), said.slice(0, 90));
+    check("re-routing adds and removes no links",
+      (await page.locator(".react-flow__edge").count()) === edgesBefore);
+
+    // Doing it again must find nothing. A router that keeps changing its mind
+    // would put an undo step on the stack every time it is pressed.
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+    await page.waitForTimeout(250);
+    await page.locator(".cv-menu button", { hasText: "Re-route the links" }).click();
+    await page.waitForTimeout(350);
+    const again = (await page.locator(".cv-panel-message").first().textContent()) ?? "";
+    check("re-routing twice changes nothing the second time",
+      /already leaves the sensible side/.test(again), again.slice(0, 90));
+  }
+}
+
 // ---------------------------------------------------------------- bulk
 // Editing a whole selection. The rule that matters is that it changes only
 // what it was asked to: a bulk editor which quietly overwrites the rest is

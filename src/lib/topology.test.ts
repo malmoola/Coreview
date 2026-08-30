@@ -440,6 +440,36 @@ describe('re-crawling a diagram that already exists', () => {
     expect(second.updated.map((u) => u.id).sort()).toEqual(arranged.map((n) => n.id).sort());
   });
 
+  it('routes a link across when the operator has put the devices side by side', () => {
+    // Build-time routing earns its keep on a re-crawl: the first draw is
+    // tiered, but by the second the diagram has been arranged by hand, and a
+    // link that still dives under two devices standing in a row is wrong.
+    const first = buildTopology(source, 'p');
+    const sideBySide = first.nodes.map((n, i) => ({
+      ...n,
+      position: { x: i * 600, y: 200 },
+    }));
+    // The same crawl again, but with no existing edges, so the link between
+    // the two arranged devices is drawn afresh against their real positions.
+    const second = buildTopology(source, 'p', {
+      existingNodes: sideBySide,
+      existingEdges: [],
+    });
+
+    expect(second.edges).toHaveLength(1);
+    expect(second.edges[0]!.sourceHandle).toBe('r');
+    expect(second.edges[0]!.targetHandle).toBe('l');
+  });
+
+  it('still routes down when the diagram is drawn in tiers', () => {
+    // The common case, and the one the previous check must not have broken.
+    const first = buildTopology(source, 'p');
+    const tiered = first.nodes.map((n, i) => ({ ...n, position: { x: 0, y: i * 400 } }));
+    const second = buildTopology(source, 'p', { existingNodes: tiered, existingEdges: [] });
+    expect(second.edges[0]!.sourceHandle).toBe('b');
+    expect(second.edges[0]!.targetHandle).toBe('t');
+  });
+
   it('adds only what is new', () => {
     const first = buildTopology(source, 'p');
     const grown = {

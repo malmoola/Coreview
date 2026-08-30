@@ -12,6 +12,7 @@
  * a network or a browser.
  */
 import type { AttachedDevice, CrawledDevice, DeviceClassName, Neighbor } from './ipc';
+import { chooseHandles } from './routeLinks';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type { DeviceNodeData, DeviceType, LinkData } from '../types/domain';
 import { uid } from './id';
@@ -479,5 +480,19 @@ export function buildTopology(
   }
 
   void projectId;
-  return { nodes, edges: [...edges, ...edgesFromAttached], updated, danglingLinks };
+
+  // Every link above was written bottom-to-top, which is right for a tier
+  // above a tier and wrong for two devices placed side by side. Now that the
+  // positions are settled, each one leaves the nearer side.
+  const positioned = new Map<string, TopoNode>(
+    [...nodes, ...(opts.existingNodes ?? [])].map((n) => [n.id, n]),
+  );
+  const routed = [...edges, ...edgesFromAttached].map((e) => {
+    const source = positioned.get(e.source);
+    const target = positioned.get(e.target);
+    if (!source || !target) return e;
+    return { ...e, ...chooseHandles(source, target) };
+  });
+
+  return { nodes, edges: routed, updated, danglingLinks };
 }

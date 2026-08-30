@@ -258,6 +258,18 @@ export function Canvas() {
         },
       },
       {
+        label: 'Re-route the links',
+        onSelect: () => {
+          const moved = store.routeLinks();
+          store.setStatusMessage(
+            moved === 0
+              ? 'Every link already leaves the sensible side.'
+              : `Re-routed ${moved} link${moved === 1 ? '' : 's'} to leave the nearer side. ` +
+                'Devices side by side now link across rather than under.',
+          );
+        },
+      },
+      {
         label: 'Group each subnet together',
         onSelect: () => {
           const { groups, ungrouped } = store.groupBySubnet();

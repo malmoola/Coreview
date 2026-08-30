@@ -6,6 +6,7 @@ import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/i
 import { uid } from '../lib/id';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
+import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
 import {
   linkStatus as computeLinkStatus,
   nodeStatus as computeNodeStatus,
@@ -109,6 +110,7 @@ interface Store {
   /** Binds each subnet's devices together. Returns how many groups were made. */
   groupBySubnet: () => { groups: number; ungrouped: number };
   tidyLayout: () => { moved: number; rows: number; locked: number };
+  routeLinks: () => number;
   onEdgesChange: (changes: EdgeChange<TopoEdge>[]) => void;
   addNode: (node: TopoNode) => void;
   addEdge: (edge: TopoEdge) => void;
@@ -473,6 +475,26 @@ export const useStore = create<Store>((set, get) => ({
       dirty: true,
     }));
     return { moved: moved.size, rows, locked };
+  },
+
+  routeLinks() {
+    const changed = chooseLinkSides(get().doc.nodes, get().doc.edges);
+    if (changed.length === 0) return 0;
+    get().commit('Re-route links');
+    const byId = new Map(changed.map((c) => [c.id, c]));
+    set((state) => ({
+      doc: {
+        ...state.doc,
+        edges: state.doc.edges.map((e) => {
+          const want = byId.get(e.id);
+          return want
+            ? { ...e, sourceHandle: want.sourceHandle, targetHandle: want.targetHandle }
+            : e;
+        }),
+      },
+      dirty: true,
+    }));
+    return changed.length;
   },
 
   groupMembers(nodeId) {
