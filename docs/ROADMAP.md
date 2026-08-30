@@ -63,12 +63,6 @@ variables that were meant.
 
 *Accepted, not started.*
 
-### LT-043 — Hover card during validation
-**Source:** asked 2026-08-30 (Item D7).
-**Acceptance:** hovering a device while validation runs shows last result, RTT
-and checked time — the data already in the monitored-objects table, surfaced
-at the cursor.
-
 ### LT-004 — **bug** A selected shape is outlined by its own outline
 **Source:** asked 2026-08-30, with a screenshot of a router showing a square
 selection box round a circular glyph.
@@ -254,6 +248,17 @@ table, the exports, the save payload, select-all, the crawl merge or any count.
 Fit view fits the sheet rather than only what is on it, because fitting to the
 devices puts the page edge off-screen and the edge is the thing that says where
 the drawing surface is.
+
+### LT-043 — Hover card during validation — 2026-08-30
+The monitored-objects row, brought to the cursor: while validation runs,
+hovering a device floats its primary probe's last result, RTT and checked
+time over the node, ticking so "4s ago" never goes stale under a held
+cursor. A 250ms intent delay keeps a crossing cursor from strobing cards;
+the native tooltip yields while the card can show and returns when the
+session stops. Tested end-to-end by staging a running session through a
+dev-only store handle (`window.__cvStore`, absent from builds) — a real
+session needs the Tauri backend the browser harness does not have.
+This closes Item D and the 2026-08-30 batch (LT-034…LT-043).
 
 ### LT-042 — Autosave and restore — 2026-08-30
 Shipped as crash recovery, composing with what already existed: edits are

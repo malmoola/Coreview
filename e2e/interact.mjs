@@ -2238,6 +2238,66 @@ await dismissRecovery();
     (await page.locator(".cv-recovery").count()) === 0);
 }
 
+// ---- hover card during validation (LT-043) ----------------------------------
+// A real session needs the Tauri backend, so the harness stages one through
+// the dev-only store handle: session running, one probe on a node, one
+// runtime row — then hovers, and the monitored-objects data must be at the
+// cursor. Card only while running; native title suppressed while it shows.
+{
+  await dismissRecovery();
+  const target = page.locator(".react-flow__node", { hasText: "Core switch" }).first();
+  // The title attribute lives on the node's own div, not React Flow's wrapper.
+  const inner = target.locator(".cv-glyph-node, .cv-node").first();
+  check("no card before validation runs — staging precondition",
+    (await page.locator(".cv-livecard").count()) === 0);
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const node = st.doc.nodes.find((n) => n.data.label === "Core switch");
+    const probe = { id: "e2e-probe", objectId: node.id, kind: "icmp",
+      target: "192.0.2.10", isPrimary: true, enabled: true, intervalMs: 5000 };
+    const runtime = new Map(st.runtime);
+    runtime.set("e2e-probe", { probeId: "e2e-probe", status: "healthy",
+      lastRttMs: 3.2, lastSuccessMs: Date.now() - 4000, lastFailureMs: null,
+      lastSummary: "reply from 192.0.2.10", consecutiveFailures: 0, failureThreshold: 3 });
+    window.__cvStore.setState({
+      doc: { ...st.doc, probes: [...st.doc.probes, probe] },
+      runtime,
+      session: { id: "e2e", state: "running", startedAt: Date.now() },
+    });
+  });
+  await target.hover();
+  await page.waitForTimeout(500); // past the 250ms intent delay
+  check("hovering a device while validation runs shows the card",
+    (await page.locator(".cv-livecard").count()) === 1);
+  const text = await page.locator(".cv-livecard").innerText();
+  check("the card carries the last result", text.includes("reply from 192.0.2.10"), text);
+  check("the card carries the RTT", text.includes("3 ms"), text);
+  check("the card carries the checked time", /\d+s ago/.test(text), text);
+  check("the native tooltip yields while the card can show",
+    (await inner.getAttribute("title")) === null);
+  await page.mouse.move(30, 400);
+  await page.waitForTimeout(300);
+  check("the card leaves with the cursor",
+    (await page.locator(".cv-livecard").count()) === 0);
+  // Stop the session: same hover, no card.
+  await page.evaluate(() => {
+    window.__cvStore.setState({ session: { id: null, state: "stopped", startedAt: null } });
+  });
+  await target.hover();
+  await page.waitForTimeout(500);
+  check("no card once validation stops",
+    (await page.locator(".cv-livecard").count()) === 0);
+  check("and the native tooltip is back",
+    ((await inner.getAttribute("title")) ?? "").includes("Core switch"));
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({
+      doc: { ...st.doc, probes: st.doc.probes.filter((pr) => pr.id !== "e2e-probe") },
+    });
+  });
+  await page.mouse.move(30, 400);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

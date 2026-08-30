@@ -5,8 +5,46 @@ import { ICONS } from '../icons';
 import { canvasPalette, deviceColor, statusColors } from '../../theme';
 import { colourForKey, keyForData } from '../../lib/tinting';
 import { useStore } from '../../state/store';
-import type { DeviceNodeData } from '../../types/domain';
+import { timeAgo } from '../../lib/timeAgo';
+import type { DeviceNodeData, HealthStatus, ProbeRuntime } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
+
+/** The monitored-objects table, brought to the cursor. While validation is
+ *  running, the row for this device's primary probe — last result, round-trip
+ *  time, when it was checked — floats over the node on hover, so reading a
+ *  device's health does not mean finding it again in the panel. Ticks once a
+ *  second so "4s ago" does not silently go stale under a held cursor. */
+function LiveCard({ label, status, ink, live }: {
+  label: string;
+  status: HealthStatus;
+  ink: string;
+  live: ProbeRuntime;
+}) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+  const checked = Math.max(live.lastSuccessMs ?? 0, live.lastFailureMs ?? 0);
+  const rtt =
+    live.lastRttMs == null ? '—' : live.lastRttMs < 1 ? '<1 ms' : `${live.lastRttMs.toFixed(0)} ms`;
+  return (
+    <div className="cv-livecard nodrag nopan" role="tooltip">
+      <div className="cv-livecard-head">
+        <span className="cv-livecard-name">{label}</span>
+        <span style={{ color: ink }}>{STATUS_LABEL[status]}</span>
+      </div>
+      <dl>
+        <dt>Last result</dt>
+        <dd>{live.lastSummary ?? '—'}</dd>
+        <dt>RTT</dt>
+        <dd>{rtt}</dd>
+        <dt>Checked</dt>
+        <dd>{checked ? timeAgo(checked) : 'not yet'}</dd>
+      </dl>
+    </div>
+  );
+}
 
 const SHAPE_TYPES = new Set([
   'rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'zone', 'callout',
@@ -132,7 +170,24 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
     [allProbes, id],
   );
   const runtime = useStore((s) => s.runtime);
+  const running = useStore((s) => s.session.state === 'running');
   const nodeStyle = useStore((s) => s.doc.canvas.nodeStyle ?? 'glyph');
+  // The card waits a beat so a cursor crossing the canvas does not strobe
+  // cards, and a drag never grows one mid-move.
+  const [hover, setHover] = useState(false);
+  const hoverTimer = useRef<number | null>(null);
+  const cardEnter = () => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => setHover(true), 250);
+  };
+  const cardLeave = () => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+    setHover(false);
+  };
+  useEffect(() => () => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+  }, []);
   const ground = useStore((s) => s.settings.ground);
   const editingNow = useStore((s) => s.editingNodeId === id);
   const hit = useStore((s) => s.canvasHighlight?.has(id) ?? false);
@@ -160,6 +215,12 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const amber = statusColors(ground).warning;
   const primary = probes.find((p) => p.isPrimary && p.enabled) ?? probes.find((p) => p.enabled);
   const live = primary ? runtime.get(primary.id) : undefined;
+  const card =
+    running && live && hover ? (
+      <LiveCard label={d.label} status={status} ink={statusInk} live={live} />
+    ) : null;
+  // The native tooltip yields to the card — both at once says one thing twice.
+  const hoverTitle = running && live ? undefined : `${d.label} — ${STATUS_LABEL[status]}`;
   const address =
     d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';
   // A device with no name of its own is labelled with its address, and showing
@@ -185,8 +246,11 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
     return (
       <div
         className={`cv-glyph-node ${selected ? 'is-selected' : ''}${hit ? ' is-hit' : ''}${dimmed ? ' is-dimmed' : ''}`}
-        title={`${d.label} — ${STATUS_LABEL[status]}`}
+        title={hoverTitle}
+        onMouseEnter={cardEnter}
+        onMouseLeave={cardLeave}
       >
+        {card}
         <NodeResizer
           isVisible={Boolean(selected) && !d.locked}
           minWidth={72}
@@ -261,8 +325,11 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
         borderColor: outline || isText ? 'transparent' : strokeColor,
         background: outline ? 'transparent' : (d.style?.background ?? undefined),
       }}
-      title={`${d.label} — ${STATUS_LABEL[status]}`}
+      title={hoverTitle}
+      onMouseEnter={cardEnter}
+      onMouseLeave={cardLeave}
     >
+      {card}
       {outline && (
         <svg
           className="cv-node-outline"

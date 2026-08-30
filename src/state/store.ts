@@ -1302,3 +1302,10 @@ function linkName(state: Store, edgeId: string): string {
   const dst = label(state.doc.nodes.find((n) => n.id === edge.target));
   return `${src} ↔ ${dst}`;
 }
+
+// The Playwright harness cannot start a real validation session — that needs
+// the Tauri backend — so in dev the store is reachable from the page and the
+// harness stages session state directly. Never present in a build.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as unknown as { __cvStore: typeof useStore }).__cvStore = useStore;
+}

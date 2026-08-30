@@ -1424,3 +1424,57 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   background: var(--notice-bg); border-bottom: 1px solid var(--notice-line);
   color: var(--notice-text); font-size: 12px;
 }
+
+/* --- LT-043: the monitored-objects row, floated over the node on hover
+   while validation runs. Tokens only, so it holds in both themes; no
+   pointer-events, so it never steals the drag it is hovering over. --- */
+.cv-livecard {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 200px;
+  max-width: 280px;
+  padding: 8px 10px;
+  background: var(--chrome);
+  border: 1px solid var(--chrome-edge);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 40;
+  text-align: left;
+}
+.cv-livecard-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--chrome-edge);
+}
+.cv-livecard-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-livecard dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+.cv-livecard dt {
+  color: var(--text-faint);
+}
+.cv-livecard dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
