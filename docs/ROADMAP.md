@@ -43,30 +43,33 @@ ground entirely and stayed dark-theme coloured on a white page.
 **Fixed:** they read `--text-dim`, `--warning` and `--accent`, which are the
 variables that were meant.
 
-### LT-002 — Cisco PPTX stencil pipeline
-**Source:** asked 2026-08-30. Supersedes the naive path in LT-020.
-**Acceptance:**
-- `scripts/import-pptx-stencils.mjs`: unzip, convert every `ppt/media/*.emf`
-  with `libreoffice --headless --convert-to svg`, batched ~25 per invocation.
-  "Fail loudly if soffice is missing — do not silently skip."
-- Crop the viewBox to the real content bounding box plus ~2% padding and drop
-  `width`/`height`, because LibreOffice emits each icon on a full A4 page with
-  the artwork in the corner. "Without this every icon renders as a tiny speck
-  in a huge empty canvas — this is the current 'Untitled Drawing' bug."
-- Strip LibreOffice cruft: `presentation_clip_path` defs, the `ooo`/`smil`/
-  `anim`/`presentation` namespaces, the DOCTYPE, empty `<g>` wrappers, `<svg>`
-  stroke-width defaults; flatten `<g>` that carry only a clip-path.
-- Name each icon from the nearest caption text box below the picture, using
-  `<a:off>`/`<a:ext>` geometry; slide titles become categories; log any
-  picture with no caption rather than inventing one.
-- Expand `<p:grpSp>` groups into separate icons with the group transform
-  applied — not merged into one shape.
-- Output `stencils/cisco/<category>/<slug>.svg` plus `manifest.json`
-  (`[{ id, name, category, file, slide }]`), **committed to the repository** —
-  see D-019, which overrules the earlier policy.
-- Render a contact sheet of every produced SVG and confirm each icon is
-  centred, fills its tile and is recognisable, before wiring the palette to it.
-  Report converted / skipped / unnamed counts.
+### LT-034 — Light chrome must not be white
+**Source:** asked 2026-08-30 (Item A).
+**Acceptance:** in light mode, toolbar, side panels, bottom panel, desk and
+page are four distinguishable surfaces at a glance — "if any two are within a
+few RGB points of each other, it fails". `--page #FFFFFF` stays the only pure
+white; `--desk` darker (#E4E4E4 suggested); `--chrome #F1F1F1`-ish;
+`--chrome-edge #D6D6D6`. Inputs, table rows and cards inside panels sit on
+`--page`; frames and headers stay on `--chrome`; the bottom panel gets a 1px
+top border. Minimap restyled per theme — "right now it's a washed-out gray
+blob on light". Dark theme untouched — approved as-is. Verified by a
+light-mode screenshot with a device selected and the bottom panel open, plus
+measured RGB distances.
+
+### LT-035 — Minimap show/hide in the top bar
+**Source:** asked 2026-08-30 (Item B).
+**Acceptance:** a toggle with the existing view controls near "Dark
+background" / "Reduce motion", persisted in the same settings store those use,
+default ON. Toggling must not shift the canvas layout or reset zoom.
+
+### LT-036 — Page auto-grows with content
+**Source:** asked 2026-08-30 (Item C).
+**Acceptance:** page rect = union of node bounds in the *current view* + 120px
+margin, never smaller than the default page, snapped outward to the 60px major
+grid. Grows live (throttled) during a drag past the edge; never shrinks
+automatically; a "Fit page to content" action next to Fit view shrinks on
+demand. One function computes the rect — Fit view, grid clipping and any
+export using page bounds all read it. Multi-view aware.
 
 ### LT-003 — **bug** Custom shape import bugs
 **Source:** asked 2026-08-30, with screenshots.
@@ -87,6 +90,46 @@ variables that were meant.
 ## Next
 
 *Accepted, not started.*
+
+### LT-037 — Smart guides: Alt disables
+**Source:** asked 2026-08-30 (Item D1). Guides and snapping already exist
+(LT-001-era work); the missing half is holding Alt to disable them during a
+drag.
+**Acceptance:** alignment lines + snap when a dragged node lines up with a
+neighbour's edge or centre; hold Alt to disable.
+
+### LT-038 — Align/distribute on the keyboard
+**Source:** asked 2026-08-30 (Item D2). The context-menu half already exists.
+**Acceptance:** align left/right/top/bottom and distribute
+horizontal/vertical, on the selection context menu and keyboard.
+
+### LT-039 — Keyboard pass and a "?" shortcut overlay
+**Source:** asked 2026-08-30 (Item D3).
+**Acceptance:** Delete removes; Ctrl+D duplicates offset by one grid step;
+arrows nudge 1px, Shift+arrows one grid step; Ctrl+A selects all in view; Esc
+clears selection. All documented in a "?" overlay.
+
+### LT-040 — The filter box finds on the canvas
+**Source:** asked 2026-08-30 (Item D4).
+**Acceptance:** typing in the existing monitored-objects filter box highlights
+matches on the canvas, and Enter jumps/zooms to the first match.
+
+### LT-041 — Export renders exactly the page rect
+**Source:** asked 2026-08-30 (Item D5).
+**Acceptance:** PNG and SVG export render exactly the LT-036 page rect, in
+whichever theme is active, minimap and selection chrome excluded.
+
+### LT-042 — Autosave and restore
+**Source:** asked 2026-08-30 (Item D6).
+**Acceptance:** snapshot the open document to the local store every 60s and on
+window close; on next launch offer restore if newer than the last manual save.
+No cloud, no new deps.
+
+### LT-043 — Hover card during validation
+**Source:** asked 2026-08-30 (Item D7).
+**Acceptance:** hovering a device while validation runs shows last result, RTT
+and checked time — the data already in the monitored-objects table, surfaced
+at the cursor.
 
 ### LT-004 — **bug** A selected shape is outlined by its own outline
 **Source:** asked 2026-08-30, with a screenshot of a router showing a square
@@ -116,6 +159,43 @@ cleared with it.
 - The one `Group` ("Master.79") is expanded per Object or skipped entirely —
   "do NOT flatten it into a single unreadable blob".
 - The 5 bare unit rectangles are skipped.
+
+### LT-002 — Cisco PPTX stencil pipeline
+**Source:** asked 2026-08-30. Supersedes LT-020.
+**Blocked on:** LibreOffice. `soffice` is not installed and installing it needs
+root, which is the operator's call — the spec itself says "fail loudly if
+soffice is missing, do not silently skip", and this is that failure said
+loudly.
+**Checkpointed 2026-08-30, not abandoned:** `scripts/import-pptx-stencils.mjs`
+is written and everything that does not need LibreOffice is tested against the
+real deck — caption naming by geometry, slide-title categories, group
+expansion, the manifest, and the viewBox crop (tested against a synthetic
+LibreOffice-shaped SVG). The moment `soffice` exists, run:
+`node scripts/import-pptx-stencils.mjs <deck.pptx> stencils/cisco` and check
+the contact sheet it writes.
+**Would unblock it:** `sudo apt-get install libreoffice-draw`.
+**Acceptance (unchanged):**
+- `scripts/import-pptx-stencils.mjs`: unzip, convert every `ppt/media/*.emf`
+  with `libreoffice --headless --convert-to svg`, batched ~25 per invocation.
+  "Fail loudly if soffice is missing — do not silently skip."
+- Crop the viewBox to the real content bounding box plus ~2% padding and drop
+  `width`/`height`, because LibreOffice emits each icon on a full A4 page with
+  the artwork in the corner. "Without this every icon renders as a tiny speck
+  in a huge empty canvas — this is the current 'Untitled Drawing' bug."
+- Strip LibreOffice cruft: `presentation_clip_path` defs, the `ooo`/`smil`/
+  `anim`/`presentation` namespaces, the DOCTYPE, empty `<g>` wrappers, `<svg>`
+  stroke-width defaults; flatten `<g>` that carry only a clip-path.
+- Name each icon from the nearest caption text box below the picture, using
+  `<a:off>`/`<a:ext>` geometry; slide titles become categories; log any
+  picture with no caption rather than inventing one.
+- Expand `<p:grpSp>` groups into separate icons with the group transform
+  applied — not merged into one shape.
+- Output `stencils/cisco/<category>/<slug>.svg` plus `manifest.json`
+  (`[{ id, name, category, file, slide }]`), **committed to the repository** —
+  see D-019, which overrules the earlier policy.
+- Render a contact sheet of every produced SVG and confirm each icon is
+  centred, fills its tile and is recognisable, before wiring the palette to it.
+  Report converted / skipped / unnamed counts.
 
 ### LT-009 — Draw a port-channel as one link
 **Source:** asked 2026-08-29.
