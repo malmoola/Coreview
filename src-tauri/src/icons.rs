@@ -384,3 +384,26 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 }
+
+#[cfg(test)]
+mod imported_library_tests {
+    /// A folder produced by `scripts/shapes-from-pptx.mjs`, scanned the way
+    /// the app scans one. Set CV_ICON_DIR to check a real import.
+    #[test]
+    fn an_imported_folder_scans() {
+        let Ok(dir) = std::env::var("CV_ICON_DIR") else {
+            return;
+        };
+        let lib = super::scan(&dir).expect("the folder should scan");
+        println!(
+            "scanned {} icons, {} skipped; first: {:?}",
+            lib.icons.len(),
+            lib.skipped.len(),
+            lib.icons.first().map(|i| (&i.name, &i.category))
+        );
+        for s in lib.skipped.iter().take(5) {
+            println!("  skipped: {s}");
+        }
+        assert!(!lib.icons.is_empty(), "nothing was indexed");
+    }
+}
