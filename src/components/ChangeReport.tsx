@@ -11,6 +11,7 @@
  * This reports. Drawing stays the operator's decision.
  */
 import { useMemo } from 'react';
+import { useReactFlow } from '@xyflow/react';
 
 import { diffTopology, hasChanges } from '../lib/topologyDiff';
 import type { CrawledDevice, Neighbor } from '../lib/ipc';
@@ -20,10 +21,12 @@ function Group({
   title,
   hint,
   items,
+  onShow,
 }: {
   title: string;
   hint: string;
-  items: { key: string; text: string }[];
+  items: { key: string; text: string; nodeId?: string; edgeId?: string }[];
+  onShow?: (item: { nodeId?: string; edgeId?: string }) => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -34,7 +37,18 @@ function Group({
       <p className="cv-help">{hint}</p>
       <ul>
         {items.map((i) => (
-          <li key={i.key}>{i.text}</li>
+          <li key={i.key}>
+            {/* Findable, not just listed. "OLD-SW is gone" is only useful if
+                you can see which box on the diagram that is — and a report
+                that cannot be acted on is a report nobody reads twice. */}
+            {onShow && (i.nodeId || i.edgeId) ? (
+              <button type="button" className="cv-change-show" onClick={() => onShow(i)}>
+                {i.text}
+              </button>
+            ) : (
+              i.text
+            )}
+          </li>
         ))}
       </ul>
     </div>
@@ -48,6 +62,28 @@ export function ChangeReport({
 }) {
   const nodes = useStore((s) => s.doc.nodes);
   const edges = useStore((s) => s.doc.edges);
+
+  const rf = useReactFlow();
+  const select = useStore((s) => s.select);
+
+  /** Put the thing this line is about in front of the reader. */
+  const show = ({ nodeId, edgeId }: { nodeId?: string; edgeId?: string }) => {
+    if (edgeId) {
+      select(null, edgeId);
+      return;
+    }
+    if (!nodeId) return;
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) return;
+    rf.setCenter(
+      node.position.x + (node.width ?? node.measured?.width ?? 120) / 2,
+      node.position.y + (node.height ?? node.measured?.height ?? 60) / 2,
+      // The zoom is left alone: someone reading a list of changes has usually
+      // set the view to see the shape of things.
+      { duration: 320, zoom: rf.getZoom() },
+    );
+    select(nodeId, null);
+  };
 
   const change = useMemo(
     () => diffTopology(nodes, edges, { devices: result.devices, notVisited: result.notVisited }),
@@ -76,7 +112,12 @@ export function ChangeReport({
       <Group
         title="Gone"
         hint="On the diagram, not found by this crawl. Either it has been removed, or the crawl could not reach it."
-        items={change.missing.map((m) => ({ key: m.id, text: `${m.label} (${m.address})` }))}
+        items={change.missing.map((m) => ({
+          key: m.id,
+          text: `${m.label} (${m.address})`,
+          nodeId: m.id,
+        }))}
+        onShow={show}
       />
       <Group
         title="New"
@@ -92,12 +133,15 @@ export function ChangeReport({
         items={change.changed.map((c) => ({
           key: c.id,
           text: `${c.label}: ${c.was} → ${c.now}`,
+          nodeId: c.id,
         }))}
+        onShow={show}
       />
       <Group
         title="Links gone"
         hint="Drawn on the diagram, not seen by this crawl."
-        items={change.linksGone.map((l) => ({ key: l.id, text: l.description }))}
+        items={change.linksGone.map((l) => ({ key: l.id, text: l.description, edgeId: l.id }))}
+        onShow={show}
       />
       <Group
         title="Links new"

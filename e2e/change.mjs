@@ -178,6 +178,23 @@ if (await report.count()) {
   // The report is a report. Pressing nothing must change nothing.
   const nodes = await page.locator(".react-flow__node").count();
   check("reporting draws nothing on its own", nodes === 3, `${nodes} nodes`);
+
+  // "OLD-SW is gone" is only useful if you can see which box that is.
+  const goneLine = report.locator(".cv-change-group")
+    .filter({ has: page.locator('h4:text-is("Gone")') })
+    .locator(".cv-change-show").first();
+  check("a change can be gone to from the report", (await goneLine.count()) === 1);
+  if (await goneLine.count()) {
+    await goneLine.click();
+    await page.waitForTimeout(600);
+    const title = await page.locator(".cv-inspector-title").first().innerText();
+    check("clicking it selects the device the line is about",
+      /Node/i.test(title), title.replace(/\n/g, " ").slice(0, 40));
+    const label = await page.locator(".cv-inspector input").first().inputValue();
+    check("and it is the right one", label === "OLD-SW", label);
+    check("going to a change still changes nothing",
+      (await page.locator(".react-flow__node").count()) === 3);
+  }
 }
 
 if (process.argv[2]) {

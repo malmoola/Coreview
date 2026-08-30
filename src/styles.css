@@ -1285,3 +1285,11 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   font-size: 11px; color: var(--text-dim);
 }
 .cv-dropdown-field .cv-input { width: 130px; }
+/* A line in the change report that can be gone to. */
+.cv-change-show {
+  background: none; border: none; padding: 0; text-align: left;
+  font: inherit; color: inherit; cursor: pointer;
+  text-decoration: underline; text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.cv-change-show:hover { color: var(--accent); }
