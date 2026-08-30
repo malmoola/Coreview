@@ -36,6 +36,10 @@ export interface Selection {
   /** Tags carried by at least one but not all. Shown so it is obvious the
    *  selection is not uniform, and never removed by accident. */
   someTags: string[];
+  /** Views every selected object appears on, and views only some appear on.
+   *  Same rule as tags: only what they agree on can be taken away. */
+  commonLayers: string[];
+  someLayers: string[];
 }
 
 export function describeSelection(nodes: TopoNode[]): Selection {
@@ -53,9 +57,30 @@ export function describeSelection(nodes: TopoNode[]): Selection {
     }
   }
 
+  // Counted over everything selected, including objects with no views at all.
+  //
+  // An unassigned object is *drawn* on every view, but it is not *on* one, and
+  // a bulk control has to mean the literal thing: "all of them are on this"
+  // decides whether a click adds or removes. Excusing the unassigned ones made
+  // a mixed selection report "all", so the click took the view off the one
+  // object that had it and put it on nothing.
+  const layerSets = [...devices, ...notes].map(
+    (n) => (n.data as { layers?: string[] }).layers ?? [],
+  );
+  const everyLayer = new Set<string>();
+  const someLayer = new Set<string>();
+  for (const set of layerSets) {
+    for (const id of set) {
+      if (layerSets.every((s) => s.includes(id))) everyLayer.add(id);
+      else someLayer.add(id);
+    }
+  }
+
   return {
     devices,
     notes,
+    commonLayers: [...everyLayer].sort(),
+    someLayers: [...someLayer].sort(),
     deviceType: shared(data.map((d) => d.deviceType)),
     locked: shared(data.map((d) => !!d.locked)),
     maintenance: shared(data.map((d) => !!d.maintenance)),

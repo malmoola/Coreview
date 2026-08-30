@@ -91,6 +91,34 @@ describe('describeSelection', () => {
   });
 });
 
+describe('views in a selection', () => {
+  it('reports the views everything shares', () => {
+    const s = describeSelection([
+      device('a', { layers: ['physical', 'logical'] }),
+      device('b', { layers: ['physical'] }),
+    ]);
+    expect(s.commonLayers).toEqual(['physical']);
+    expect(s.someLayers).toEqual(['logical']);
+  });
+
+  it('counts an unassigned object as not on the view', () => {
+    // An unassigned object is drawn on every view but is not on one, and the
+    // bulk control has to mean the literal thing: "all of them are on this"
+    // is what decides whether a click adds or removes. Excusing the
+    // unassigned ones made a mixed selection report "all", so the click took
+    // the view off the one object that had it and put it on nothing.
+    const s = describeSelection([device('a', { layers: ['physical'] }), device('b')]);
+    expect(s.commonLayers).toEqual([]);
+    expect(s.someLayers).toEqual(['physical']);
+  });
+
+  it('says nothing when nothing has been assigned', () => {
+    const s = describeSelection([device('a'), device('b')]);
+    expect(s.commonLayers).toEqual([]);
+    expect(s.someLayers).toEqual([]);
+  });
+});
+
 describe('tags', () => {
   it('adds a tag', () => {
     expect(withTag(['a'], 'b')).toEqual(['a', 'b']);

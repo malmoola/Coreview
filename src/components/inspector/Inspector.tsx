@@ -210,6 +210,8 @@ function MultiInspector({ ids }: { ids: string[] }) {
             </Field>
           )}
 
+          <BulkLayers ids={chosen.map((n) => n.id)} sel={sel} />
+
           <div className="cv-checks">
             <TriCheck
               label="Lock position"
@@ -232,6 +234,75 @@ function MultiInspector({ ids }: { ids: string[] }) {
     </>
   );
 }
+
+/**
+ * Putting a whole selection on a view, or taking it off one.
+ *
+ * A crawl puts dozens of devices down at once, and the reason to have views at
+ * all is to say "these forty are the physical layer". One at a time is the
+ * work the bulk editor exists to remove.
+ */
+function BulkLayers({
+  ids,
+  sel,
+}: {
+  ids: string[];
+  sel: { commonLayers: string[]; someLayers: string[] };
+}) {
+  const canvas = useStore((s) => s.doc.canvas);
+  const mapMany = useStore((s) => s.mapManyNodeData);
+  const layers = layersOf(canvas.layers);
+  if (layers.length < 2) return null;
+
+  return (
+    <Field
+      label="Appears on"
+      hint="Click to put the whole selection on a view, or take it off one"
+    >
+      <div className="cv-tag-row">
+        {layers.map((layer) => {
+          const all = sel.commonLayers.includes(layer.id);
+          const some = sel.someLayers.includes(layer.id);
+          return (
+            <button
+              key={layer.id}
+              type="button"
+              className={`cv-tag${all ? '' : ' is-partial'}`}
+              title={
+                all
+                  ? `Take the selection off ${layer.name}`
+                  : `Put the selection on ${layer.name}`
+              }
+              onClick={() =>
+                mapMany(
+                  ids,
+                  (d) => ({
+                    // Everything on it comes off; anything else goes on. A
+                    // half-assigned selection is made uniform rather than
+                    // toggled item by item, which would leave it half-assigned
+                    // the other way round.
+                    layers: all
+                      ? withoutLayer_(d.layers, layer.id)
+                      : withLayer_(d.layers, layer.id),
+                  }),
+                  all ? `Off ${layer.name}` : `On ${layer.name}`,
+                )
+              }
+            >
+              {layer.name}
+              {some && !all ? ' ·' : ''}
+            </button>
+          );
+        })}
+      </div>
+    </Field>
+  );
+}
+
+const withLayer_ = (on: string[] | undefined, id: string): string[] =>
+  (on ?? []).includes(id) ? (on ?? []) : [...(on ?? []), id];
+const withoutLayer_ = (on: string[] | undefined, id: string): string[] =>
+  (on ?? []).filter((l) => l !== id);
 
 /** A checkbox with a third state for "the selection disagrees".
  *

@@ -1380,6 +1380,42 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   await page.waitForTimeout(450);
   check("showing it again brings them back", (await nodeCount()) === before);
 
+  // Putting a whole selection on a view at once — the reason to have views is
+  // to say "these forty are the physical layer", and one at a time is the work
+  // the bulk editor exists to remove.
+  {
+    // The drag checks above leave devices stacked on one another, so a click
+    // lands on whichever is on top. Tidying spreads them out again — which is
+    // what it is for.
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+    await page.waitForTimeout(250);
+    await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
+    await page.waitForTimeout(450);
+    await page.locator("button", { hasText: "Fit view" }).first().click();
+    await page.waitForTimeout(500);
+    // Clicked on each device own glyph: after the drag checks above, node
+    // boxes overlap and a centre click lands on whichever is on top.
+    const devs = page.locator(".react-flow__node:not(:has(.cv-note))");
+    await devs.nth(0).locator(".cv-glyph-art").click();
+    await devs.nth(1).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+    await page.waitForTimeout(350);
+    const bulk = page.locator(".cv-inspector .cv-field", { hasText: "Appears on" });
+    check("the bulk editor offers views", (await bulk.count()) === 1);
+    if (await bulk.count()) {
+      await bulk.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await page.waitForTimeout(200);
+      await bulk.locator(".cv-tag", { hasText: "Logical" }).click();
+      await page.waitForTimeout(400);
+      await page.getByLabel("Hide Logical").click();
+      await page.waitForTimeout(450);
+      check("a selection can be put on a view in one go",
+        (await nodeCount()) === before - 2, `${before} -> ${await nodeCount()}`);
+      await page.getByLabel("Show Logical").click();
+      await page.waitForTimeout(400);
+      check("and taken back off", (await nodeCount()) === before);
+    }
+  }
+
   // A view hidden to prepare a document must not reappear in the document.
   await page.getByLabel("Hide Logical").click();
   await page.waitForTimeout(400);
