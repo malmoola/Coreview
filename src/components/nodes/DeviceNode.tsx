@@ -137,10 +137,10 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
           lineClassName="cv-resize-line"
           handleClassName="cv-resize-handle"
         />
-        <Handle type="target" position={Position.Top} id="t" className="cv-handle" />
+        <Handle type="source" position={Position.Top} id="t" className="cv-handle" />
         <Handle type="source" position={Position.Right} id="r" className="cv-handle" />
         <Handle type="source" position={Position.Bottom} id="b" className="cv-handle" />
-        <Handle type="target" position={Position.Left} id="l" className="cv-handle" />
+        <Handle type="source" position={Position.Left} id="l" className="cv-handle" />
 
         <div
           className={`cv-glyph-art${failing ? ' is-failing' : ''}`}
@@ -204,10 +204,10 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
         handleClassName="cv-resize-handle"
       />
 
-      <Handle type="target" position={Position.Top} id="t" className="cv-handle" />
+      <Handle type="source" position={Position.Top} id="t" className="cv-handle" />
       <Handle type="source" position={Position.Right} id="r" className="cv-handle" />
       <Handle type="source" position={Position.Bottom} id="b" className="cv-handle" />
-      <Handle type="target" position={Position.Left} id="l" className="cv-handle" />
+      <Handle type="source" position={Position.Left} id="l" className="cv-handle" />
 
       {!isText && (
         <span

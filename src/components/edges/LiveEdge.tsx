@@ -41,7 +41,29 @@ const SPEED_SECONDS: Partial<Record<HealthStatus, number>> = {
   warning: 4.4,
 };
 
-function pathFor(type: LinkData['pathType'], p: Parameters<typeof getBezierPath>[0]) {
+/** Where along the gap a link makes its turn.
+ *
+ *  Six links off the same side of a switch all turn at the halfway point and
+ *  their long runs lie exactly on top of one another; the diagram is not wrong
+ *  but no single cable can be followed through it. Moving the turn shifts the
+ *  whole run, which pulls them apart.
+ *
+ *  Lanes alternate either side of the middle with a growing step, so the first
+ *  link is exactly where it always was and a diagram with no crowding looks
+ *  untouched. Clamped well short of the ends, where a run would end up tucked
+ *  against a device instead of between two. */
+function laneStep(lane: number): number {
+  if (lane <= 0) return 0.5;
+  const magnitude = 0.075 * Math.ceil(lane / 2);
+  const shifted = 0.5 + (lane % 2 === 1 ? -magnitude : magnitude);
+  return Math.min(0.82, Math.max(0.18, shifted));
+}
+
+function pathFor(
+  type: LinkData['pathType'],
+  p: Parameters<typeof getBezierPath>[0],
+  lane = 0,
+) {
   switch (type) {
     case 'straight':
       return getStraightPath({
@@ -51,9 +73,9 @@ function pathFor(type: LinkData['pathType'], p: Parameters<typeof getBezierPath>
         targetY: p.targetY,
       });
     case 'step':
-      return getSmoothStepPath({ ...p, borderRadius: 0 });
+      return getSmoothStepPath({ ...p, borderRadius: 0, stepPosition: laneStep(lane) });
     case 'smoothstep':
-      return getSmoothStepPath({ ...p, borderRadius: 12 });
+      return getSmoothStepPath({ ...p, borderRadius: 12, stepPosition: laneStep(lane) });
     default:
       return getBezierPath(p);
   }
@@ -82,11 +104,26 @@ function LiveEdgeInner(props: EdgeProps) {
         targetY,
         sourcePosition,
         targetPosition,
-      }),
-    [data.pathType, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition],
+      }, data.lane ?? 0),
+    [
+      data.pathType,
+      data.lane,
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+      sourcePosition,
+      targetPosition,
+    ],
   );
 
   const color = STATUS_COLOR[status];
+  // The line can be given a colour of its own — a fibre run, a carrier
+  // circuit, a VLAN — without the link ceasing to be a live one. Everything
+  // that reports health keeps the status colour: the travelling dots, the
+  // halo, the arrowheads and the dash pattern. Only the line itself changes,
+  // so a red link that is up still reads as up.
+  const lineColor = data.colorMode === 'fixed' && data.color ? data.color : color;
   const animate = shouldAnimate(status, reduceMotion);
   const duration = SPEED_SECONDS[status] ?? 3;
   const direction = data.direction ?? 'forward';
@@ -188,11 +225,11 @@ function LiveEdgeInner(props: EdgeProps) {
         id={id}
         path={edgePath}
         style={{
-          stroke: color,
+          stroke: lineColor,
           strokeWidth: selected ? width + 1.5 : width,
           strokeDasharray: dash,
           opacity: status === 'disabled' ? 0.55 : 1,
-          filter: selected ? `drop-shadow(0 0 6px ${color})` : undefined,
+          filter: selected ? `drop-shadow(0 0 6px ${lineColor})` : undefined,
           // Colour changes ease rather than snapping, so a status flip reads as
           // a transition instead of a jump cut.
           transition: 'stroke 350ms ease, stroke-width 150ms ease',

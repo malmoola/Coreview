@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { chooseHandles, routeForView, routeLinks } from './routeLinks';
+import { assignLanes, chooseHandles, routeForView, routeLinks } from './routeLinks';
 import type { TopoEdge, TopoNode } from '../state/store';
 
 const at = (id: string, x: number, y: number): TopoNode =>
@@ -36,21 +36,36 @@ describe('chooseHandles', () => {
     });
   });
 
-  it('goes down for a device above, because there is no upward source', () => {
-    // A node emits from its right and its bottom only. Bottom-to-top is the
-    // legal pair here and the router says so rather than inventing a handle.
+  it('goes up for a device above', () => {
+    // Every side can start a link now, so this is a full turn rather than a
+    // choice between two legal pairs.
     expect(chooseHandles(at('a', 0, 300), at('b', 0, 0))).toEqual({
-      sourceHandle: 'b',
-      targetHandle: 't',
+      sourceHandle: 't',
+      targetHandle: 'b',
     });
   });
 
-  it('goes down for a device to the left, for the same reason', () => {
-    // Sideways would have to leave the source's left, which is a target.
+  it('goes left for a device to the left', () => {
     expect(chooseHandles(at('a', 400, 0), at('b', 0, 0))).toEqual({
-      sourceHandle: 'b',
-      targetHandle: 't',
+      sourceHandle: 'l',
+      targetHandle: 'r',
     });
+  });
+
+  it('faces each of the four ways round', () => {
+    const middle = at('a', 500, 500);
+    const sides = [
+      [at('b', 500, 0), 't'],
+      [at('b', 1200, 500), 'r'],
+      [at('b', 500, 1200), 'b'],
+      [at('b', 0, 500), 'l'],
+    ] as const;
+    for (const [other, side] of sides) {
+      const h = chooseHandles(middle, other);
+      expect(h.sourceHandle).toBe(side);
+      // And the far end faces back, so the two ends always look at each other.
+      expect(h.targetHandle).toBe({ t: 'b', r: 'l', b: 't', l: 'r' }[side]);
+    }
   });
 
   it('treats a slight sideways offset between tiers as still a tier', () => {
@@ -153,5 +168,52 @@ describe('routeForView', () => {
   it('leaves a link alone when one end is not on the diagram', () => {
     const routed = routeForView([at('a', 0, 0)], [link('e', 'a', 'missing', 'b', 't')]);
     expect(routed[0]!.sourceHandle).toBe('b');
+  });
+});
+
+describe('assignLanes', () => {
+  it('gives links off the same side different lanes', () => {
+    const edges = [
+      link('e1', 'core', 'a', 'b', 't'),
+      link('e2', 'core', 'b', 'b', 't'),
+      link('e3', 'core', 'c', 'b', 't'),
+    ];
+    const lanes = assignLanes(edges);
+    expect([lanes.get('e1'), lanes.get('e2'), lanes.get('e3')]).toEqual([0, 1, 2]);
+  });
+
+  it('leaves a link on its own in the first lane', () => {
+    // A diagram with no crowding has to look exactly as it did.
+    const lanes = assignLanes([link('e1', 'a', 'b', 'b', 't')]);
+    expect(lanes.get('e1')).toBe(0);
+  });
+
+  it('counts both ends, so a busy far end also spreads', () => {
+    // Three links arriving at the top of one server from three switches
+    // would otherwise all turn at the same distance above it.
+    const edges = [
+      link('e1', 'a', 'srv', 'b', 't'),
+      link('e2', 'b', 'srv', 'b', 't'),
+      link('e3', 'c', 'srv', 'b', 't'),
+    ];
+    const lanes = assignLanes(edges);
+    expect([lanes.get('e1'), lanes.get('e2'), lanes.get('e3')]).toEqual([0, 1, 2]);
+  });
+
+  it('treats different sides of one device as different queues', () => {
+    const edges = [link('e1', 'core', 'a', 'b', 't'), link('e2', 'core', 'b', 'r', 'l')];
+    const lanes = assignLanes(edges);
+    expect(lanes.get('e1')).toBe(0);
+    expect(lanes.get('e2')).toBe(0);
+  });
+
+  it('puts the lane on the edge the canvas draws', () => {
+    const nodes = [at('core', 500, 0), at('a', 300, 500), at('b', 700, 500)];
+    const edges = [link('e1', 'core', 'a'), link('e2', 'core', 'b')];
+    const routed = routeForView(nodes, edges);
+    // The first lane is the default, so it is left unset rather than written
+    // to every edge on a diagram that has no crowding at all.
+    expect((routed[0]!.data as { lane?: number }).lane ?? 0).toBe(0);
+    expect((routed[1]!.data as { lane?: number }).lane).toBe(1);
   });
 });

@@ -7,6 +7,7 @@ import {
   MiniMap,
   ReactFlow,
   useReactFlow,
+  ConnectionMode,
   type Connection,
   type OnConnect,
 } from '@xyflow/react';
@@ -85,6 +86,10 @@ export function Canvas() {
   const onConnect: OnConnect = useCallback(
     (c: Connection) => {
       if (!c.source || !c.target) return;
+      // Loose connections let any side reach any side, which also means a
+      // node can be dropped on itself. A link from a device to itself is
+      // never what someone meant to draw.
+      if (c.source === c.target) return;
       const edge: TopoEdge = {
         id: uid(),
         source: c.source,
@@ -396,6 +401,10 @@ export function Canvas() {
         onNodesChange={store.onNodesChange}
         onEdgesChange={store.onEdgesChange}
         onConnect={onConnect}
+        /* Every side of a device is a source, so a link can leave whichever
+           side faces where it is going. Loose mode is what lets one of those
+           sources also be the end of a link. */
+        connectionMode={ConnectionMode.Loose}
         onNodeClick={(_, n) => store.select(n.id, null)}
         onEdgeClick={(_, e) => store.select(null, e.id)}
         onPaneClick={() => {

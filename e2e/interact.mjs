@@ -117,6 +117,32 @@ const gapBetween = async (a, b) => {
   return { dx: Math.round(x.x - y.x), dy: Math.round(x.y - y.y) };
 };
 
+const pointOnEdge = async () => {
+  const d = await page.locator(".react-flow__edge-path").first().getAttribute("d");
+  const nums = (d ?? "").match(/-?[\d.]+/g)?.map(Number) ?? [];
+  if (nums.length < 4) return null;
+  const t = await page.locator(".react-flow__viewport").evaluate((el) => {
+    const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+    return { a: m.a, e: m.e, f: m.f };
+  });
+  const box = await page.locator(".react-flow__pane").boundingBox();
+  // Several points along the line, taking the first that is really the
+  // line and not something drawn over it.
+  for (let i = 2; i + 1 < nums.length; i += 2) {
+    const at = {
+      x: box.x + nums[i] * t.a + t.e,
+      y: box.y + nums[i + 1] * t.a + t.f,
+    };
+    const tag = await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.tagName ?? "",
+      at,
+    );
+    if (tag === "path") return at;
+  }
+  return null;
+};
+
+
 /** A drag that is verified to have actually dragged something.
  *
  *  "The gap did not change" is true both when a node moved with its group and
@@ -723,6 +749,162 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   await shove(-430, 260);
   check("moved back below, it sets off downwards again",
     (await leavesTowards()) === "down", String(await leavesTowards()));
+}
+
+// ---------------------------------------------------------------- colour
+// A link can be given a colour of its own — a fibre run, a carrier circuit —
+// without ceasing to be a live link. The line changes; everything that
+// reports health does not.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+
+  const strokeOfFirstEdge = () =>
+    page.locator(".react-flow__edge-path").first().evaluate((el) => el.style.stroke);
+  // The edge that was actually clicked, which is not necessarily the first in
+  // the document — selecting one moves it in the DOM.
+  const strokeOfSelected = () =>
+    page
+      .locator(".react-flow__edge.selected .react-flow__edge-path")
+      .first()
+      .evaluate((el) => el.style.stroke);
+  const dotFills = () =>
+    page.locator(".react-flow__edges circle").evaluateAll((els) =>
+      els.map((e) => e.getAttribute("fill")),
+    );
+
+  const healthyStroke = await strokeOfFirstEdge();
+  const dotsBefore = await dotFills();
+  check("a healthy link is drawn in its health colour",
+    /rgb\(47, 191, 107\)|#2fbf6b/i.test(healthyStroke), healthyStroke);
+
+  // Clicked on the line itself. The centre of an edge's bounding box is
+  // usually empty space, and another edge's invisible hit area often sits
+  // there instead.
+  const onLine = await pointOnEdge();
+  check("a point on a link can be clicked", onLine !== null, JSON.stringify(onLine));
+  if (onLine) await page.mouse.click(onLine.x, onLine.y);
+  await page.waitForTimeout(350);
+  const mode = page.locator(".cv-inspector select").filter({ hasText: "Follow health" }).first();
+  check("the link inspector offers a colour of its own", (await mode.count()) === 1);
+
+  if (await mode.count()) {
+    await mode.selectOption("fixed");
+    await page.waitForTimeout(250);
+    const swatch = page.locator('.cv-inspector input[type="color"]').first();
+    check("choosing that reveals a colour picker", (await swatch.count()) === 1);
+    await swatch.fill("#b76eff");
+    await page.waitForTimeout(400);
+
+    const painted = await strokeOfSelected();
+    check("the line takes the colour it was given",
+      /rgb\(183, 110, 255\)|#b76eff/i.test(painted), painted);
+
+    // The whole point: it is still a live link.
+    const dotsAfter = await dotFills();
+    check("the travelling dots still report health, not the new colour",
+      dotsAfter.length === dotsBefore.length &&
+        dotsAfter.every((f) => !/b76eff/i.test(String(f))),
+      JSON.stringify(dotsAfter.slice(0, 3)));
+    check("and there are still dots travelling", dotsAfter.length > 0, `${dotsAfter.length}`);
+
+    // And back.
+    await mode.selectOption("status");
+    await page.waitForTimeout(350);
+    const restored = await strokeOfSelected();
+    check("switching back restores the health colour",
+      /rgb\(47, 191, 107\)|rgb\(228, 86, 74\)/i.test(restored), restored);
+  }
+}
+
+// ---------------------------------------------------------------- drawing
+// Every side of a device became a source so links can face any direction.
+// That changes how connections are made, so drawing one by hand has to be
+// checked rather than assumed still to work.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  const before = await page.locator(".react-flow__edge").count();
+
+  const dev = ".react-flow__node:not(:has(.cv-note))";
+  const from = await page.locator(dev).first().boundingBox();
+  const to = await page.locator(dev).nth(2).boundingBox();
+
+  // Handles are hidden until the node is hovered, so the pointer goes to the
+  // glyph first — which is what a person does too.
+  await page.mouse.move(from.x + from.width / 2, from.y + 22);
+  await page.waitForTimeout(250);
+  const handle = await page
+    .locator(`${dev} >> nth=0 >> .react-flow__handle-right`)
+    .boundingBox();
+  check("a device offers a handle to drag from", handle !== null);
+
+  if (handle) {
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + 22, { steps: 18 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    const after = await page.locator(".react-flow__edge").count();
+    check("dragging from a handle to another device draws a link",
+      after === before + 1, `${before} -> ${after}`);
+  }
+
+  // A link from a device to itself is never what anyone meant to draw, and
+  // loose connections make it possible where it was not before.
+  const selfBefore = await page.locator(".react-flow__edge").count();
+  await page.mouse.move(from.x + from.width / 2, from.y + 22);
+  await page.waitForTimeout(250);
+  const h2 = await page.locator(`${dev} >> nth=0 >> .react-flow__handle-right`).boundingBox();
+  if (h2) {
+    await page.mouse.move(h2.x + h2.width / 2, h2.y + h2.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 20, from.y + from.height - 10, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    check("a device cannot be linked to itself",
+      (await page.locator(".react-flow__edge").count()) === selfBefore,
+      `${selfBefore} -> ${await page.locator(".react-flow__edge").count()}`);
+  }
+}
+
+// ---------------------------------------------------------------- tracing
+// On a meshed diagram links necessarily cross, and no routing removes that.
+// Pointing at one has to fade the others so that one can be followed.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+
+  // A point actually on the line. The centre of an edge's bounding box is
+  // usually empty space — an L-shaped path passes nowhere near it — so the
+  // path data is read and a real point on it mapped into screen coordinates.
+  const opacities = async () =>
+    page.locator(".react-flow__edge").evaluateAll((els) =>
+      els.map((e) => Number(getComputedStyle(e).opacity)),
+    );
+
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(250);
+  const before = await opacities();
+  check("with nothing pointed at, every link is fully drawn",
+    before.every((o) => o > 0.9), JSON.stringify(before));
+
+  const at = await pointOnEdge();
+  check("a point on a link can be found", at !== null, JSON.stringify(at));
+  if (at) {
+    await page.mouse.move(at.x, at.y);
+    await page.waitForTimeout(400);
+    const after = await opacities();
+    check("pointing at a link fades the others",
+      after.filter((o) => o < 0.5).length >= 1, JSON.stringify(after));
+    check("the link pointed at stays fully drawn",
+      after.some((o) => o > 0.9), JSON.stringify(after));
+
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(400);
+    const back = await opacities();
+    check("moving away brings them all back", back.every((o) => o > 0.9), JSON.stringify(back));
+  }
 }
 
 // ---------------------------------------------------------------- holding

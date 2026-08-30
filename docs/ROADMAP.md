@@ -142,6 +142,20 @@ Ordered by what makes the app more useful, not by what is easiest.
       the undo history does not fill with one entry per frame. A single link
       can be held to the sides it is on when it has been drawn the long way
       round on purpose
+- [x] **A link can leave any of the four sides**, so the swing is a full turn
+      rather than a choice between two pairs. React Flow finds a source handle
+      only among source handles even in loose mode, so every side is declared
+      as one and loose connections let a source also be an end. Drawing a link
+      by hand still works, and a device cannot be linked to itself
+- [x] **Links leaving the same side take different lanes**, so six access
+      switches under one core no longer run their cables along the same line
+- [x] **Pointing at a link fades the others.** On a meshed diagram links
+      necessarily cross and no routing removes that, but only one has to be
+      readable at a time. Edge labels no longer swallow the pointer — the one
+      place you would naturally aim was the one place hovering did nothing
+- [x] **A link can carry its own colour** — a fibre run, a carrier circuit —
+      while the travelling dots, the halo, the arrowheads and the dash pattern
+      keep reporting health, so a purple link that is up still reads as up
 - [x] **Edit a whole selection at once.** A crawl puts dozens of devices down
       in one go. A value the selection disagrees on reads "mixed" rather than
       showing the first one, tags are split into those everything carries and

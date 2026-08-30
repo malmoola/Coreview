@@ -1184,6 +1184,34 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
           />
           Maintenance — suppress status
         </label>
+      </div>
+
+      <div className="cv-row">
+        <Field label="Line colour">
+          <select
+            className="cv-input"
+            value={d.colorMode ?? 'status'}
+            onChange={(e) =>
+              update(edgeId, { colorMode: e.target.value as LinkData['colorMode'] })
+            }
+          >
+            <option value="status">Follow health</option>
+            <option value="fixed">A colour of its own</option>
+          </select>
+        </Field>
+        {d.colorMode === 'fixed' && (
+          <Field label="Colour" hint="The dots and arrows still show health">
+            <input
+              className="cv-color"
+              type="color"
+              value={d.color || '#4ea8f0'}
+              onChange={(e) => update(edgeId, { color: e.target.value })}
+            />
+          </Field>
+        )}
+      </div>
+
+      <div className="cv-checks">
         <label className="cv-check">
           <input
             type="checkbox"

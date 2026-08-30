@@ -336,7 +336,11 @@ textarea.cv-input { resize: vertical; }
 .cv-note-check { display: flex; gap: 6px; align-items: flex-start; margin: 2px 0; }
 
 .cv-edge-label {
-  position: absolute; pointer-events: all;
+  /* Transparent to the pointer. A label sits on top of the line it describes,
+     and letting it swallow the pointer meant the one place you would naturally
+     aim at was the one place hovering the link did nothing. Nothing on a label
+     is clickable, so it loses nothing by standing aside. */
+  position: absolute; pointer-events: none;
   background: var(--bg-raised); border: 1px solid var(--line-strong);
   border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--text);
   font-family: var(--mono); white-space: nowrap;
@@ -989,3 +993,19 @@ textarea.cv-input { resize: vertical; }
   font-size: 11px; color: var(--text-dim);
 }
 .cv-history-key i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ------------------------------------------------------- tracing one link */
+/* Pointing at a link fades the rest of them. On a meshed diagram the links
+   necessarily cross, and no amount of routing removes that — but only one of
+   them has to be readable at a time, and this is the cheapest way to make
+   that one readable. Nodes and labels are untouched, so the diagram never
+   stops being legible while the pointer is anywhere near it. */
+.react-flow__edges:has(.react-flow__edge:hover) .react-flow__edge {
+  opacity: 0.2;
+  transition: opacity 120ms ease;
+}
+.react-flow__edges:has(.react-flow__edge:hover) .react-flow__edge:hover,
+.react-flow__edges:has(.react-flow__edge:hover) .react-flow__edge.selected {
+  opacity: 1;
+}
+.react-flow__edge { transition: opacity 160ms ease; }

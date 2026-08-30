@@ -14,13 +14,14 @@
  */
 import type { TopoEdge, TopoNode } from '../state/store';
 
+export type Side = 't' | 'r' | 'b' | 'l';
+
 export interface Handles {
-  sourceHandle: 'r' | 'b';
-  targetHandle: 'l' | 't';
+  sourceHandle: Side;
+  targetHandle: Side;
 }
 
-const HORIZONTAL: Handles = { sourceHandle: 'r', targetHandle: 'l' };
-const VERTICAL: Handles = { sourceHandle: 'b', targetHandle: 't' };
+const OPPOSITE: Record<Side, Side> = { t: 'b', r: 'l', b: 't', l: 'r' };
 
 function centre(n: TopoNode): { x: number; y: number } {
   const w = n.width ?? n.measured?.width ?? 176;
@@ -29,20 +30,48 @@ function centre(n: TopoNode): { x: number; y: number } {
 }
 
 /**
- * The better of the two legal handle pairs for a link between these nodes.
+ * The side of each device that faces the other one.
  *
- * Sideways only when the target really is to the side *and* to the right: a
- * target to the left has no legal sideways route, because the source cannot
- * emit from its left. Ties go to vertical, because network diagrams are drawn
- * in tiers and a slight horizontal offset between two tiers is still a tier.
+ * All four sides can start a link, so this is a full turn: a device dragged
+ * above its neighbour links from the top, one dragged to the left links from
+ * the left. Ties go to vertical, because network diagrams are drawn in tiers
+ * and a slight horizontal offset between two tiers is still a tier.
  */
 export function chooseHandles(source: TopoNode, target: TopoNode): Handles {
   const a = centre(source);
   const b = centre(target);
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  if (dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.2) return HORIZONTAL;
-  return VERTICAL;
+  const sideways = Math.abs(dx) > Math.abs(dy) * 1.2;
+  const from: Side = sideways ? (dx > 0 ? 'r' : 'l') : dy > 0 ? 'b' : 't';
+  return { sourceHandle: from, targetHandle: OPPOSITE[from] };
+}
+
+/**
+ * Which lane each link takes, so links leaving the same side do not overlap.
+ *
+ * Six access switches hanging off the bottom of a core switch all turn at the
+ * same distance below it, and the horizontal runs lie exactly on top of one
+ * another. The diagram is not wrong, but nobody can follow a single cable
+ * through it. Giving each one a different turning distance pulls them apart.
+ *
+ * A link is in the busiest lane either of its ends asks for, so both ends
+ * agree and the run does not kink.
+ */
+export function assignLanes(edges: TopoEdge[]): Map<string, number> {
+  const seen = new Map<string, number>();
+  const perEnd = new Map<string, number>();
+  for (const e of edges) {
+    const ends = [`${e.source}:${e.sourceHandle ?? ''}`, `${e.target}:${e.targetHandle ?? ''}`];
+    let lane = 0;
+    for (const end of ends) {
+      const next = perEnd.get(end) ?? 0;
+      perEnd.set(end, next + 1);
+      lane = Math.max(lane, next);
+    }
+    seen.set(e.id, lane);
+  }
+  return seen;
 }
 
 /**
@@ -60,7 +89,7 @@ export function chooseHandles(source: TopoNode, target: TopoNode): Handles {
 export function routeForView(nodes: TopoNode[], edges: TopoEdge[]): TopoEdge[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   let changed = false;
-  const out = edges.map((edge) => {
+  const sided = edges.map((edge) => {
     if ((edge.data as { pinnedSides?: boolean } | undefined)?.pinnedSides) return edge;
     const source = byId.get(edge.source);
     const target = byId.get(edge.target);
@@ -71,6 +100,16 @@ export function routeForView(nodes: TopoNode[], edges: TopoEdge[]): TopoEdge[] {
     }
     changed = true;
     return { ...edge, ...want };
+  });
+
+  // Lanes are worked out from the sides the links have just been given, so a
+  // link that has swung round joins the queue at its new side.
+  const lanes = assignLanes(sided);
+  const out = sided.map((edge) => {
+    const lane = lanes.get(edge.id) ?? 0;
+    if (((edge.data as { lane?: number } | undefined)?.lane ?? 0) === lane) return edge;
+    changed = true;
+    return { ...edge, data: { ...edge.data, lane } } as TopoEdge;
   });
   // The same array when nothing moved, so React Flow is not handed a new
   // list of edges on every unrelated render.

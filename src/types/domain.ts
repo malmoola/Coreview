@@ -153,6 +153,16 @@ export interface LinkData extends Record<string, unknown> {
   maintenance: boolean;
   notes?: string;
   healthRule: LinkHealthRule;
+  /** Which lane this link takes out of a crowded side, worked out on every
+   *  render and never saved. Several links leaving the same side of the same
+   *  device would otherwise run along one another and be impossible to
+   *  follow. */
+  lane?: number;
+  /** Where the line's colour comes from. 'status' is the default and paints
+   *  the whole link by health. 'fixed' paints the line with `color` — for
+   *  marking a fibre run or a carrier circuit — while everything that carries
+   *  liveness stays status-coloured, so the link is still a live link. */
+  colorMode?: 'status' | 'fixed';
   /** Keep this link on the sides it is drawn on, instead of letting it swing
    *  round as the devices move. Off by default: a link that stays attached to
    *  the bottom of a device after that device has been moved above its
