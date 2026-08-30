@@ -1214,6 +1214,50 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- guides
+// Grid snapping is not the same as being in line: two devices can both sit on
+// the grid and still be a few pixels out from each other, and a few pixels out
+// is what a diagram looks untidy for.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  const named = (label) => page.locator(".react-flow__node", { hasText: label }).first();
+  const leftOf = async (label) => (await named(label).boundingBox()).x;
+
+  const anchor = await named("Core switch").boundingBox();
+  const mover = await named("Bystander").boundingBox();
+
+  // Where a dragged node ends up relative to the pointer depends on the zoom,
+  // so rather than predicting it, the pointer is moved, the result measured,
+  // and the difference corrected. That leaves the check about whether the
+  // device lines up, not about React Flow's drag arithmetic.
+  let pointer = { x: mover.x + 30, y: mover.y + 22 };
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.mouse.down();
+  await page.mouse.move(anchor.x + 3, pointer.y, { steps: 20 });
+  pointer = { x: anchor.x + 3, y: pointer.y };
+  for (let i = 0; i < 4; i++) {
+    await page.waitForTimeout(120);
+    const now = await named("Bystander").boundingBox();
+    const off = anchor.x + 3 - now.x;
+    if (Math.abs(off) < 1) break;
+    pointer = { x: pointer.x + off, y: pointer.y };
+    await page.mouse.move(pointer.x, pointer.y, { steps: 3 });
+  }
+  await page.waitForTimeout(250);
+
+  const shown = await page.locator(".cv-guide").count();
+  check("a guide appears while dragging into line", shown >= 1, `${shown} guides`);
+
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  check("the guide goes when the drag ends", (await page.locator(".cv-guide").count()) === 0);
+
+  const gap = Math.abs((await leftOf("Bystander")) - (await leftOf("Core switch")));
+  check("the device lands exactly in line", gap < 2, `${gap.toFixed(1)}px out`);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

@@ -6,9 +6,11 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
+  ViewportPortal,
   useReactFlow,
   ConnectionMode,
   type Connection,
+  type NodeChange,
   type OnConnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -21,6 +23,7 @@ import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
+import { alignmentFor, type Box, type Guide } from '../lib/alignment';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
@@ -87,6 +90,7 @@ export function Canvas() {
   const palette = canvasPalette(ground);
 
   const [finding, setFinding] = useState(false);
+  const [guides, setGuides] = useState<Guide[]>([]);
   // A view, not a document change: folding a site must not touch what is
   // saved, so expanding restores exactly what was there.
   const [folded, setFolded] = useState<Set<string>>(() => new Set());
@@ -412,6 +416,74 @@ export function Canvas() {
     [view.nodes],
   );
 
+  const boxOf = (n: TopoNode): Box => ({
+    id: n.id,
+    x: n.position.x,
+    y: n.position.y,
+    w: n.width ?? n.measured?.width ?? 168,
+    h: n.height ?? n.measured?.height ?? 92,
+  });
+
+  /** Lines a dragged device up with the ones already placed, as the move
+   *  arrives rather than after it.
+   *
+   *  Correcting the position from `onNodeDrag` does not hold: React Flow is
+   *  mid-drag and its next event overwrites whatever was written, so the
+   *  guide appeared and the device landed a few pixels out anyway. Rewriting
+   *  the change on its way through is the only point at which the corrected
+   *  position is the one React Flow goes on to use.
+   *
+   *  Grid snapping is not a substitute. It quantises to ten pixels, which is
+   *  not the same as being in line — two devices can both sit on the grid and
+   *  still be four pixels out from each other, and four pixels out is what a
+   *  diagram looks untidy for. */
+  const onNodesChange = useCallback(
+    (changes: NodeChange<TopoNode>[]) => {
+      // Defaulted on. A document saved before this existed has no value here,
+      // and reading that as "off" quietly disabled guides for every diagram
+      // already drawn.
+      if (!(doc.canvas.snapEnabled ?? true)) {
+        store.onNodesChange(changes);
+        return;
+      }
+      // Includes the last change of a drag, which arrives with `dragging`
+      // already false and carries React Flow's own final position. Skipping
+      // it let the guide show all the way through and then put the device
+      // back where the pointer was, a few pixels out.
+      const dragging = changes.filter(
+        (c): c is NodeChange<TopoNode> & { id: string; position: { x: number; y: number } } =>
+          c.type === 'position' && Boolean(c.position),
+      );
+      if (dragging.length !== 1) {
+        // Nothing to line up against for a multi-selection drag: the whole
+        // group is moving and its members are already in line with each other.
+        if (dragging.length === 0 && changes.some((c) => c.type === 'position')) setGuides([]);
+        store.onNodesChange(changes);
+        return;
+      }
+
+      const moving = dragging[0]!;
+      const node = doc.nodes.find((n) => n.id === moving.id);
+      if (!node) {
+        store.onNodesChange(changes);
+        return;
+      }
+      // In diagram units. Ten screen pixels at quarter zoom is forty units,
+      // and a snap that grabs from forty away feels like the device is being
+      // taken out of your hands.
+      const tolerance = 7 / Math.max(0.2, rf.getZoom());
+      const others = doc.nodes.filter((n) => n.id !== moving.id && !n.selected).map(boxOf);
+      const found = alignmentFor({ ...boxOf(node), ...moving.position }, others, tolerance);
+      setGuides(found.guides);
+      store.onNodesChange(
+        changes.map((c) =>
+          c === moving ? { ...c, position: { x: found.x, y: found.y } } : c,
+        ) as NodeChange<TopoNode>[],
+      );
+    },
+    [doc.canvas.snapEnabled, doc.nodes, rf, store],
+  );
+
   return (
     <div className="cv-canvas" ref={wrapper} onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
       <EdgeMarkerDefs />
@@ -420,9 +492,10 @@ export function Canvas() {
         edges={view.edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onNodesChange={store.onNodesChange}
+        onNodesChange={onNodesChange}
         onEdgesChange={store.onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStop={() => setGuides([])}
         /* Every side of a device is a source, so a link can leave whichever
            side faces where it is going. Loose mode is what lets one of those
            sources also be the end of a link. */
@@ -448,8 +521,11 @@ export function Canvas() {
           const ev = e as React.MouseEvent;
           setMenu({ x: ev.clientX, y: ev.clientY, items: paneMenu(ev.clientX, ev.clientY) });
         }}
-        snapToGrid={doc.canvas.snapEnabled}
-        snapGrid={[10, 10]}
+        /* No grid snap. It quantises to ten pixels, which is not the same as
+           being in line — two devices can both sit on the grid and still be
+           four pixels out from each other — and it fights the alignment
+           guides for the last few pixels of every drag. Lining up with the
+           neighbours is what people are actually trying to do. */
         /* Left-drag pans, which is what every diagram tool does and what
            people reach for first. It used to draw a selection box, so the
            only way to move around a diagram larger than the window was the
@@ -468,6 +544,19 @@ export function Canvas() {
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: 'live' }}
       >
+        <ViewportPortal>
+          {guides.map((g) => (
+            <div
+              key={`${g.orientation}-${g.at}-${g.from}`}
+              className={`cv-guide is-${g.orientation}`}
+              style={
+                g.orientation === 'vertical'
+                  ? { left: g.at, top: g.from, height: g.to - g.from }
+                  : { top: g.at, left: g.from, width: g.to - g.from }
+              }
+            />
+          ))}
+        </ViewportPortal>
         {doc.canvas.gridEnabled && (
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={palette.grid} />
         )}

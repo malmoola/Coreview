@@ -32,6 +32,7 @@
   --zone-fill: rgba(78, 168, 240, 0.05);
   --zone-line: rgba(78, 168, 240, 0.34);
   --zone-title: rgba(78, 168, 240, 0.13);
+  --guide: #f0abfc;
 
   --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   --sans: ui-sans-serif, "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
@@ -87,6 +88,7 @@
   --zone-fill: rgba(11, 95, 206, 0.045);
   --zone-line: rgba(11, 95, 206, 0.4);
   --zone-title: rgba(11, 95, 206, 0.13);
+  --guide: #a21caf;
 }
 
 .is-contrast {
@@ -1161,3 +1163,14 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   font-family: var(--mono); font-weight: 400; letter-spacing: 0;
   text-transform: none; color: var(--text-faint);
 }
+
+/* The line a device just lined up with. It reaches both boxes and no further:
+   a line across the whole canvas says something is aligned, this says what
+   it is aligned with. Drawn inside the viewport, so it scales with the zoom
+   and stays exactly on the edge it is describing. */
+.cv-guide {
+  position: absolute; z-index: 5; pointer-events: none;
+  background: var(--guide);
+}
+.cv-guide.is-vertical { width: 1px; }
+.cv-guide.is-horizontal { height: 1px; }
