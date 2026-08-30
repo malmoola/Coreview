@@ -1244,3 +1244,32 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
 .cv-node[data-shape='callout'] .cv-node-label { font-weight: 500; white-space: normal; }
 .cv-node[data-shape='callout'] .cv-node-detail,
 .cv-node[data-shape='callout'] .cv-status-badge { display: none; }
+
+/* --------------------------------------------------------------- legend */
+/* Colouring by subnet is only useful if you can tell which colour is which
+   subnet; without this it is a pretty diagram that says nothing. */
+.cv-legend {
+  position: absolute; z-index: 8; left: 12px; top: 12px;
+  max-width: 260px; max-height: 45%; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line-strong);
+  border-radius: var(--radius); padding: 7px 9px;
+  box-shadow: 0 10px 26px var(--shadow);
+}
+.cv-legend-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px;
+}
+.cv-legend-off {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 0 2px;
+}
+.cv-legend-off:hover { color: var(--text); }
+.cv-legend-items { display: flex; flex-direction: column; gap: 3px; }
+.cv-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.cv-legend-item i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.cv-legend-key {
+  font-family: var(--mono); color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cv-legend-count { margin-left: auto; color: var(--text-faint); font-family: var(--mono); }

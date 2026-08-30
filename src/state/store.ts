@@ -9,6 +9,7 @@ import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
 import { zoneDeltas } from '../lib/zones';
 import { layersOf, withNewLayer, withoutLayer, type Layer } from '../lib/layers';
+import type { ColourBy } from '../lib/tinting';
 import {
   linkStatus as computeLinkStatus,
   nodeStatus as computeNodeStatus,
@@ -44,6 +45,10 @@ export interface ProjectDocument {
      *  once — physical, logical, the change on Saturday — and three files that
      *  disagree within a fortnight is what this exists to avoid. */
     layers?: Layer[];
+    /** What device colour means. Health is the default and is what the app is
+     *  for; the others answer questions a general drawing tool cannot, because
+     *  it does not know what an address is. */
+    colourBy?: ColourBy;
     /** How device nodes are drawn. 'glyph' is the icon with its name beneath
      *  and no box, the way a network diagram is normally drawn. 'card' is the
      *  bordered panel that holds the same text inside it. */

@@ -21,6 +21,7 @@ import { EdgeMarkerDefs, LiveEdge } from './edges/LiveEdge';
 import { STATUS_COLOR_DARK, canvasPalette } from '../theme';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
+import { ColourLegend } from './ColourLegend';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
 import { alignmentFor, spacingHint, type Box, type Guide } from '../lib/alignment';
@@ -332,6 +333,17 @@ export function Canvas() {
           );
         },
       },
+      ...(['health', 'role', 'subnet', 'tag'] as const)
+        .filter((by) => by !== (doc.canvas.colourBy ?? 'health'))
+        .map((by) => ({
+          label:
+            by === 'health'
+              ? 'Colour devices by health'
+              : by === 'role'
+                ? 'Colour devices by what they are'
+                : `Colour devices by ${by}`,
+          onSelect: () => store.setCanvas({ colourBy: by }),
+        })),
       {
         label: (doc.canvas.lineJumps ?? true) ? 'Stop hopping crossed links' : 'Hop crossed links',
         onSelect: () =>
@@ -654,6 +666,7 @@ export function Canvas() {
           />
         )}
       </ReactFlow>
+      <ColourLegend />
       {finding && <FindBox onClose={() => setFinding(false)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>

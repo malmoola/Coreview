@@ -3,6 +3,7 @@ import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react';
 
 import { ICONS } from '../icons';
 import { canvasPalette, deviceColor, statusColors } from '../../theme';
+import { colourForKey, keyFor } from '../../lib/tinting';
 import { useStore } from '../../state/store';
 import type { DeviceNodeData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
@@ -115,13 +116,21 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const runtime = useStore((s) => s.runtime);
   const nodeStyle = useStore((s) => s.doc.canvas.nodeStyle ?? 'glyph');
   const ground = useStore((s) => s.settings.ground);
+  const colourBy = useStore((s) => s.doc.canvas.colourBy ?? 'health');
+  const node = useStore((s) => s.doc.nodes.find((n) => n.id === id));
   const rename = useStore((s) => s.updateNodeData);
 
   const Icon = ICONS[d.deviceType] ?? ICONS.generic;
   // Health when something is watching, otherwise what the device is. A
   // diagram nobody has pointed at anything yet is a drawing, and an all-grey
   // drawing is a worse drawing.
-  const color = deviceColor(d.deviceType, status, ground);
+  // Health is the default and is what the app is for. Colouring by subnet or
+  // by tag answers a different question, and while it is on it wins — a
+  // diagram cannot say two things with one colour.
+  const grouped = colourBy !== 'health' && node ? keyFor(node, colourBy) : null;
+  const color = grouped
+    ? colourForKey(grouped, ground)
+    : deviceColor(d.deviceType, status, ground);
   // The status line reports health and must not borrow the device's own
   // colour, or a blue switch reads as though blue meant something. When
   // nothing is watching it says so quietly rather than in the device's paint.

@@ -1511,6 +1511,56 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     (luminance(await inkNow()) ?? 0) > 0.6, String(await inkNow()));
 }
 
+// ---------------------------------------------------------------- colour by
+// "Which of these are on the management VLAN" is a question a network diagram
+// answers with colour and a general drawing tool cannot answer at all.
+{
+  await page.locator("button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(400);
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  const glyphInk = () =>
+    page.locator(".cv-glyph-art svg, .cv-node-icon svg").first()
+      .evaluate((el) => getComputedStyle(el).color);
+  const byHealth = await glyphInk();
+
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 200 } });
+  await page.waitForTimeout(250);
+  const item = page.locator(".cv-menu button", { hasText: "Colour devices by subnet" });
+  check("the canvas menu offers colouring by subnet", (await item.count()) === 1);
+
+  // The menu has to fit on the screen. Opened near the bottom it used to run
+  // off the edge, and the items past the edge were unreachable — worst for
+  // the longest menus, which are the ones worth opening.
+  const menuBox = await page.locator(".cv-menu").boundingBox();
+  const viewport = page.viewportSize();
+  check("the menu stays inside the window",
+    menuBox.y >= 0 && menuBox.y + menuBox.height <= viewport.height + 1,
+    `${Math.round(menuBox.y)}..${Math.round(menuBox.y + menuBox.height)} of ${viewport.height}`);
+
+  if (await item.count()) {
+    await item.click();
+    await page.waitForTimeout(500);
+
+    check("a legend says what the colours mean",
+      (await page.locator(".cv-legend").count()) === 1);
+    const legend = await page.locator(".cv-legend").innerText();
+    check("it names the subnets it found", /\d+\.\d+\.\d+\.0\/24/.test(legend),
+      legend.replace(/\n/g, " ").slice(0, 90));
+
+    check("the devices are repainted", (await glyphInk()) !== byHealth,
+      `${byHealth} -> ${await glyphInk()}`);
+
+    // And back, from the legend itself.
+    await page.locator(".cv-legend-off").click();
+    await page.waitForTimeout(400);
+    check("the legend can turn itself off", (await page.locator(".cv-legend").count()) === 0);
+    check("and health colouring comes back", (await glyphInk()) === byHealth,
+      `${byHealth} -> ${await glyphInk()}`);
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);
