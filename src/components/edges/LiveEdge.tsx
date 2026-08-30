@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useSyncExternalStore } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -14,6 +14,15 @@ import { useStore } from '../../state/store';
 import { describeRule, shouldAnimate } from '../../health/evaluate';
 import { STATUS_COLOR_DARK, readableOn, statusColors } from '../../theme';
 import { capPath, capsFor, dashFor } from '../../lib/linkStyle';
+import { jumpsFor, withJumps } from '../../lib/lineJumps';
+import {
+  MAX_EDGES_FOR_JUMPS,
+  allPaths,
+  forgetPath,
+  pathVersion,
+  registerPath,
+  subscribePaths,
+} from './pathRegistry';
 
 /** Kept as a named export because the diagram exporter and several panels
  *  import it. The canvas uses the ground-aware set instead. */
@@ -115,6 +124,7 @@ function LiveEdgeInner(props: EdgeProps) {
   );
 
   const ground = useStore((s) => s.settings.ground);
+  const jumpsEnabled = useStore((s) => s.doc.canvas.lineJumps ?? true);
   const color = statusColors(ground)[status];
   // The line can be given a colour of its own — a fibre run, a carrier
   // circuit, a VLAN — without the link ceasing to be a live one. Everything
@@ -130,6 +140,26 @@ function LiveEdgeInner(props: EdgeProps) {
   const duration = SPEED_SECONDS[status] ?? 3;
   const direction = data.direction ?? 'forward';
   const width = data.width ?? 2;
+
+  // Register the plain path and read the others', so a crossing can be found.
+  // What is registered is never the hopped path, or an edge redrawing itself
+  // with hops would set every other edge recomputing.
+  const version = useSyncExternalStore(subscribePaths, pathVersion, pathVersion);
+  useEffect(() => {
+    registerPath(id, edgePath);
+  }, [id, edgePath]);
+  useEffect(() => () => forgetPath(id), [id]);
+
+  const drawnPath = useMemo(() => {
+    if (!jumpsEnabled) return edgePath;
+    const others = allPaths();
+    if (others.size > MAX_EDGES_FOR_JUMPS) return edgePath;
+    void version;
+    // Sized to the line. A 5px hop on a 6px cable is a wobble; the arc has
+    // to clear the line it is hopping to read as a hop at all.
+    const radius = Math.max(5, (data.width ?? 2) * 2.6);
+    return withJumps(edgePath, jumpsFor(id, edgePath, others, radius * 2), radius);
+  }, [id, edgePath, jumpsEnabled, version, data.width]);
 
   const dash = dashFor(data.lineStyle, status);
   const caps = capsFor(data);
@@ -229,7 +259,7 @@ function LiveEdgeInner(props: EdgeProps) {
           SVG filter — a per-edge drop-shadow is the expensive way to do this. */}
       {animate && (
         <path
-          d={edgePath}
+          d={drawnPath}
           fill="none"
           stroke={color}
           strokeWidth={width + 6}
@@ -247,7 +277,7 @@ function LiveEdgeInner(props: EdgeProps) {
 
       <BaseEdge
         id={id}
-        path={edgePath}
+        path={drawnPath}
         style={{
           stroke: lineColor,
           strokeWidth: selected ? width + 1.5 : width,
@@ -262,7 +292,7 @@ function LiveEdgeInner(props: EdgeProps) {
         markerStart={markerStart}
       />
       {/* Invisible wide path so hovering the thin line is practical. */}
-      <path d={edgePath} fill="none" stroke="transparent" strokeWidth={18}>
+      <path d={drawnPath} fill="none" stroke="transparent" strokeWidth={18}>
         <title>{tooltip}</title>
       </path>
 

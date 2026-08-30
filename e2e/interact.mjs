@@ -982,6 +982,36 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- hops
+// Two lines meeting at a point look exactly like two lines joined at a point.
+// A hop is the convention that says they pass.
+{
+  const arcs = () =>
+    page.locator(".react-flow__edge-path").evaluateAll((els) =>
+      els.reduce((n, e) => n + ((e.getAttribute("d") ?? "").match(/A\d/g) ?? []).length, 0),
+    );
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(400);
+
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.waitForTimeout(250);
+  const off = page.locator(".cv-menu button", { hasText: "Stop hopping crossed links" });
+  check("the canvas menu offers hops", (await off.count()) === 1);
+
+  if (await off.count()) {
+    await off.click();
+    await page.waitForTimeout(500);
+    check("turning them off leaves no arcs", (await arcs()) === 0, `${await arcs()}`);
+
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+    await page.waitForTimeout(250);
+    await page.locator(".cv-menu button", { hasText: "Hop crossed links" }).click();
+    await page.waitForTimeout(600);
+    check("turning them back on is offered and works",
+      (await page.locator(".cv-menu").count()) === 0);
+  }
+}
+
 // ---------------------------------------------------------------- tracing
 // On a meshed diagram links necessarily cross, and no routing removes that.
 // Pointing at one has to fade the others so that one can be followed.

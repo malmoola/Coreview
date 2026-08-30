@@ -36,6 +36,9 @@ export interface ProjectDocument {
     gridEnabled: boolean;
     snapEnabled: boolean;
     minimap: boolean;
+    /** Little hops where one link crosses another. On by default: two lines
+     *  meeting at a point look exactly like two lines joined at a point. */
+    lineJumps?: boolean;
     /** How device nodes are drawn. 'glyph' is the icon with its name beneath
      *  and no box, the way a network diagram is normally drawn. 'card' is the
      *  bordered panel that holds the same text inside it. */

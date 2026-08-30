@@ -314,6 +314,11 @@ export function Canvas() {
         },
       },
       {
+        label: (doc.canvas.lineJumps ?? true) ? 'Stop hopping crossed links' : 'Hop crossed links',
+        onSelect: () =>
+          store.setCanvas({ lineJumps: !(doc.canvas.lineJumps ?? true) }),
+      },
+      {
         label: 'Let every link follow its devices',
         onSelect: () => {
           const freed = store.unpinLinks();
