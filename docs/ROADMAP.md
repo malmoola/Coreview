@@ -77,8 +77,18 @@ Ordered by what makes the app more useful, not by what is easiest.
       reported "Added 0 devices and 0 links. Updated 5 already on the diagram,
       keeping their positions" 
 - [ ] Group by site or subnet, using the grouping that already exists
-- [ ] Link aggregation: draw a port-channel as one link that says how many
-      members it has
+- [ ] **Link aggregation: draw a port-channel as one link.** Attempted and
+      reverted. Collapsing links whose ports are consecutive infers a bundle
+      from port numbering, and two consecutive cables between a pair are just
+      as likely as an aggregation — the app would be asserting something it
+      cannot observe, which is the one thing it is not supposed to do.
+
+      Doing it properly means asking the device: `show etherchannel summary`
+      lists each port-channel and its members. The command exists on the test
+      switch and reports "Number of channel-groups in use: 0", so there is no
+      populated table to write a parser against. **Configure a port-channel on
+      the lab switch — two ports is enough — and this becomes a morning's
+      work with real output to verify against.**
 
 ## Packaging and trust
 
