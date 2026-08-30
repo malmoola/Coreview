@@ -550,6 +550,56 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 }
 
+// ---------------------------------------------------------------- folding
+// Folding a site is a view. It must not change the document, and expanding
+// has to give back exactly what was there.
+{
+  const dev = ".react-flow__node:not(:has(.cv-note))";
+  const note = ".react-flow__node:has(.cv-note)";
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+
+  const before = await nodeCount();
+  await page.locator(dev).first().click();
+  await page.locator(note).first().click({ modifiers: ["Control"] });
+  await page.waitForTimeout(250);
+  await page.locator(dev).first().click({ button: "right" });
+  await page.waitForTimeout(300);
+  const groupItem = page.locator(".cv-menu button", { hasText: /^Group \d+ objects/ }).first();
+  if (await groupItem.count()) {
+    await groupItem.click();
+    await page.waitForTimeout(300);
+  }
+
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  await page.locator(dev).first().click({ button: "right" });
+  await page.waitForTimeout(300);
+  const foldItem = page.locator(".cv-menu button", { hasText: "Fold this group into one box" });
+  check("a grouped node offers folding", (await foldItem.count()) === 1);
+
+  if (await foldItem.count()) {
+    await foldItem.click();
+    await page.waitForTimeout(450);
+    const folded = await nodeCount();
+    check("folding replaces the members with one box", folded === before - 1, `${before} -> ${folded}`);
+
+    const boxes = await page.locator(".cv-glyph-label, .cv-node-title").allTextContents();
+    check("the box says how much is inside it",
+      boxes.some((b) => /objects/.test(b)), JSON.stringify(boxes).slice(0, 140));
+
+    // Unfolding must give back exactly what was there.
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+    await page.waitForTimeout(250);
+    const openAll = page.locator(".cv-menu button", { hasText: /^Open all folded groups/ });
+    check("there is a way to open everything again", (await openAll.count()) === 1);
+    await openAll.click();
+    await page.waitForTimeout(450);
+    const restored = await nodeCount();
+    check("opening restores every object", restored === before, `${before} -> ${folded} -> ${restored}`);
+  }
+}
+
 // ---------------------------------------------------------------- history
 // A dot says what a device is doing now. The strip has to say what it has
 // been doing, and must not fill in periods nobody was watching.

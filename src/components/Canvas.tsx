@@ -17,6 +17,7 @@ import { NoteNode } from './nodes/NoteNode';
 import { EdgeMarkerDefs, LiveEdge, STATUS_COLOR } from './edges/LiveEdge';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
+import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
@@ -72,6 +73,9 @@ export function Canvas() {
   const wrapper = useRef<HTMLDivElement>(null);
   const rf = useReactFlow();
   const [finding, setFinding] = useState(false);
+  // A view, not a document change: folding a site must not touch what is
+  // saved, so expanding restores exactly what was there.
+  const [folded, setFolded] = useState<Set<string>>(() => new Set());
   const [menu, setMenu] = useState<MenuState | null>(null);
 
   const doc = useStore((s) => s.doc);
@@ -123,6 +127,21 @@ export function Canvas() {
   );
 
   const nodeMenu = (nodeId: string): MenuItem[] => {
+    // A folded box stands for objects rather than being one. Offering to
+    // duplicate or delete it would act on an id that is not in the document.
+    if (isCollapsed(nodeId)) {
+      return [
+        {
+          label: 'Open this group',
+          onSelect: () =>
+            setFolded((was) => {
+              const next = new Set(was);
+              next.delete(groupIdOf(nodeId));
+              return next;
+            }),
+        },
+      ];
+    }
     const node = doc.nodes.find((n) => n.id === nodeId);
     const locked = Boolean((node?.data as { locked?: boolean } | undefined)?.locked);
     const maintenance = Boolean((node?.data as DeviceNodeData | undefined)?.maintenance);
@@ -152,6 +171,15 @@ export function Canvas() {
       },
       ...(members.length > 1
         ? [
+            {
+              label: `Fold this group into one box (${members.length} objects)`,
+              onSelect: () => {
+                const group = (
+                  doc.nodes.find((n) => n.id === nodeId)?.data as { groupId?: string }
+                )?.groupId;
+                if (group) setFolded((was) => new Set(was).add(group));
+              },
+            },
             {
               label: `Ungroup (${members.length} objects)`,
               onSelect: () => store.ungroup(nodeId),
@@ -229,6 +257,14 @@ export function Canvas() {
       { label: 'Add container', onSelect: () => store.addNode(makeDeviceNode('site', p.x, p.y)) },
       { label: 'Fit view', onSelect: () => rf.fitView({ padding: 0.2 }) },
       { label: 'Find a device…', onSelect: () => setFinding(true) },
+      ...(folded.size > 0
+        ? [
+            {
+              label: `Open all folded groups (${folded.size})`,
+              onSelect: () => setFolded(new Set()),
+            },
+          ]
+        : []),
       {
         label: doc.canvas.gridEnabled ? 'Hide grid' : 'Show grid',
         onSelect: () => store.setCanvas({ gridEnabled: !doc.canvas.gridEnabled }),
@@ -332,13 +368,18 @@ export function Canvas() {
   // on the node itself. `locked` lives in `data`, which it never looks at, so
   // "Lock position" hid the resize handles — the one part DeviceNode reads
   // directly — and left the node as draggable as before.
+  const view = useMemo(
+    () => collapseView(doc.nodes, doc.edges, folded),
+    [doc.nodes, doc.edges, folded],
+  );
+
   const nodes = useMemo(
     () =>
-      doc.nodes.map((n) => {
+      view.nodes.map((n) => {
         const locked = Boolean((n.data as { locked?: boolean }).locked);
         return locked ? { ...n, draggable: false } : n;
       }),
-    [doc.nodes],
+    [view.nodes],
   );
 
   return (
@@ -346,7 +387,7 @@ export function Canvas() {
       <EdgeMarkerDefs />
       <ReactFlow
         nodes={nodes}
-        edges={doc.edges}
+        edges={view.edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={store.onNodesChange}
