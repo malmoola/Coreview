@@ -42,6 +42,76 @@ pub struct IconLibrary {
     pub skipped: Vec<String>,
 }
 
+/// How deep to walk. A shape library is organised in folders by vendor and
+/// family; it is not organised twenty levels deep, and a bound is what stops
+/// a symlink loop or a home directory chosen by mistake from hanging the app.
+const MAX_DEPTH: usize = 6;
+
+/// The palette group for a shape with no entry in `index.json`: the folder it
+/// is in, relative to the library root. Nested folders are joined so a set
+/// organised by vendor and family keeps both.
+fn folder_category(root: &Path, path: &Path) -> String {
+    let Some(parent) = path.parent() else {
+        return "Custom".to_string();
+    };
+    let Ok(rel) = parent.strip_prefix(root) else {
+        return "Custom".to_string();
+    };
+    let parts: Vec<String> = rel
+        .components()
+        .filter_map(|c| c.as_os_str().to_str())
+        .filter(|c| !c.is_empty())
+        .map(humanise)
+        .collect();
+    if parts.is_empty() {
+        "Custom".to_string()
+    } else {
+        parts.join(" / ")
+    }
+}
+
+/// Every SVG under a folder, including its subfolders.
+///
+/// Flat-only was the bug behind "1 icon" on a library of a thousand: shape
+/// sets arrive as folders of folders, and only the top level was read.
+fn collect(
+    dir: &Path,
+    depth: usize,
+    out: &mut Vec<PathBuf>,
+    other_formats: &mut usize,
+) -> Result<(), String> {
+    if depth > MAX_DEPTH || out.len() >= MAX_ICONS {
+        return Ok(());
+    }
+    let listing = match std::fs::read_dir(dir) {
+        Ok(l) => l,
+        // A folder that cannot be read is not fatal at depth: the rest of the
+        // library is still worth having.
+        Err(e) if depth > 0 => {
+            *other_formats += 0;
+            let _ = e;
+            return Ok(());
+        }
+        Err(e) => return Err(e.to_string()),
+    };
+    for entry in listing.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path.is_dir() {
+            collect(&path, depth + 1, out, other_formats)?;
+            continue;
+        }
+        match path.extension().and_then(|x| x.to_str()) {
+            Some(ext) if ext.eq_ignore_ascii_case("svg") => out.push(path),
+            // Anything else is a shape file this cannot read directly —
+            // a Visio stencil, a zip, an EMF. Counted so the interface can
+            // say so rather than silently showing an almost empty library.
+            Some(_) => *other_formats += 1,
+            None => {}
+        }
+    }
+    Ok(())
+}
+
 /// Strip script, event handlers and external references.
 ///
 /// Deliberately conservative: anything it is unsure about is removed. It works
@@ -194,18 +264,18 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
 
     let mut icons = Vec::new();
     let mut skipped = Vec::new();
-    let mut entries: Vec<_> = std::fs::read_dir(&root)
-        .map_err(|e| e.to_string())?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| {
-            p.extension()
-                .and_then(|x| x.to_str())
-                .map(|x| x.eq_ignore_ascii_case("svg"))
-                .unwrap_or(false)
-        })
-        .collect();
+    let mut entries = Vec::new();
+    let mut other_formats = 0usize;
+    collect(&root, 0, &mut entries, &mut other_formats)?;
     entries.sort();
+    // A folder of Visio stencils and zips found one loose SVG and reported
+    // "1 icon", which reads as an empty library rather than as a library of
+    // files this cannot open. Say what was there.
+    if other_formats > 0 {
+        skipped.push(format!(
+            "{other_formats} file(s) are not SVG — run scripts/import-shapes.mjs on them first"
+        ));
+    }
 
     for path in entries {
         if icons.len() >= MAX_ICONS {
@@ -239,7 +309,10 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
         let (name, category) = meta
             .get(&file_name)
             .cloned()
-            .unwrap_or_else(|| (humanise(&id), "Custom".to_string()));
+            // The folder a shape sits in is what it is: Fortinet, Nexus 9000,
+            // Wireless. Calling a thousand icons "Custom" is a list nobody can
+            // find anything in.
+            .unwrap_or_else(|| (humanise(&id), folder_category(&root, &path)));
         icons.push(IconEntry {
             id,
             name,
@@ -405,5 +478,72 @@ mod imported_library_tests {
             println!("  skipped: {s}");
         }
         assert!(!lib.icons.is_empty(), "nothing was indexed");
+    }
+}
+
+#[cfg(test)]
+mod folder_tests {
+    use std::fs;
+
+    fn write(path: &std::path::Path, body: &str) {
+        fs::create_dir_all(path.parent().expect("a parent")).expect("mkdir");
+        fs::write(path, body).expect("write");
+    }
+
+    const SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h4v4z"/></svg>"#;
+
+    fn library() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        write(&root.join("loose.svg"), SVG);
+        write(&root.join("Fortinet/fortigate.svg"), SVG);
+        write(&root.join("Fortinet/fortiswitch.svg"), SVG);
+        write(&root.join("Cisco/Nexus 9000/n9k-c93180.svg"), SVG);
+        // The formats a real shape folder is actually full of.
+        write(&root.join("Switches_Cisco_Nexus_9000.vss"), "binary-ish");
+        write(&root.join("NetEquip.zip"), "PK\u{3}\u{4}");
+        dir
+    }
+
+    #[test]
+    fn finds_shapes_in_subfolders() {
+        // The bug behind "1 icon" on a library of a thousand: shape sets
+        // arrive as folders of folders and only the top level was read.
+        let dir = library();
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert_eq!(lib.icons.len(), 4, "found {:?}", lib.icons.iter().map(|i| &i.id).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn names_the_group_after_the_folder() {
+        // "Custom" for a thousand icons is a list nobody can find anything in.
+        let dir = library();
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        let of = |id: &str| {
+            lib.icons.iter().find(|i| i.id == id).map(|i| i.category.clone()).unwrap_or_default()
+        };
+        assert_eq!(of("fortigate"), "Fortinet");
+        assert_eq!(of("n9k-c93180"), "Cisco / Nexus 9000");
+        assert_eq!(of("loose"), "Custom");
+    }
+
+    #[test]
+    fn says_when_a_folder_is_full_of_things_it_cannot_read() {
+        // Silently reporting one icon reads as an empty library rather than
+        // as a library of stencils that need converting first.
+        let dir = library();
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert!(
+            lib.skipped.iter().any(|s| s.contains("not SVG")),
+            "skipped: {:?}",
+            lib.skipped
+        );
+    }
+
+    #[test]
+    fn an_empty_folder_is_not_an_error() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert!(lib.icons.is_empty());
     }
 }
