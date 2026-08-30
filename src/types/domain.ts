@@ -77,6 +77,9 @@ export const PROBE_DEFAULTS = {
 } as const;
 
 export interface DeviceNodeData extends Record<string, unknown> {
+  /** Which views this device appears on. Unset means every view — an object
+   *  that has never been assigned belongs to all of them. */
+  layers?: string[];
   label: string;
   deviceType: DeviceType;
   hostname?: string;
@@ -109,6 +112,8 @@ export interface DeviceNodeData extends Record<string, unknown> {
 }
 
 export interface NoteNodeData extends Record<string, unknown> {
+  /** Which views this note appears on. Unset means every view. */
+  layers?: string[];
   title?: string;
   body: string;
   /** Change-note styling for pre-check / rollback / risk annotations. */

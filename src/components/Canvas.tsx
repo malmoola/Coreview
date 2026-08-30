@@ -24,6 +24,7 @@ import { FindBox } from './FindBox';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
 import { alignmentFor, spacingHint, type Box, type Guide } from '../lib/alignment';
+import { isEditable, isVisible, layersOf } from '../lib/layers';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
@@ -398,22 +399,43 @@ export function Canvas() {
   // "Lock position" hid the resize handles — the one part DeviceNode reads
   // directly — and left the node as draggable as before.
   const view = useMemo(() => {
-    const folded_ = collapseView(doc.nodes, doc.edges, folded);
+    // Hidden views come out first: everything after this — folding, routing,
+    // hops — should be reasoning about the diagram as it is being looked at.
+    const layers = layersOf(doc.canvas.layers);
+    const anyHidden = layers.some((l) => !l.visible);
+    const nodes = anyHidden
+      ? doc.nodes.filter((n) => isVisible((n.data as { layers?: string[] }).layers, layers))
+      : doc.nodes;
+    const alive = new Set(nodes.map((n) => n.id));
+    const edges = anyHidden
+      ? doc.edges.filter(
+          (e) =>
+            isVisible((e.data as { layers?: string[] } | undefined)?.layers, layers) &&
+            // A link whose device is on a hidden view has nowhere to land.
+            alive.has(e.source) &&
+            alive.has(e.target),
+        )
+      : doc.edges;
+
+    const folded_ = collapseView(nodes, edges, folded);
     // Routed after folding, so a link redrawn to a folded box leaves the side
     // of the box that faces where it is going.
     return { nodes: folded_.nodes, edges: routeForView(folded_.nodes, folded_.edges) };
-  }, [doc.nodes, doc.edges, folded]);
+  }, [doc.nodes, doc.edges, doc.canvas.layers, folded]);
 
   const nodes = useMemo(
     () =>
       view.nodes.map((n) => {
-        const locked = Boolean((n.data as { locked?: boolean }).locked);
+        const layers = layersOf(doc.canvas.layers);
+        const locked =
+          Boolean((n.data as { locked?: boolean }).locked) ||
+          !isEditable((n.data as { layers?: string[] }).layers, layers);
         // A section is a backdrop: it has to sit under the devices standing
         // in it, or it covers them and the diagram is a set of empty boxes.
         const zIndex = (n.data as { deviceType?: string }).deviceType === 'zone' ? 0 : 1;
         return locked ? { ...n, draggable: false, zIndex } : { ...n, zIndex };
       }),
-    [view.nodes],
+    [view.nodes, doc.canvas.layers],
   );
 
   const boxOf = (n: TopoNode): Box => ({

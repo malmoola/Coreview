@@ -8,6 +8,7 @@ import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
 import { zoneDeltas } from '../lib/zones';
+import { layersOf, withNewLayer, withoutLayer, type Layer } from '../lib/layers';
 import {
   linkStatus as computeLinkStatus,
   nodeStatus as computeNodeStatus,
@@ -39,6 +40,10 @@ export interface ProjectDocument {
     /** Little hops where one link crosses another. On by default: two lines
      *  meeting at a point look exactly like two lines joined at a point. */
     lineJumps?: boolean;
+    /** The views this document is drawn in. A network is documented more than
+     *  once — physical, logical, the change on Saturday — and three files that
+     *  disagree within a fortnight is what this exists to avoid. */
+    layers?: Layer[];
     /** How device nodes are drawn. 'glyph' is the icon with its name beneath
      *  and no box, the way a network diagram is normally drawn. 'card' is the
      *  bordered panel that holds the same text inside it. */
@@ -117,6 +122,9 @@ interface Store {
   groupBySubnet: () => { groups: number; ungrouped: number };
   tidyLayout: () => { moved: number; rows: number; locked: number };
   routeLinks: () => number;
+  addLayer: (name: string) => void;
+  removeLayer: (id: string) => void;
+  setLayer: (id: string, patch: Partial<Layer>) => void;
   /** Releases every link somebody pinned, so they all follow again. */
   unpinLinks: () => number;
   onEdgesChange: (changes: EdgeChange<TopoEdge>[]) => void;
@@ -520,6 +528,42 @@ export const useStore = create<Store>((set, get) => ({
       dirty: true,
     }));
     return changed.length;
+  },
+
+  addLayer(name) {
+    const layers = layersOf(get().doc.canvas.layers);
+    get().commit('Add a view');
+    set((s) => ({
+      doc: { ...s.doc, canvas: { ...s.doc.canvas, layers: withNewLayer(layers, name, uid()) } },
+      dirty: true,
+    }));
+  },
+
+  removeLayer(id) {
+    const layers = layersOf(get().doc.canvas.layers);
+    get().commit('Remove a view');
+    // The objects on it are deliberately left alone: they fall back to being
+    // on every view, which is where an unassigned object lives. Deleting a
+    // view of the network must not delete the network.
+    set((s) => ({
+      doc: { ...s.doc, canvas: { ...s.doc.canvas, layers: withoutLayer(layers, id) } },
+      dirty: true,
+    }));
+  },
+
+  setLayer(id, patch) {
+    const layers = layersOf(get().doc.canvas.layers);
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        canvas: {
+          ...s.doc.canvas,
+          layers: layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+        },
+      },
+      // Which views are on is part of how the diagram was left.
+      dirty: true,
+    }));
   },
 
   unpinLinks() {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { deviceColor } from '../theme';
+import { Layers } from './Layers';
 import { useStore } from '../state/store';
 import { isDesktop } from '../lib/ipc';
 import { DEVICE_LABEL, ICONS, PALETTE_GROUPS } from './icons';
@@ -23,6 +24,11 @@ export function Palette() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+
+      {/* Above the shapes: which views are on decides what the whole canvas
+          is showing, so it should not be at the bottom of a long list of
+          icons. */}
+      <Layers />
 
       <div className="cv-palette-group">
         <h3>Annotation</h3>

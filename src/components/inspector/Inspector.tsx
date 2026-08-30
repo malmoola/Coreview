@@ -9,6 +9,7 @@ import { describeRule, linkStatus } from '../../health/evaluate';
 import { describeSelection, withTag, withoutTag } from '../../lib/bulkEdit';
 import { buildTimeline, shortDuration, totals } from '../../lib/statusHistory';
 import { capsFor } from '../../lib/linkStyle';
+import { layersOf, toggleOn } from '../../lib/layers';
 import type {
   DeviceNodeData,
   DeviceType,
@@ -360,6 +361,48 @@ function StatusStrip({ nodeId }: { nodeId: string }) {
   );
 }
 
+/**
+ * Which views an object appears on.
+ *
+ * Nothing ticked means every view, which is what an object that has never
+ * been assigned is — and is why a diagram drawn before views existed still
+ * shows everything.
+ */
+function LayerPicker({
+  on,
+  onChange,
+}: {
+  on: string[] | undefined;
+  onChange: (next: string[]) => void;
+}) {
+  const canvas = useStore((s) => s.doc.canvas);
+  const layers = layersOf(canvas.layers);
+  if (layers.length < 2) return null;
+  return (
+    <Field
+      label="Appears on"
+      hint={!on || on.length === 0 ? 'Every view' : `${on.length} of ${layers.length} views`}
+    >
+      <div className="cv-tag-row">
+        {layers.map((layer) => {
+          const picked = Boolean(on?.includes(layer.id));
+          return (
+            <button
+              key={layer.id}
+              type="button"
+              className={`cv-tag${picked ? '' : ' is-partial'}`}
+              onClick={() => onChange(toggleOn(on, layer.id))}
+              title={picked ? `Take off ${layer.name}` : `Put on ${layer.name}`}
+            >
+              {layer.name}
+            </button>
+          );
+        })}
+      </div>
+    </Field>
+  );
+}
+
 function ProjectInspector() {
   const meta = useStore((s) => s.meta)!;
   const updateMeta = useStore((s) => s.updateMeta);
@@ -689,6 +732,10 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
         </label>
       </div>
 
+      <LayerPicker
+        on={d.layers}
+        onChange={(layers) => update(nodeId, { layers })}
+      />
       <StatusStrip nodeId={nodeId} />
       <AddressList nodeId={nodeId} />
       <ProbeList objectKind="node" objectId={nodeId} />
@@ -1283,6 +1330,8 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
           you have deliberately drawn it the long way round.
         </span>
       </div>
+
+      <LayerPicker on={d.layers as string[] | undefined} onChange={(layers) => update(edgeId, { layers })} />
 
       <Field label="Notes">
         <textarea

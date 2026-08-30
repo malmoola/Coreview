@@ -1108,10 +1108,12 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   }
 
   // Tagging.
-  const tagField = page.locator(".cv-row-tight input").first();
+  // Scoped to the inspector: the views panel in the palette uses the same row
+  // class, and an unscoped match found that one first.
+  const tagField = page.locator(".cv-inspector .cv-row-tight input").first();
   if (await tagField.count()) {
     await tagField.fill("site-hq");
-    await page.locator(".cv-row-tight button", { hasText: "Add" }).first().click();
+    await page.locator(".cv-inspector .cv-row-tight button", { hasText: "Add" }).first().click();
     await page.waitForTimeout(350);
     const tags = await page.locator(".cv-tag-row .cv-tag").allTextContents();
     check("a tag lands on every selected device", tags.some((t) => t.includes("site-hq")), JSON.stringify(tags));
@@ -1324,6 +1326,65 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   check("the third device lands at the same gap as the first two",
     Math.abs(landedAt.x - wantsDiagram) < 1,
     `${Math.abs(landedAt.x - wantsDiagram).toFixed(1)} units out (at ${landedAt.x.toFixed(0)}, wanted ${wantsDiagram.toFixed(0)})`);
+}
+
+// ---------------------------------------------------------------- views
+// A network is documented more than once. Views share every device and almost
+// no links, and three separate files disagree within a fortnight.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(250);
+
+  const panel = page.locator(".cv-layers");
+  check("the palette offers views", (await panel.count()) === 1);
+  // Opened directly rather than by clicking the summary, which toggles — and
+  // scrolled to, because the palette is a long column.
+  await panel.evaluate((el) => {
+    el.open = true;
+    el.scrollIntoView();
+  });
+  await page.waitForTimeout(300);
+
+  const before = await nodeCount();
+  await page.locator(".cv-layers-add input").fill("Logical");
+  await page.locator(".cv-layers-add button", { hasText: "Add" }).click();
+  await page.waitForTimeout(400);
+  const names = await page.locator(".cv-layer-name").evaluateAll((els) => els.map((e) => e.value));
+  check("a view can be added", names.includes("Logical"), JSON.stringify(names));
+  check("adding a view hides nothing", (await nodeCount()) === before, `${before} -> ${await nodeCount()}`);
+
+  // Put one device on the new view, then hide it. The view is fitted first:
+  // by this point earlier checks have dragged devices around and panned the
+  // canvas, and a device off-screen cannot be clicked.
+  await page.locator("button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+  await page.locator(".react-flow__node:not(:has(.cv-note))").first().click();
+  await page.waitForTimeout(350);
+  const picker = page.locator(".cv-inspector .cv-field", { hasText: "Appears on" });
+  check("a device can be put on a view", (await picker.count()) === 1);
+  // The inspector is a long scrollable column; the picker has to be brought
+  // into the window before it can be clicked.
+  await picker.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(250);
+  await picker.locator(".cv-tag", { hasText: "Logical" }).click();
+  await page.waitForTimeout(300);
+
+  // Addressed by label: the view's name lives in an input's value, which a
+  // text match cannot see.
+  await page.getByLabel("Hide Logical").click();
+  await page.waitForTimeout(450);
+  check("hiding a view takes its objects off the diagram",
+    (await nodeCount()) === before - 1, `${before} -> ${await nodeCount()}`);
+
+  await page.getByLabel("Show Logical").click();
+  await page.waitForTimeout(450);
+  check("showing it again brings them back", (await nodeCount()) === before);
+
+  // Removing a view must not remove the network.
+  await page.getByLabel("Remove Logical").click();
+  await page.waitForTimeout(450);
+  check("removing a view keeps what was on it",
+    (await nodeCount()) === before, `${before} -> ${await nodeCount()}`);
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
