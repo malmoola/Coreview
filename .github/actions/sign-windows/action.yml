@@ -26,7 +26,10 @@ runs:
         WINDOWS_CERTIFICATE_PASSWORD: ${{ inputs.password }}
       run: |
         if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) {
-          Write-Host "No signing certificate configured — the installer will be unsigned."
+          # A notice rather than a log line: downloading a job log needs admin
+          # rights on the repository, and annotations do not, so whether this
+          # ran is visible to anyone who can see the run.
+          Write-Host "::notice title=Code signing::No certificate configured - this installer is UNSIGNED."
           exit 0
         }
 
@@ -38,7 +41,6 @@ runs:
         # left on the runner's disk.
         Remove-Item $pfx -Force
 
-        Write-Host "Imported $($cert.Subject)"
-        Write-Host "Thumbprint $($cert.Thumbprint)"
+        Write-Host "::notice title=Code signing::Signing as $($cert.Subject) - thumbprint $($cert.Thumbprint)"
 
         node .github/actions/sign-windows/configure.mjs "$($cert.Thumbprint)"

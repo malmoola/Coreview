@@ -151,6 +151,17 @@ export type Neighbor = {
   vendor: string | null;
 };
 
+/** Something seen on a switch port that announced nothing about itself. */
+export type AttachedDevice = {
+  mac: string;
+  port: string;
+  address: string | null;
+  vendor: string | null;
+  /** Distinct addresses sharing that port. One means something is plugged in;
+   *  many means the port leads to another switch. */
+  portPopulation: number;
+};
+
 export type CrawledDevice = {
   hostname: string;
   address: string;
@@ -164,6 +175,7 @@ export type CrawledDevice = {
   /** How the device answered. SSH gives neighbours and interfaces; SNMP gives
    *  a name and nothing about what it connects to. */
   reachedBy: 'ssh' | 'snmp';
+  attached: AttachedDevice[];
 };
 
 /** Optional, and only used for devices that refuse SSH. */

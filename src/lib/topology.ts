@@ -11,7 +11,7 @@
  * Pure, so the identity, de-duplication and layout rules can be tested without
  * a network or a browser.
  */
-import type { CrawledDevice, DeviceClassName, Neighbor } from './ipc';
+import type { AttachedDevice, CrawledDevice, DeviceClassName, Neighbor } from './ipc';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type { DeviceNodeData, DeviceType, LinkData } from '../types/domain';
 import { uid } from './id';
@@ -92,6 +92,10 @@ export interface TopologyOptions {
   existingNodes?: TopoNode[];
   /** Links already drawn, so a cable found again is not drawn twice. */
   existingEdges?: TopoEdge[];
+  /** Silent devices to place, each linked to the port it was learned on.
+   *  Nothing is drawn unless it was asked for: a flat /24 can hold two
+   *  hundred of these and drawing them all buries the topology. */
+  attached?: { device: AttachedDevice; host: string }[];
 }
 
 export interface BuiltTopology {
@@ -307,6 +311,7 @@ export function buildTopology(
 
   const nodeFor = new Map<string, string>();
   const nodes: TopoNode[] = [];
+  const edgesFromAttached: TopoEdge[] = [];
   const updated: { id: string; data: Partial<DeviceNodeData> }[] = [];
   for (const [depth, row] of [...byDepth.entries()].sort((a, b) => a[0] - b[0])) {
     row.sort((a, b) => a.name.localeCompare(b.name));
@@ -359,6 +364,68 @@ export function buildTopology(
     });
   }
 
+  // Silent devices, hung off the port each was learned on. Placed after the
+  // topology so they sit under the switch that sees them rather than in the
+  // layered rows, which are about distance from the seed.
+  const attachedRows = new Map<string, number>();
+  for (const { device: a, host } of opts.attached ?? []) {
+    const parent = nodeFor.get(identity(host, ''));
+    if (parent === undefined) continue;
+    const anchor = nodes.find((n) => n.id === parent);
+    if (!anchor) continue;
+    const index = attachedRows.get(parent) ?? 0;
+    attachedRows.set(parent, index + 1);
+
+    const id = uid();
+    const label = a.vendor ? `${a.vendor} device` : a.mac;
+    nodes.push({
+      id,
+      type: 'device',
+      position: {
+        x: anchor.position.x + (index % 4) * 200 - 300,
+        y: anchor.position.y + ROW + Math.floor(index / 4) * 150,
+      },
+      width: 176,
+      height: 96,
+      data: {
+        // The maker, never a role: an OUI says who built something, not what
+        // it does, and a wrong glyph is worse than a plain one.
+        label,
+        deviceType: 'generic',
+        tags: ['seen-only', 'attached'],
+        addresses: a.address
+          ? [{ id: uid(), label: 'Learned', address: a.address, isPrimary: true }]
+          : [],
+        locked: false,
+        maintenance: false,
+        showDetails: true,
+        ...(a.vendor ? { vendor: a.vendor } : {}),
+        notes: `Learned on ${host} ${a.port}, MAC ${a.mac}`,
+      } as DeviceNodeData,
+    } as TopoNode);
+
+    edgesFromAttached.push({
+      id: uid(),
+      source: parent,
+      target: id,
+      sourceHandle: 'b',
+      targetHandle: 't',
+      type: 'live',
+      data: {
+        sourcePortLabel: shortInterface(a.port),
+        targetPortLabel: '',
+        label: '',
+        pathType: 'smoothstep',
+        direction: 'none',
+        width: 1,
+        color: '#5b6b7c',
+        enabled: true,
+        maintenance: false,
+        healthRule: { type: 'follow-source' },
+      } as LinkData,
+    } as TopoEdge);
+  }
+
   const edges: TopoEdge[] = [];
   let danglingLinks = 0;
   // Cables already drawn, keyed the same way the new ones are, so a second
@@ -409,5 +476,5 @@ export function buildTopology(
   }
 
   void projectId;
-  return { nodes, edges, updated, danglingLinks };
+  return { nodes, edges: [...edges, ...edgesFromAttached], updated, danglingLinks };
 }

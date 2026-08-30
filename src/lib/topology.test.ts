@@ -41,6 +41,7 @@ const device = (
   neighbors,
   hops: 0,
   reachedBy: 'ssh',
+  attached: [],
   ...over,
 });
 
@@ -319,6 +320,63 @@ describe('a device whose only name is a MAC', () => {
       'p',
     );
     expect(labels(t)).toContain('ACC-SW1');
+  });
+});
+
+describe('drawing what a switch has learned', () => {
+  const attached = (over = {}) => ({
+    device: {
+      mac: 'aabbccddeeff',
+      port: 'GigabitEthernet1/0/7',
+      address: '10.0.0.50',
+      vendor: 'Axis Communications',
+      portPopulation: 1,
+      ...over,
+    },
+    host: 'CORE-SW',
+  });
+
+  it('hangs a silent device off the port it was learned on', () => {
+    const t = buildTopology(
+      { devices: [device('CORE-SW', '10.0.0.1', [])], notVisited: [] },
+      'p',
+      { attached: [attached()] },
+    );
+    expect(labels(t)).toContain('Axis Communications device');
+    expect(t.edges).toHaveLength(1);
+    // The port is on the link, written the way a diagram writes it.
+    expect((t.edges[0]!.data as { sourcePortLabel: string }).sourcePortLabel).toBe('Gi1/0/7');
+  });
+
+  it('draws nothing when nothing was asked for', () => {
+    // A flat /24 can hold two hundred of these; they appear only on request.
+    const t = buildTopology(
+      { devices: [device('CORE-SW', '10.0.0.1', [])], notVisited: [] },
+      'p',
+    );
+    expect(t.nodes).toHaveLength(1);
+    expect(t.edges).toHaveLength(0);
+  });
+
+  it('falls back to the MAC when the maker is unknown', () => {
+    const t = buildTopology(
+      { devices: [device('CORE-SW', '10.0.0.1', [])], notVisited: [] },
+      'p',
+      { attached: [attached({ vendor: null })] },
+    );
+    expect(labels(t)).toContain('aabbccddeeff');
+  });
+
+  it('skips one whose switch is not on the diagram', () => {
+    // Filtered out, or never reached — either way there is nothing to hang it
+    // from, and a floating node says less than no node.
+    const t = buildTopology(
+      { devices: [device('OTHER-SW', '10.0.0.9', [])], notVisited: [] },
+      'p',
+      { attached: [attached()] },
+    );
+    expect(t.nodes).toHaveLength(1);
+    expect(t.edges).toHaveLength(0);
   });
 });
 
