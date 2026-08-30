@@ -124,6 +124,14 @@ export interface NoteNodeData extends Record<string, unknown> {
 export type LinkPathType = 'straight' | 'step' | 'smoothstep' | 'bezier';
 export type LinkDirection = 'none' | 'forward' | 'reverse' | 'both';
 
+/** What sits at the end of a line. */
+export type LinkCap = 'none' | 'arrow' | 'open-arrow' | 'circle' | 'square' | 'diamond';
+
+/** How the line itself is drawn. 'auto' keeps the health meaning — a link that
+ *  is down is dashed and one that is disabled is dotted — which is right until
+ *  someone needs a dashed line to mean a tunnel instead. */
+export type LinkLineStyle = 'auto' | 'solid' | 'dashed' | 'dotted' | 'dash-dot';
+
 export type LinkHealthRuleType =
   | 'manual'
   | 'follow-source'
@@ -153,6 +161,11 @@ export interface LinkData extends Record<string, unknown> {
   maintenance: boolean;
   notes?: string;
   healthRule: LinkHealthRule;
+  lineStyle?: LinkLineStyle;
+  /** Overrides what `direction` would put at each end. Left unset, an arrow
+   *  follows the flow direction as it always has. */
+  startCap?: LinkCap;
+  endCap?: LinkCap;
   /** Which lane this link takes out of a crowded side, worked out on every
    *  render and never saved. Several links leaving the same side of the same
    *  device would otherwise run along one another and be impossible to

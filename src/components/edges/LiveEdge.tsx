@@ -13,6 +13,7 @@ import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 import { useStore } from '../../state/store';
 import { describeRule, shouldAnimate } from '../../health/evaluate';
 import { STATUS_COLOR_DARK, readableOn, statusColors } from '../../theme';
+import { capPath, capsFor, dashFor } from '../../lib/linkStyle';
 
 /** Kept as a named export because the diagram exporter and several panels
  *  import it. The canvas uses the ground-aware set instead. */
@@ -130,14 +131,8 @@ function LiveEdgeInner(props: EdgeProps) {
   const direction = data.direction ?? 'forward';
   const width = data.width ?? 2;
 
-  const dash =
-    status === 'down'
-      ? '10 6'
-      : status === 'disabled'
-        ? '2 6'
-        : status === 'maintenance'
-          ? '12 6'
-          : undefined;
+  const dash = dashFor(data.lineStyle, status);
+  const caps = capsFor(data);
 
   const dotCount = 3;
   /** Each dot gets one trailing companion: smaller, dimmer and slightly behind.
@@ -195,13 +190,41 @@ function LiveEdgeInner(props: EdgeProps) {
     .filter(Boolean)
     .join('\n');
 
-  const markerEnd =
-    direction === 'forward' || direction === 'both' ? `url(#cv-arrow-${status})` : undefined;
-  const markerStart =
-    direction === 'reverse' || direction === 'both' ? `url(#cv-arrow-rev-${status})` : undefined;
+  // Markers are defined per link rather than once per status, because a link
+  // can now carry a colour of its own and a shape of its own at each end.
+  // A marker in a shared <defs> cannot see the colour of the path using it.
+  const startShape = capPath(caps.start);
+  const endShape = capPath(caps.end);
+  const markerEnd = endShape ? `url(#cv-cap-${id}-end)` : undefined;
+  const markerStart = startShape ? `url(#cv-cap-${id}-start)` : undefined;
+
+  const capMarker = (which: 'start' | 'end', shape: { d: string; filled: boolean }) => (
+    <marker
+      id={`cv-cap-${id}-${which}`}
+      markerWidth="12"
+      markerHeight="12"
+      refX={which === 'end' ? 8 : 0}
+      refY="4"
+      orient={which === 'end' ? 'auto' : 'auto-start-reverse'}
+      markerUnits="strokeWidth"
+    >
+      <path
+        d={shape.d}
+        fill={shape.filled ? lineColor : 'none'}
+        stroke={lineColor}
+        strokeWidth={shape.filled ? 0 : 1.4}
+      />
+    </marker>
+  );
 
   return (
     <>
+      {(startShape || endShape) && (
+        <defs>
+          {startShape && capMarker('start', startShape)}
+          {endShape && capMarker('end', endShape)}
+        </defs>
+      )}
       {/* Halo. A wider, translucent copy of the line reads as a glow without an
           SVG filter — a per-edge drop-shadow is the expensive way to do this. */}
       {animate && (

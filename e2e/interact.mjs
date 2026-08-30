@@ -751,6 +751,69 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     (await leavesTowards()) === "down", String(await leavesTowards()));
 }
 
+// ---------------------------------------------------------------- ends
+// Line style and what sits at each end, which is what a diagram uses to mean
+// things the app cannot infer: a dashed line is a tunnel, a hollow circle is
+// a demarcation point.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  const onLine = await pointOnEdge();
+  if (onLine) await page.mouse.click(onLine.x, onLine.y);
+  await page.waitForTimeout(350);
+
+  const selectLabelled = (label) =>
+    page.locator(".cv-inspector .cv-field", { hasText: label }).locator("select").first();
+
+  const style = selectLabelled("Line style");
+  check("the link inspector offers a line style", (await style.count()) === 1);
+  if (await style.count()) {
+    const solid = await page
+      .locator(".react-flow__edge.selected .react-flow__edge-path")
+      .first()
+      .evaluate((el) => el.style.strokeDasharray);
+    await style.selectOption("dotted");
+    await page.waitForTimeout(300);
+    const dotted = await page
+      .locator(".react-flow__edge.selected .react-flow__edge-path")
+      .first()
+      .evaluate((el) => el.style.strokeDasharray);
+    check("choosing a style changes the dash pattern", dotted !== solid && dotted !== "",
+      `"${solid}" -> "${dotted}"`);
+  }
+
+  const finish = selectLabelled("Finish end");
+  check("the link inspector offers an end shape", (await finish.count()) === 1);
+  if (await finish.count()) {
+    await finish.selectOption("circle");
+    await page.waitForTimeout(300);
+    const marked = await page
+      .locator(".react-flow__edge.selected .react-flow__edge-path")
+      .first()
+      .evaluate((el) => ({
+        end: el.getAttribute("marker-end"),
+        // The marker has to exist, not just be referenced.
+        defined: el.getAttribute("marker-end")
+          ? !!document.querySelector(
+              `#${(el.getAttribute("marker-end") ?? "").replace(/^url\(#|\)$/g, "")}`,
+            )
+          : false,
+      }));
+    check("the end shape is referenced and defined", marked.defined, JSON.stringify(marked));
+
+    await finish.selectOption("none");
+    await page.waitForTimeout(300);
+    const bare = await page
+      .locator(".react-flow__edge.selected .react-flow__edge-path")
+      .first()
+      .evaluate((el) => el.getAttribute("marker-end"));
+    // Choosing nothing has to beat the flow direction, or there is no way to
+    // take the arrow off a link that still animates one way.
+    check("choosing nothing removes the arrow the direction would have drawn",
+      bare === null, String(bare));
+  }
+}
+
 // ---------------------------------------------------------------- ground
 // A white ground for a document or a projector. The test that matters is not
 // that the background changed but that everything drawn on it changed with

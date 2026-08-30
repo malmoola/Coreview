@@ -8,6 +8,7 @@ import { STATUS_COLOR } from '../edges/LiveEdge';
 import { describeRule, linkStatus } from '../../health/evaluate';
 import { describeSelection, withTag, withoutTag } from '../../lib/bulkEdit';
 import { buildTimeline, shortDuration, totals } from '../../lib/statusHistory';
+import { capsFor } from '../../lib/linkStyle';
 import type {
   DeviceNodeData,
   DeviceType,
@@ -23,6 +24,15 @@ import {
   STATUS_GLYPH,
   STATUS_LABEL,
 } from '../../types/domain';
+
+const CAP_OPTIONS: [string, string][] = [
+  ['none', 'Nothing'],
+  ['arrow', 'Arrow'],
+  ['open-arrow', 'Open arrow'],
+  ['circle', 'Circle'],
+  ['square', 'Square'],
+  ['diamond', 'Diamond'],
+];
 
 function Field({
   label,
@@ -1089,16 +1099,6 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
             <option value="none">No direction</option>
           </select>
         </Field>
-        <Field label="Width">
-          <input
-            className="cv-input"
-            type="number"
-            min={1}
-            max={10}
-            value={d.width}
-            onChange={(e) => update(edgeId, { width: Number(e.target.value) })}
-          />
-        </Field>
       </div>
 
       <section className="cv-section">
@@ -1184,6 +1184,64 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
           />
           Maintenance — suppress status
         </label>
+      </div>
+
+      <div className="cv-row">
+        <Field label="Line style" hint="Auto follows health">
+          <select
+            className="cv-input"
+            value={d.lineStyle ?? 'auto'}
+            onChange={(e) => update(edgeId, { lineStyle: e.target.value as LinkData['lineStyle'] })}
+          >
+            <option value="auto">Auto — follows health</option>
+            <option value="solid">Solid</option>
+            <option value="dashed">Dashed</option>
+            <option value="dotted">Dotted</option>
+            <option value="dash-dot">Dash-dot</option>
+          </select>
+        </Field>
+        <Field label="Thickness">
+          <select
+            className="cv-input"
+            value={String(d.width ?? 2)}
+            onChange={(e) => update(edgeId, { width: Number(e.target.value) })}
+          >
+            {[1, 1.5, 2, 3, 4, 6].map((w) => (
+              <option key={w} value={w}>
+                {w}px
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      <div className="cv-row">
+        <Field label="Start end">
+          <select
+            className="cv-input"
+            value={d.startCap ?? capsFor(d).start}
+            onChange={(e) => update(edgeId, { startCap: e.target.value as LinkData['startCap'] })}
+          >
+            {CAP_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Finish end">
+          <select
+            className="cv-input"
+            value={d.endCap ?? capsFor(d).end}
+            onChange={(e) => update(edgeId, { endCap: e.target.value as LinkData['endCap'] })}
+          >
+            {CAP_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </Field>
       </div>
 
       <div className="cv-row">
