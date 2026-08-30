@@ -945,3 +945,22 @@ textarea.cv-input { resize: vertical; }
 .cv-change-group p { margin: 2px 0 4px; }
 .cv-change-group ul { margin: 0; padding-left: 18px; }
 .cv-change-group li { font-size: 12px; font-family: var(--mono); color: var(--text); }
+
+/* -------------------------------------------------------- bulk selection */
+.cv-inspector-sub {
+  display: block; font-weight: 400; font-size: 11px; color: var(--text-dim);
+  margin-top: 2px;
+}
+.cv-row-tight { display: flex; gap: 6px; align-items: center; }
+.cv-row-tight .cv-input { flex: 1; min-width: 0; }
+.cv-tag-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.cv-tag {
+  font-family: var(--mono); font-size: 11px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--line-strong);
+  border-radius: 10px; padding: 2px 8px; cursor: pointer;
+}
+.cv-tag:hover { border-color: var(--down); color: #f0938a; }
+.cv-tag.is-partial {
+  cursor: default; color: var(--text-dim); border-style: dashed;
+}
+.cv-tag.is-partial:hover { border-color: var(--line-strong); color: var(--text-dim); }

@@ -6,6 +6,7 @@ import { newProbe } from '../../lib/probes';
 import { DEVICE_LABEL } from '../icons';
 import { STATUS_COLOR } from '../edges/LiveEdge';
 import { describeRule, linkStatus } from '../../health/evaluate';
+import { describeSelection, withTag, withoutTag } from '../../lib/bulkEdit';
 import type {
   DeviceNodeData,
   DeviceType,
@@ -44,12 +45,17 @@ export function Inspector() {
   const selectedNodeId = useStore((s) => s.selectedNodeId);
   const selectedEdgeId = useStore((s) => s.selectedEdgeId);
   const meta = useStore((s) => s.meta);
+  const nodes = useStore((s) => s.doc.nodes);
+
+  const many = nodes.filter((n) => n.selected);
 
   if (!meta) return null;
 
   return (
     <aside className="cv-inspector" aria-label="Inspector">
-      {selectedNodeId ? (
+      {many.length > 1 ? (
+        <MultiInspector ids={many.map((n) => n.id)} />
+      ) : selectedNodeId ? (
         <NodeInspector nodeId={selectedNodeId} />
       ) : selectedEdgeId ? (
         <LinkInspector edgeId={selectedEdgeId} />
@@ -57,6 +63,192 @@ export function Inspector() {
         <ProjectInspector />
       )}
     </aside>
+  );
+}
+
+/**
+ * Editing a whole selection at once.
+ *
+ * A crawl puts dozens of devices on the canvas. Retyping a site tag forty
+ * times is what makes people give up on a tool, so this exists — but a bulk
+ * editor that overwrites what it was not asked about is worse than none.
+ * Nothing here changes a field until that field is used, and a value the
+ * selection disagrees on says so rather than showing the first one.
+ */
+function MultiInspector({ ids }: { ids: string[] }) {
+  const nodes = useStore((s) => s.doc.nodes);
+  const updateMany = useStore((s) => s.updateManyNodeData);
+  const mapMany = useStore((s) => s.mapManyNodeData);
+  const [newTag, setNewTag] = useState('');
+
+  const chosen = useMemo(() => {
+    const wanted = new Set(ids);
+    return nodes.filter((n) => wanted.has(n.id));
+  }, [nodes, ids]);
+  const sel = useMemo(() => describeSelection(chosen), [chosen]);
+
+  const deviceIds = sel.devices.map((n) => n.id);
+  const addTag = () => {
+    const tag = newTag.trim();
+    if (tag === '') return;
+    mapMany(deviceIds, (d) => ({ tags: withTag(d.tags, tag) }), `Tag ${tag}`);
+    setNewTag('');
+  };
+
+  return (
+    <>
+      <h2 className="cv-inspector-title">
+        {chosen.length} selected
+        <span className="cv-inspector-sub">
+          {sel.devices.length} device{sel.devices.length === 1 ? '' : 's'}
+          {sel.notes.length > 0 && `, ${sel.notes.length} note${sel.notes.length === 1 ? '' : 's'}`}
+        </span>
+      </h2>
+
+      {sel.devices.length === 0 ? (
+        <p className="cv-field-hint">
+          Notes have nothing in common to edit together. Select them one at a time.
+        </p>
+      ) : (
+        <>
+          <Field
+            label="Device type"
+            hint={
+              sel.deviceType.kind === 'mixed'
+                ? 'The selection is mixed — choosing one sets them all'
+                : undefined
+            }
+          >
+            <select
+              className="cv-input"
+              value={sel.deviceType.kind === 'same' ? sel.deviceType.value : ''}
+              onChange={(e) =>
+                updateMany(
+                  deviceIds,
+                  { deviceType: e.target.value as DeviceType },
+                  'Set device type',
+                )
+              }
+            >
+              {sel.deviceType.kind === 'mixed' && (
+                <option value="" disabled>
+                  Mixed
+                </option>
+              )}
+              {Object.entries(DEVICE_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Add a tag" hint="Applied to every selected device that lacks it">
+            <div className="cv-row cv-row-tight">
+              <input
+                className="cv-input"
+                value={newTag}
+                placeholder="site-hq"
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTag();
+                  }
+                }}
+              />
+              <button type="button" className="cv-btn cv-btn-small" onClick={addTag}>
+                Add
+              </button>
+            </div>
+          </Field>
+
+          {sel.commonTags.length > 0 && (
+            <Field label="Tags on all of them" hint="Click to remove from every selected device">
+              <div className="cv-tag-row">
+                {sel.commonTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="cv-tag"
+                    title={`Remove ${tag} from all ${deviceIds.length}`}
+                    onClick={() =>
+                      mapMany(deviceIds, (d) => ({ tags: withoutTag(d.tags, tag) }), `Untag ${tag}`)
+                    }
+                  >
+                    {tag} ×
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
+
+          {sel.someTags.length > 0 && (
+            <Field
+              label="Tags on some of them"
+              hint="Left alone. Removing a tag half the selection does not carry is rarely what anyone means"
+            >
+              <div className="cv-tag-row">
+                {sel.someTags.map((tag) => (
+                  <span key={tag} className="cv-tag is-partial">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </Field>
+          )}
+
+          <div className="cv-checks">
+            <TriCheck
+              label="Lock position"
+              state={sel.locked}
+              onSet={(v) => updateMany(deviceIds, { locked: v }, v ? 'Lock' : 'Unlock')}
+            />
+            <TriCheck
+              label="Maintenance — suppress status"
+              state={sel.maintenance}
+              onSet={(v) => updateMany(deviceIds, { maintenance: v }, 'Set maintenance')}
+            />
+            <TriCheck
+              label="Show address and status on the canvas"
+              state={sel.showDetails}
+              onSet={(v) => updateMany(deviceIds, { showDetails: v }, 'Set detail')}
+            />
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** A checkbox with a third state for "the selection disagrees".
+ *
+ *  An indeterminate box that clears on the first click would turn every locked
+ *  device in a mixed selection loose without saying so. The first click always
+ *  turns the setting on; unticking then turns it off. */
+function TriCheck({
+  label,
+  state,
+  onSet,
+}: {
+  label: string;
+  state: { kind: 'same'; value: boolean } | { kind: 'mixed' } | { kind: 'none' };
+  onSet: (value: boolean) => void;
+}) {
+  const checked = state.kind === 'same' && state.value;
+  return (
+    <label className="cv-check">
+      <input
+        type="checkbox"
+        checked={checked}
+        ref={(el) => {
+          if (el) el.indeterminate = state.kind === 'mixed';
+        }}
+        onChange={(e) => onSet(state.kind === 'mixed' ? true : e.target.checked)}
+      />
+      {label}
+      {state.kind === 'mixed' && <span className="cv-field-hint"> — mixed</span>}
+    </label>
   );
 }
 

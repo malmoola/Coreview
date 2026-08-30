@@ -46,6 +46,16 @@ const project = {
           addresses: [], locked: false, maintenance: false, showDetails: true,
         },
       },
+      // A third device that takes part in nothing. It is the control: bulk
+      // edits must not reach it, and it can testify that a drag moved a node
+      // rather than panning the canvas.
+      {
+        id: "n3", type: "device", position: { x: 640, y: 300 }, width: 176, height: 96,
+        data: {
+          label: "Bystander", deviceType: "router", tags: [],
+          addresses: [], locked: false, maintenance: false, showDetails: true,
+        },
+      },
     ],
     edges: [
       {
@@ -538,6 +548,82 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     const status = await page.locator(".cv-panel-message").first().textContent().catch(() => "");
     check("tidying says what it did", /tidy|even|row/i.test(status ?? ""), String(status).slice(0, 90));
   }
+}
+
+// ---------------------------------------------------------------- bulk
+// Editing a whole selection. The rule that matters is that it changes only
+// what it was asked to: a bulk editor which quietly overwrites the rest is
+// worse than none at all.
+{
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+
+  const devs = page.locator(".react-flow__node:not(:has(.cv-note))");
+  const total = await devs.count();
+  await devs.nth(0).click();
+  await devs.nth(1).click({ modifiers: ["Control"] });
+  await page.waitForTimeout(300);
+
+  const title = await page.locator(".cv-inspector-title").first().innerText().catch(() => "");
+  check("selecting two devices opens a bulk editor", /2 selected/.test(title), title.replace(/\n/g, " "));
+
+  const typeSelect = page.locator(".cv-inspector select").first();
+  const hasType = (await typeSelect.count()) > 0;
+  check("the bulk editor offers a device type", hasType);
+
+  if (hasType) {
+    // The two devices start as different types, so it must say mixed rather
+    // than showing one of them.
+    const shown = await typeSelect.inputValue();
+    check("a mixed selection says mixed instead of picking one", shown === "", `value="${shown}"`);
+
+    await typeSelect.selectOption("router");
+    await page.waitForTimeout(350);
+
+    // Both are now routers; a third device must be untouched.
+    await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+    await page.waitForTimeout(200);
+    await devs.nth(0).click();
+    await devs.nth(1).click({ modifiers: ["Control"] });
+    await page.waitForTimeout(300);
+    const after = await page.locator(".cv-inspector select").first().inputValue();
+    check("setting a type applies it to the whole selection", after === "router", `value="${after}"`);
+  }
+
+  // Tagging.
+  const tagField = page.locator(".cv-row-tight input").first();
+  if (await tagField.count()) {
+    await tagField.fill("site-hq");
+    await page.locator(".cv-row-tight button", { hasText: "Add" }).first().click();
+    await page.waitForTimeout(350);
+    const tags = await page.locator(".cv-tag-row .cv-tag").allTextContents();
+    check("a tag lands on every selected device", tags.some((t) => t.includes("site-hq")), JSON.stringify(tags));
+
+    // A third device must not have picked it up. Asserted rather than
+    // guarded on: a check that quietly skips itself is not a check.
+    check("there is a third device to check against", total > 2, `${total} devices`);
+    await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+    await page.waitForTimeout(200);
+    await devs.nth(2).click();
+    await page.waitForTimeout(300);
+    const lone = await page.locator(".cv-inspector").innerText();
+    check("a device outside the selection is untouched", !/site-hq/.test(lone), lone.slice(0, 120).replace(/\n/g, " "));
+  }
+
+  // One undo, not one per device.
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  await devs.nth(0).click();
+  await devs.nth(1).click({ modifiers: ["Control"] });
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.waitForTimeout(200);
+  await devs.nth(0).click();
+  await page.waitForTimeout(300);
+  const undone = await page.locator(".cv-inspector").innerText();
+  check("one undo reverses the whole bulk change", !/site-hq/.test(undone), undone.slice(0, 120).replace(/\n/g, " "));
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });

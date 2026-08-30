@@ -113,6 +113,22 @@ interface Store {
   addNode: (node: TopoNode) => void;
   addEdge: (edge: TopoEdge) => void;
   updateNodeData: (id: string, patch: Partial<DeviceNodeData & NoteNodeData>) => void;
+  /** The same change applied to many nodes as one undoable step. Applying it
+   *  node by node would leave forty entries in the undo history for one
+   *  action, and undoing would then have to be pressed forty times. */
+  updateManyNodeData: (
+    ids: string[],
+    patch: Partial<DeviceNodeData & NoteNodeData>,
+    label?: string,
+  ) => void;
+  /** Rewrites each selected node's data from its own current value, for
+   *  changes that are not the same everywhere — adding a tag to nodes that
+   *  have different tags already. */
+  mapManyNodeData: (
+    ids: string[],
+    change: (data: DeviceNodeData & NoteNodeData) => Partial<DeviceNodeData & NoteNodeData>,
+    label?: string,
+  ) => void;
   updateEdgeData: (id: string, patch: Partial<LinkData>) => void;
   deleteSelected: () => void;
   select: (nodeId: string | null, edgeId: string | null) => void;
@@ -490,6 +506,41 @@ export const useStore = create<Store>((set, get) => ({
         ...s.doc,
         nodes: s.doc.nodes.map((n) =>
           n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as TopoNode) : n,
+        ),
+      },
+      dirty: true,
+    }));
+  },
+
+  updateManyNodeData(ids, patch, label) {
+    if (ids.length === 0) return;
+    const wanted = new Set(ids);
+    get().commit(label ?? 'Edit devices');
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        nodes: s.doc.nodes.map((n) =>
+          wanted.has(n.id) ? ({ ...n, data: { ...n.data, ...patch } } as TopoNode) : n,
+        ),
+      },
+      dirty: true,
+    }));
+  },
+
+  mapManyNodeData(ids, change, label) {
+    if (ids.length === 0) return;
+    const wanted = new Set(ids);
+    get().commit(label ?? 'Edit devices');
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        nodes: s.doc.nodes.map((n) =>
+          wanted.has(n.id)
+            ? ({
+                ...n,
+                data: { ...n.data, ...change(n.data as DeviceNodeData & NoteNodeData) },
+              } as TopoNode)
+            : n,
         ),
       },
       dirty: true,
