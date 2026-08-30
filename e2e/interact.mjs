@@ -1419,7 +1419,12 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   const item = page.locator(".cv-palette-item", { hasText: "Callout" }).first();
   check("the palette offers a callout", (await item.count()) === 1);
 
-  const edgesBefore = await page.locator(".react-flow__edge").count();
+  const edgeIds = () =>
+    page.locator(".react-flow__edge").evaluateAll((els) =>
+      els.map((e) => e.getAttribute("data-id") ?? ""),
+    );
+  const idsBefore = await edgeIds();
+  const edgesBefore = idsBefore.length;
   await item.dragTo(page.locator(".react-flow__pane"), { targetPosition: { x: 200, y: 130 } });
   await page.waitForTimeout(450);
 
@@ -1456,9 +1461,12 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
         (await page.locator(".react-flow__edge").count()) === edgesBefore + 1,
         `${edgesBefore} -> ${await page.locator(".react-flow__edge").count()}`);
 
-      // The new line is the last one. It must be a leader: no arrowhead, no
-      // packet dots, and nothing added to the health counts.
-      const last = page.locator(".react-flow__edge").last();
+      // Found by id rather than by position: React Flow reorders edges for
+      // z-order, so "the last one" is not reliably the one just drawn — which
+      // made this check read a different link and fail about one run in three.
+      const added = (await edgeIds()).filter((id) => id && !idsBefore.includes(id));
+      check("the new line can be identified", added.length === 1, JSON.stringify(added));
+      const last = page.locator(`.react-flow__edge[data-id="${added[0]}"]`);
       const marker = await last.locator("path.react-flow__edge-path")
         .getAttribute("marker-end").catch(() => null);
       check("a leader carries no arrowhead", marker === null, String(marker));
@@ -1559,6 +1567,50 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     check("and health colouring comes back", (await glyphInk()) === byHealth,
       `${byHealth} -> ${await glyphInk()}`);
   }
+}
+
+// ---------------------------------------------------------------- page
+// A file sized to its own contents is right for the screen and wrong for a
+// document: whoever pastes it scales it, badly, once per document.
+{
+  const downloads = [];
+  page.on("download", (d) => downloads.push(d));
+
+  await page.locator(".cv-dropdown summary", { hasText: "Export" }).first().click();
+  await page.waitForTimeout(250);
+
+  const paperSelect = page.locator(".cv-dropdown-field select").first();
+  check("the export menu offers a page size", (await paperSelect.count()) === 1);
+
+  const before = await page.locator(".cv-dropdown-field .cv-help").innerText();
+  check("it starts sized to the diagram", /sized to the diagram/i.test(before), before);
+
+  await paperSelect.selectOption("a4");
+  await page.waitForTimeout(300);
+  const after = await page.locator(".cv-dropdown-field .cv-help").innerText();
+  check("it says what will happen on that page", /A4 landscape/.test(after), after);
+
+  await page.locator(".cv-dropdown-menu button", { hasText: "Diagram as SVG" }).click();
+  await page.waitForTimeout(1400);
+
+  const fs = await import("node:fs/promises");
+  const path = downloads.length ? await downloads[downloads.length - 1].path() : null;
+  const svg = path ? await fs.readFile(path, "utf8") : "";
+  // A4 landscape at 96 dpi.
+  check("the file comes out at the page size",
+    /width="1123"/.test(svg) && /height="794"/.test(svg),
+    svg.slice(svg.indexOf("<svg"), svg.indexOf("<svg") + 90));
+  check("the whole sheet is painted, not just the drawing",
+    /<rect width="100%" height="100%"/.test(svg));
+  check("the drawing is scaled and centred as one piece",
+    /<g transform="translate\([\d.]+, [\d.]+\) scale\([\d.]+\)">/.test(svg));
+
+  // Put it back so nothing after this inherits a page size.
+  await page.locator(".cv-dropdown summary", { hasText: "Export" }).first().click();
+  await page.waitForTimeout(200);
+  await paperSelect.selectOption("fit");
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Escape");
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });

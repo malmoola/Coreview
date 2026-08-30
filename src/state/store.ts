@@ -59,6 +59,9 @@ export interface ProjectDocument {
 export interface AppSettings {
   reduceMotion: boolean;
   highContrast: boolean;
+  /** Paper for exports and printing. 'fit' sizes the file to the diagram. */
+  paper: string;
+  orientation: 'portrait' | 'landscape';
   /** 'light' draws the diagram on white, for a document or a projector. */
   ground: 'dark' | 'light';
   /** Where configuration backups are written. Chosen by the user, and kept
@@ -305,6 +308,8 @@ export const useStore = create<Store>((set, get) => ({
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
     highContrast: false,
+    paper: 'fit',
+    orientation: 'landscape',
     ground: 'dark',
     backupFolder: null,
     exportFolder: null,

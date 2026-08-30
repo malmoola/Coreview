@@ -1273,3 +1273,15 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cv-legend-count { margin-left: auto; color: var(--text-faint); font-family: var(--mono); }
+
+/* Settings that sit inside a menu rather than being an action. */
+.cv-dropdown-field {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 7px 9px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  margin: 4px 0;
+}
+.cv-dropdown-field label {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 11px; color: var(--text-dim);
+}
+.cv-dropdown-field .cv-input { width: 130px; }

@@ -299,3 +299,52 @@ describe('sections in the export', () => {
     expect(svg.indexOf('DMZ')).toBeLessThan(svg.indexOf('FW-1'));
   });
 });
+
+describe('putting the diagram on a sheet', () => {
+  const nodes = [
+    {
+      id: 'n1', type: 'device', position: { x: 0, y: 0 }, width: 176, height: 96,
+      data: { label: 'CORE-SW', deviceType: 'core-switch', tags: [], addresses: [],
+        locked: false, maintenance: false, showDetails: true },
+    },
+  ] as unknown as Parameters<typeof renderDiagramSvg>[0]['nodes'];
+
+  const render = (page?: { width: number; height: number }) =>
+    renderDiagramSvg({
+      meta, nodes, edges: [], nodeStatus: () => 'healthy', linkStatus: () => 'healthy',
+      includeTitleBlock: false, now: new Date(0), page,
+    });
+
+  it('is sized to the diagram when no sheet is asked for', () => {
+    // The right default for the screen: nobody wants a screenshot with
+    // margins round it.
+    const svg = render();
+    expect(svg).not.toContain('width="1123"');
+  });
+
+  it('takes the sheet dimensions when one is', () => {
+    const svg = render({ width: 1123, height: 794 });
+    expect(svg).toContain('width="1123"');
+    expect(svg).toContain('height="794"');
+  });
+
+  it('scales and centres the whole drawing rather than each part', () => {
+    // One transform round everything, so nothing inside has to know it is on
+    // paper — and the geometry stays exactly what it was.
+    const svg = render({ width: 1123, height: 794 });
+    expect(svg).toMatch(/<g transform="translate\([\d.]+, [\d.]+\) scale\([\d.]+\)">/);
+  });
+
+  it('paints the whole sheet, not just the drawing', () => {
+    // Otherwise the diagram sits on a transparent page, which prints as
+    // whatever the printer feels like.
+    const svg = render({ width: 1123, height: 794 });
+    expect(svg).toContain('<rect width="100%" height="100%"');
+  });
+
+  it('does not enlarge a small diagram to fill the page', () => {
+    const svg = render({ width: 1123, height: 794 });
+    const scale = Number(/scale\(([\d.]+)\)/.exec(svg)![1]);
+    expect(scale).toBe(1);
+  });
+});

@@ -6,6 +6,7 @@ import { ipc } from '../lib/ipc';
 import { buildMarkdownReport, saveExport, slug, svgToPng } from '../lib/exports';
 import { renderDiagramSvg } from '../lib/diagram';
 import { isVisible, layersOf } from '../lib/layers';
+import { PAPERS, describePage, paperById, sheetSize, sheetsFor } from '../lib/paper';
 import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
 import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
@@ -66,6 +67,26 @@ export function TopBar({ onExit }: { onExit: () => void }) {
   const counts = statusCounts();
 
   /** Runs an export and reports where it landed, or that it failed. */
+  const paper = paperById(settings.paper);
+  const sheet = sheetSize(paper, settings.orientation);
+  /** Said in the menu, because "A3 landscape" does not tell anyone whether
+   *  their diagram will still be readable on it. */
+  const pageNote = (() => {
+    if (paper.width === 0) return 'The file is sized to the diagram.';
+    const bounds = store.doc.nodes.reduce(
+      (acc, n) => ({
+        w: Math.max(acc.w, n.position.x + (n.width ?? 176)),
+        h: Math.max(acc.h, n.position.y + (n.height ?? 96)),
+      }),
+      { w: 1, h: 1 },
+    );
+    const tiles = sheetsFor({ width: bounds.w, height: bounds.h }, sheet);
+    return tiles.total > 1
+      ? `${describePage(paper, settings.orientation)} — shrunk to fit one sheet, ` +
+        `or ${tiles.total} sheets at full size when printed.`
+      : `${describePage(paper, settings.orientation)} — the diagram fits at full size.`;
+  })();
+
   /** The diagram as it is being looked at, with hidden views left out. */
   const shown = (() => {
     const layers = layersOf(store.doc.canvas.layers);
@@ -112,6 +133,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       // What you are looking at is what comes out. Exporting dark from a
       // white screen put a black rectangle in the middle of a white page.
       ground: settings.ground,
+      page: sheet.w > 0 ? { width: sheet.w, height: sheet.h } : undefined,
     });
 
   const exportSvg = () => {
@@ -194,6 +216,15 @@ export function TopBar({ onExit }: { onExit: () => void }) {
    * designed; it is put back afterwards, so nothing about the session changes.
    */
   const printOnPaper = async () => {
+    // The page choice has to reach the print job, and only `@page` can carry
+    // it — a stylesheet cannot be told a paper size any other way.
+    const style = document.createElement('style');
+    style.textContent =
+      paper.width === 0
+        ? '@page { margin: 10mm; }'
+        : `@page { size: ${paper.name} ${settings.orientation}; margin: 10mm; }`;
+    document.head.appendChild(style);
+
     const was = settings.ground;
     if (was !== 'light') {
       store.setSettings({ ground: 'light' });
@@ -205,6 +236,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       window.print();
     } finally {
       if (was !== 'light') store.setSettings({ ground: was });
+      style.remove();
     }
   };
 
@@ -320,6 +352,41 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             <button type="button" onClick={exportSvg}>
               Diagram as SVG
             </button>
+            <div className="cv-dropdown-field" onClick={(e) => e.stopPropagation()}>
+              <label>
+                Page
+                <select
+                  className="cv-input"
+                  value={settings.paper}
+                  onChange={(e) => store.setSettings({ paper: e.target.value })}
+                >
+                  {PAPERS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {paper.width > 0 && (
+                <label>
+                  Way round
+                  <select
+                    className="cv-input"
+                    value={settings.orientation}
+                    onChange={(e) =>
+                      store.setSettings({
+                        orientation: e.target.value as 'portrait' | 'landscape',
+                      })
+                    }
+                  >
+                    <option value="landscape">Landscape</option>
+                    <option value="portrait">Portrait</option>
+                  </select>
+                </label>
+              )}
+              <span className="cv-help">{pageNote}</span>
+            </div>
+
             <button type="button" onClick={() => void printOnPaper()}>
               Print / save as PDF
             </button>

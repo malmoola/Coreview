@@ -27,6 +27,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { ICONS } from '../components/icons';
 import { capPath, capsFor, dashFor } from './linkStyle';
+import { fitOnSheet } from './paper';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type {
   DeviceNodeData,
@@ -62,6 +63,9 @@ interface Sheet {
   header: string;
   onStatus: string;
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
 /** An edge id as something an `id` attribute and a `url(#…)` can both carry. */
 function cssId(id: string): string {
@@ -107,6 +111,9 @@ export interface DiagramInput {
    *  diagram prepared for a document does not come out as a black rectangle
    *  in the middle of a white page. */
   ground?: Ground;
+  /** The sheet to place the diagram on. Absent means the file is sized to the
+   *  diagram, which is right for the screen and wrong for a document. */
+  page?: { width: number; height: number; margin?: number };
   /** Injected so the output is deterministic in tests. */
   now?: Date;
 }
@@ -537,11 +544,35 @@ export function renderDiagramSvg(input: DiagramInput): string {
       .map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph', sheet))
       .join('');
 
+  const drawing =
+    `  <defs>${markerDefs(sheet)}</defs>\n` +
+    `  ${header}\n` +
+    `  <g transform="translate(${PAD - minX}, ${headerH + PAD - minY})">${body}</g>`;
+
+  // Placed on a sheet when one was asked for. The drawing keeps its own
+  // coordinates and is scaled and centred as a whole, so nothing inside has
+  // to know it is on paper.
+  const placed = input.page
+    ? fitOnSheet(
+        { width: contentW, height: totalH },
+        { w: input.page.width, h: input.page.height },
+        input.page.margin ?? 36,
+      )
+    : null;
+
+  if (placed) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${placed.width}" height="${placed.height}" viewBox="0 0 ${placed.width} ${placed.height}" font-family="ui-sans-serif, Segoe UI, Roboto, sans-serif">
+  <rect width="100%" height="100%" fill="${sheet.paper}"/>
+  <g transform="translate(${round2(placed.x)}, ${round2(placed.y)}) scale(${round4(placed.scale)})">
+${drawing}
+  </g>
+</svg>`;
+  }
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${contentW}" height="${totalH}" viewBox="0 0 ${contentW} ${totalH}" font-family="ui-sans-serif, Segoe UI, Roboto, sans-serif">
-  <defs>${markerDefs(sheet)}</defs>
   <rect width="100%" height="100%" fill="${sheet.paper}"/>
-  ${header}
-  <g transform="translate(${PAD - minX}, ${headerH + PAD - minY})">${body}</g>
+${drawing}
 </svg>`;
 }
