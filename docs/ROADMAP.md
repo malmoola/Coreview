@@ -131,6 +131,32 @@ Ordered by what makes the app more useful, not by what is easiest.
       reports; drawing stays the operator's decision. Driven end to end by
       `e2e/change.mjs`, which stubs the Tauri bridge and delivers a crawl
       result the way the backend does
+- [x] **Links leave the nearer side of a device.** Everything a crawl drew
+      left the bottom and arrived at the top, which is right for a tier above
+      a tier and wrong for two devices side by side — that link dived below
+      both and climbed back. A node emits from its right and bottom only, so
+      there are two legal pairs and the router picks the better one rather
+      than the ideal one. On the canvas menu, and applied when a crawl merges
+      into a diagram that has been arranged by hand
+- [x] **Edit a whole selection at once.** A crawl puts dozens of devices down
+      in one go. A value the selection disagrees on reads "mixed" rather than
+      showing the first one, tags are split into those everything carries and
+      those only some do — only the first can be removed — and the whole
+      change is one undo
+- [x] **Fold a site down to one box.** A view, not a document change, so
+      opening restores exactly what was there. Links crossing the boundary are
+      redrawn to the box and collapsed to one line each; links inside go with
+      it. Named after a tag every member shares, ignoring the ones the crawler
+      writes about how it found something
+- [x] **What a device's status has been**, not just what it is — rebuilt from
+      recorded transitions rather than a stored sample per device per
+      interval. A period nobody was watching is drawn as unknown rather than
+      filled in with whatever the device is doing now
+- [x] **Export the diagram as the CSV the importer reads back.** Import
+      existed and export did not, which made it a one-way door. Two files,
+      devices and links, in exactly the columns the importers read. Positions
+      are left out on purpose: a CSV is an inventory, and the project package
+      is the format that keeps a layout
 - [ ] **Link aggregation: draw a port-channel as one link.** Attempted and
       reverted. Collapsing links whose ports are consecutive infers a bundle
       from port numbering, and two consecutive cables between a pair are just
