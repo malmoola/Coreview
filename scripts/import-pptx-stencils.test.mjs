@@ -136,3 +136,20 @@ describe('against the real deck, when it is present', () => {
     }
   });
 });
+
+describe('line endings survive a Windows checkout (LT-044)', () => {
+  // The Windows runner checks out with autocrlf. That gave the pipeline
+  // script a CRLF shebang, vite's shebang strip left the carriage return
+  // behind, and V8 rejected the transformed module — with the error blamed
+  // on whichever file imported it. The pin below is the fix; these fail
+  // without it.
+  it('the repo pins eol=lf so every checkout sees the same bytes', () => {
+    const attrs = readFileSync(join(import.meta.dirname, '..', '.gitattributes'), 'utf8');
+    expect(attrs).toMatch(/^\*\s+text=auto\s+eol=lf/m);
+  });
+
+  it('the pipeline script itself carries no carriage returns', () => {
+    const src = readFileSync(join(import.meta.dirname, 'import-pptx-stencils.mjs'), 'utf8');
+    expect(src).not.toContain('\r');
+  });
+});

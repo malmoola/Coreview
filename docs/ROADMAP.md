@@ -43,6 +43,20 @@ ground entirely and stayed dark-theme coloured on a white page.
 **Fixed:** they read `--text-dim`, `--warning` and `--accent`, which are the
 variables that were meant.
 
+### LT-044 — **bug** Windows CI red: CRLF checkout breaks the stencil-test import
+**Source:** operator screenshot, 2026-08-30 — every run since #88 red on
+`test (windows-latest)` / Frontend tests, `SyntaxError: Invalid or unexpected
+token` at import-pptx-stencils.test.mjs:7:31 (previously pptxStencils.test.ts:7:31 —
+moving the file did not cure it, which was the tell that the position was a lie).
+**Root cause (reproduced locally):** the Windows runner checks out with
+autocrlf, so `import-pptx-stencils.mjs` arrives CRLF; vite strips its shebang
+but leaves the carriage return behind, V8 rejects the transformed module, and
+vitest attributes the error to the file that imported it. Bisected to line 1
+alone: shebang+CR fails, CRLF everywhere else passes.
+**Fix:** `.gitattributes` pins `eol=lf` for text files so every checkout —
+runner or laptop — sees the bytes the tests were written against.
+**Acceptance:** a test that fails without the pin; Windows CI green.
+
 ### LT-003 — **bug** Custom shape import bugs
 **Source:** asked 2026-08-30, with screenshots.
 **Acceptance:**

@@ -1,0 +1,15 @@
+# Every checkout — CI runner or laptop, any OS — sees the same bytes the
+# tests were written against. The Windows runner's autocrlf checkout once
+# turned the stencil pipeline's shebang into "#!...\r", vite's shebang strip
+# left the carriage return behind, and V8 refused the module with the error
+# blamed on the file that imported it (LT-044).
+* text=auto eol=lf
+
+# Binaries, never touched.
+*.png binary
+*.ico binary
+*.icns binary
+*.pptx binary
+*.deb binary
+*.woff binary
+*.woff2 binary

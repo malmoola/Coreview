@@ -8,3 +8,4 @@ src-tauri/gen/
 .vscode/
 *.coreview
 *.livetopo
+*.deb
