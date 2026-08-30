@@ -15,7 +15,8 @@
     "rust:test": "cargo test --manifest-path crates/coreview-probe/Cargo.toml && cargo test --manifest-path src-tauri/Cargo.toml",
     "e2e:interact": "node e2e/interact.mjs",
     "e2e:responsive": "node e2e/responsive.mjs",
-    "e2e:change": "node e2e/change.mjs"
+    "e2e:change": "node e2e/change.mjs",
+    "e2e:library": "node e2e/library.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",

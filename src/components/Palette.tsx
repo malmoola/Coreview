@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { deviceColor } from '../theme';
 import { useStore } from '../state/store';
 import { isDesktop } from '../lib/ipc';
@@ -108,6 +108,16 @@ function IconLibrarySection({
       i.category.toLowerCase().includes(query),
   );
 
+  const grouped = useMemo(() => {
+    const by = new Map<string, typeof shown>();
+    for (const icon of shown) {
+      const list = by.get(icon.category);
+      if (list) list.push(icon);
+      else by.set(icon.category, [icon]);
+    }
+    return [...by.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [shown]);
+
   return (
     <div className="cv-palette-group">
       <h3>Icon library</h3>
@@ -147,27 +157,36 @@ function IconLibrarySection({
 
       {error && <p className="cv-warn cv-palette-note">{error}</p>}
 
-      {shown.length > 0 && (
-        <div className="cv-palette-grid">
-          {shown.slice(0, 400).map((icon) => (
-            <button
-              key={icon.id}
-              type="button"
-              className="cv-palette-item"
-              draggable
-              onDragStart={(e) => onDrag(e, `icon:${icon.id}`)}
-              title={`${icon.name} — ${icon.category}`}
-            >
-              <img
-                className="cv-palette-icon"
-                alt=""
-                src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(icon.svg)))}`}
-              />
-              {icon.name}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Grouped, because a real shape library is hundreds of icons and one
+          alphabetical list of them is not something anyone finds anything in.
+          A group is collapsed until it is opened, so the whole set does not
+          have to be scrolled past to reach the built-in shapes. */}
+      {grouped.map(([category, items], index) => (
+        <details key={category} open={grouped.length === 1 || index === 0 || Boolean(query)}>
+          <summary className="cv-palette-sub">
+            {category} <span className="cv-palette-count">{items.length}</span>
+          </summary>
+          <div className="cv-palette-grid">
+            {items.slice(0, 400).map((icon) => (
+              <button
+                key={icon.id}
+                type="button"
+                className="cv-palette-item"
+                draggable
+                onDragStart={(e) => onDrag(e, `icon:${icon.id}`)}
+                title={`${icon.name} — ${icon.category}`}
+              >
+                <img
+                  className="cv-palette-icon"
+                  alt=""
+                  src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(icon.svg)))}`}
+                />
+                {icon.name}
+              </button>
+            ))}
+          </div>
+        </details>
+      ))}
 
       {dir && shown.length === 0 && (
         <p className="cv-muted cv-palette-note">No icon matches that search.</p>

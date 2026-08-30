@@ -1144,3 +1144,20 @@ textarea.cv-input { resize: vertical; }
 /* A section is an area, not a device: it has no address, nothing probes it,
    and a health badge on it would be reporting on nothing. */
 .cv-node.cv-zone .cv-status-badge { display: none; }
+
+/* A group inside the icon library. A real shape set is hundreds of icons
+   across a dozen families, and one flat alphabetical list of them is not
+   something anyone finds anything in. */
+.cv-palette-sub {
+  cursor: pointer; list-style: none; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim);
+  padding: 6px 2px 4px; display: flex; align-items: center; gap: 6px;
+}
+.cv-palette-sub::-webkit-details-marker { display: none; }
+.cv-palette-sub::before { content: '▸'; font-size: 9px; transition: transform 120ms ease; }
+details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
+.cv-palette-sub:hover { color: var(--text); }
+.cv-palette-count {
+  font-family: var(--mono); font-weight: 400; letter-spacing: 0;
+  text-transform: none; color: var(--text-faint);
+}

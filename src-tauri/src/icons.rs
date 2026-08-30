@@ -47,6 +47,16 @@ pub struct IconLibrary {
 /// a symlink loop or a home directory chosen by mistake from hanging the app.
 const MAX_DEPTH: usize = 6;
 
+/// Whether a file is a library's own paperwork rather than a shape.
+fn is_paperwork(path: &Path, ext: &str) -> bool {
+    if ["txt", "md", "json", "yml", "yaml", "toml"].iter().any(|e| ext.eq_ignore_ascii_case(e)) {
+        return true;
+    }
+    path.file_name()
+        .and_then(|f| f.to_str())
+        .is_some_and(|f| f.starts_with('.'))
+}
+
 /// The palette group for a shape with no entry in `index.json`: the folder it
 /// is in, relative to the library root. Nested folders are joined so a set
 /// organised by vendor and family keeps both.
@@ -102,6 +112,11 @@ fn collect(
         }
         match path.extension().and_then(|x| x.to_str()) {
             Some(ext) if ext.eq_ignore_ascii_case("svg") => out.push(path),
+            // A library's own paperwork — the name and category index, a
+            // licence, a readme — is not a shape that failed to load, and
+            // counting it as one made a perfectly good folder report a
+            // problem it did not have.
+            Some(ext) if is_paperwork(&path, ext) => {}
             // Anything else is a shape file this cannot read directly —
             // a Visio stencil, a zip, an EMF. Counted so the interface can
             // say so rather than silently showing an almost empty library.
@@ -538,6 +553,21 @@ mod folder_tests {
             "skipped: {:?}",
             lib.skipped
         );
+    }
+
+    #[test]
+    fn a_librarys_own_paperwork_is_not_a_failed_shape() {
+        // A folder built by the fetch script carries index.json and a licence
+        // file. Counting those as unreadable made a perfectly good library
+        // report a problem it did not have.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        write(&root.join("router.svg"), SVG);
+        write(&root.join("index.json"), "{}");
+        write(&root.join("LICENCES.txt"), "MIT");
+        let lib = super::scan(root.to_str().expect("path")).expect("scan");
+        assert_eq!(lib.icons.len(), 1);
+        assert!(lib.skipped.is_empty(), "skipped: {:?}", lib.skipped);
     }
 
     #[test]
