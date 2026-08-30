@@ -829,3 +829,7 @@ textarea.cv-input { resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   .cv-glyph-art.is-failing::before { animation: none; opacity: 0.8; }
 }
+
+/* How long ago a result was actually confirmed. Dim, because it is context
+   for the status rather than the status itself. */
+.cv-stale { color: var(--text-dim); white-space: nowrap; }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useStore } from '../state/store';
 import { DiscoverPanel } from './DiscoverPanel';
@@ -18,6 +18,8 @@ type Row = {
   target: string;
   status: HealthStatus;
   detail: string;
+  /** How long ago the check behind `status` actually ran. */
+  checked: string | null;
   rtt: number | null;
   tags: string[];
 };
@@ -30,6 +32,24 @@ type Row = {
  * for the fifteen seconds the default thresholds take is the table asserting
  * something it has not confirmed.
  */
+/**
+ * How long ago the last check actually ran.
+ *
+ * A green row looks identical whether it was confirmed a second ago or has
+ * not been re-checked since the session was paused. Saying so is the
+ * difference between a status and a claim.
+ */
+function checkedAgo(live: ProbeRuntime | undefined, now: number): string | null {
+  const last = Math.max(live?.lastSuccessMs ?? 0, live?.lastFailureMs ?? 0);
+  if (!last) return null;
+  const seconds = Math.max(0, Math.round((now - last) / 1000));
+  if (seconds < 2) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.round(minutes / 60)}h ago`;
+}
+
 function missedNote(live: ProbeRuntime | undefined): string | null {
   if (!live || live.consecutiveFailures < 1) return null;
   // Only while the count still means something. Past the threshold the device
@@ -57,6 +77,17 @@ export function StatusPanel() {
   const [query, setQuery] = useState('');
   const [problemsOnly, setProblemsOnly] = useState(false);
 
+  // Ages have to move on their own, or "3s ago" sits there saying 3s
+  // forever. Only while a session is running: with nothing being checked
+  // there is nothing to age, and a timer that re-renders the table once a
+  // second for no reason is worse than no timer.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (session.state !== 'running') return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [session.state]);
+
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
     for (const n of doc.nodes) {
@@ -73,6 +104,7 @@ export function StatusPanel() {
         target: primary?.target ?? '',
         status: nodeStatusOf(n.id),
         detail: missedNote(live) ?? live?.lastSummary ?? '',
+        checked: checkedAgo(live, now),
         rtt: live?.lastRttMs ?? null,
         tags: d.tags ?? [],
       });
@@ -99,12 +131,13 @@ export function StatusPanel() {
           sessionRunning: session.state === 'running',
         }),
         detail: missedNote(live) ?? live?.lastSummary ?? '',
+        checked: checkedAgo(live, now),
         rtt: live?.lastRttMs ?? null,
         tags: [],
       });
     }
     return out;
-  }, [doc, runtime, session.state, nodeStatusOf]);
+  }, [doc, runtime, session.state, nodeStatusOf, now]);
 
   const filtered = rows.filter((r) => {
     if (problemsOnly && r.status !== 'down' && r.status !== 'warning') return false;
@@ -249,6 +282,7 @@ export function StatusPanel() {
                 <th>Type / rule</th>
                 <th>Target</th>
                 <th>RTT</th>
+                <th>Checked</th>
                 <th>Last result</th>
               </tr>
             </thead>
@@ -270,6 +304,7 @@ export function StatusPanel() {
                   <td className="cv-mono">{r.type}</td>
                   <td className="cv-mono">{r.target || '—'}</td>
                   <td className="cv-mono">{r.rtt != null ? `${r.rtt.toFixed(0)} ms` : '—'}</td>
+                  <td className="cv-mono cv-stale">{r.checked ?? '—'}</td>
                   <td className="cv-mono cv-ellipsis">{r.detail || '—'}</td>
                 </tr>
               ))}

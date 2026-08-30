@@ -60,8 +60,10 @@ Ordered by what makes the app more useful, not by what is easiest.
       tracked and only shown in the inspector. A missed check now shows on the
       node and in the table immediately, without claiming the device is down
       before the rule says so
-- [ ] Show how long ago each result was confirmed, so a status nobody has
-      re-checked is obviously not current
+- [x] **How long ago each result was confirmed**, in a Checked column. A green
+      row looked identical whether it was confirmed a second ago or had not
+      been re-checked since the session was paused. The clock only runs while
+      a session does — with nothing being checked there is nothing to age
 - [ ] Let the interval and failure threshold be set for the whole project
       rather than per probe, so "tell me within 5 seconds" is one setting
 
