@@ -1,0 +1,55 @@
+<svg viewBox="10136 14486 728 728" version="1.2" preserveAspectRatio="xMidYMid" fill-rule="evenodd" stroke-width="28.222" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xml:space="preserve">
+ 
+ 
+ 
+ <g>
+  <g id="id2" class="Master_Slide">
+   <g id="bg-id2" class="Background"/>
+   <g id="bo-id2" class="BackgroundObjects"/>
+  </g>
+ </g>
+ <g class="SlideGroup">
+  <g>
+   <g id="container-id1">
+    <g id="id1" class="Slide" clip-path="url(#presentation_clip_path)">
+     <g class="Page">
+      <g class="Graphic">
+       <g id="id3">
+        <rect class="BoundingBox" stroke="none" fill="none" x="10150" y="14500" width="700" height="700"/>
+        <defs>
+         <clipPath id="clip_path_1" clipPathUnits="userSpaceOnUse">
+          <path d="M 10150,14500 L 10849,14500 10849,15199 10150,15199 10150,14500 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <path fill="rgb(255,255,255)" stroke="none" d="M 10163,14513 L 10163,15169 10808,15169 10808,14513 10163,14513 Z M 10309,14885 L 10220,14885 10220,14782 10309,14782 10309,14885 Z M 10309,14722 L 10220,14722 10220,14619 10309,14619 10309,14722 Z M 10366,14619 L 10453,14619 10453,14722 10366,14722 10366,14619 Z M 10366,14782 L 10453,14782 10453,14885 10366,14885 10366,14782 Z M 10599,14885 L 10512,14885 10512,14782 10599,14782 10599,14885 Z M 10599,14722 L 10512,14722 10512,14619 10599,14619 10599,14722 Z M 10743,14885 L 10656,14885 10656,14782 10743,14782 10743,14885 Z M 10743,14722 L 10656,14722 10656,14619 10743,14619 10743,14722 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10163,14513 L 10163,15169 10808,15169 10808,14513 10163,14513 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10309,14885 L 10220,14885 10220,14782 10309,14782 10309,14885 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10309,14722 L 10220,14722 10220,14619 10309,14619 10309,14722 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10366,14619 L 10453,14619 10453,14722 10366,14722 10366,14619 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10366,14782 L 10453,14782 10453,14885 10366,14885 10366,14782 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10599,14885 L 10512,14885 10512,14782 10599,14782 10599,14885 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10599,14722 L 10512,14722 10512,14619 10599,14619 10599,14722 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10743,14885 L 10656,14885 10656,14782 10743,14782 10743,14885 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10743,14722 L 10656,14722 10656,14619 10743,14619 10743,14722 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10163,14513 L 10163,15169 10808,15169 10808,14513 10163,14513 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10309,14885 L 10220,14885 10220,14782 10309,14782 10309,14885 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10309,14722 L 10220,14722 10220,14619 10309,14619 10309,14722 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10366,14619 L 10453,14619 10453,14722 10366,14722 10366,14619 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10366,14782 L 10453,14782 10453,14885 10366,14885 10366,14782 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10599,14885 L 10512,14885 10512,14782 10599,14782 10599,14885 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10599,14722 L 10512,14722 10512,14619 10599,14619 10599,14722 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10743,14885 L 10656,14885 10656,14782 10743,14782 10743,14885 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10743,14722 L 10656,14722 10656,14619 10743,14619 10743,14722 Z "/>
+         <path fill="rgb(255,255,255)" stroke="none" d="M 10415,14947 L 10550,14947 10550,15169 10415,15169 10415,14947 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" d="M 10415,14947 L 10550,14947 10550,15169 10415,15169 10415,14947 Z "/>
+         <path fill="none" stroke="rgb(0,80,115)" stroke-width="28" stroke-linejoin="miter" d="M 10415,14947 L 10550,14947 10550,15169 10415,15169 10415,14947 Z "/>
+        </g>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

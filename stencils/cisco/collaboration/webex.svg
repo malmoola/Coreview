@@ -1,0 +1,37 @@
+<svg viewBox="10158.4 14588.4 603.2 584.2" version="1.2" preserveAspectRatio="xMidYMid" fill-rule="evenodd" stroke-width="28.222" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xml:space="preserve">
+ 
+ 
+ 
+ <g>
+  <g id="id2" class="Master_Slide">
+   <g id="bg-id2" class="Background"/>
+   <g id="bo-id2" class="BackgroundObjects"/>
+  </g>
+ </g>
+ <g class="SlideGroup">
+  <g>
+   <g id="container-id1">
+    <g id="id1" class="Slide" clip-path="url(#presentation_clip_path)">
+     <g class="Page">
+      <g class="Graphic">
+       <g id="id3">
+        <rect class="BoundingBox" stroke="none" fill="none" x="10250" y="14600" width="500" height="500"/>
+        <defs>
+         <clipPath id="clip_path_1" clipPathUnits="userSpaceOnUse">
+          <path d="M 10250,14600 L 10749,14600 10749,15099 10250,15099 10250,14600 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <path fill="rgb(13,135,193)" stroke="none" d="M 10728,14839 L 10728,14839 C 10728,15053 10470,15161 10320,15009 L 10320,15009 C 10170,14858 10275,14600 10489,14600 L 10489,14600 C 10623,14600 10728,14708 10728,14839 Z "/>
+         <path fill="rgb(120,175,78)" stroke="none" d="M 10728,14839 L 10728,14839 C 10728,14973 10623,15078 10489,15078 L 10489,15078 C 10447,15078 10447,14600 10489,14600 L 10489,14600 C 10623,14600 10728,14708 10728,14839 Z "/>
+         <path fill="rgb(146,190,112)" stroke="none" d="M 10493,14649 L 10493,14649 C 10485,14649 10476,14649 10468,14651 L 10468,14651 C 10453,14776 10453,14903 10468,15030 L 10468,15030 C 10476,15030 10485,15030 10493,15030 L 10493,15030 C 10597,15030 10684,14945 10684,14839 L 10684,14839 C 10684,14733 10597,14649 10493,14649 Z "/>
+         <path fill="rgb(44,150,201)" stroke="none" d="M 10468,14651 L 10468,14651 C 10244,14674 10244,15004 10468,15030 L 10468,15030 C 10453,14903 10453,14776 10468,14651 Z "/>
+        </g>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

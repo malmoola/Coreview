@@ -137,6 +137,38 @@ describe('against the real deck, when it is present', () => {
   });
 });
 
+describe('cropping around embedded rasters', () => {
+  it('an <image> extent widens the box, or a bitmap logo is sliced through', () => {
+    // Three deck logos are EMF-wrapped bitmaps: the only vector geometry is a
+    // small invisible frame, and the artwork is an <image> that the crop
+    // could not see — the contact sheet showed a sliver of Motorola.
+    const svg = '<svg viewBox="0 0 21000 29700">'
+      + '<path d="M 1000,1000 L 1010,1000 L 1010,1010 Z" fill="none"/>'
+      + '<image x="500" y="400" width="1600" height="700" xlink:href="data:image/png;base64,x"/>'
+      + '</svg>';
+    const vb = /viewBox="([^"]+)"/.exec(pipe.cropToContent(svg))[1].split(' ').map(Number);
+    expect(vb[0]).toBeLessThanOrEqual(500);
+    expect(vb[1]).toBeLessThanOrEqual(400);
+    expect(vb[0] + vb[2]).toBeGreaterThanOrEqual(2100);
+    expect(vb[1] + vb[3]).toBeGreaterThanOrEqual(1100);
+  });
+
+  it('a negative-height image is flipped into legal SVG the crop can read', () => {
+    // LibreOffice writes EMF bitmaps bottom-up and leans on a negative height
+    // to flip them — invalid SVG, drawn upside down. amazon read as "uozɐɯɐ"
+    // on the contact sheet until this normalization.
+    const svg = '<svg viewBox="0 0 21000 29700">'
+      + '<image x="10039" y="15301" width="903" height="-903" xlink:href="data:image/png;base64,x"/>'
+      + '</svg>';
+    const out = pipe.normalizeImages(svg);
+    expect(out).toContain('y="14398" width="903" height="903"');
+    expect(out).toContain('transform="matrix(1 0 0 -1 0 29699)"');
+    const vb = /viewBox="([^"]+)"/.exec(pipe.cropToContent(out))[1].split(' ').map(Number);
+    expect(vb[1]).toBeLessThanOrEqual(14398);
+    expect(vb[1] + vb[3]).toBeGreaterThanOrEqual(15301);
+  });
+});
+
 describe('line endings survive a Windows checkout (LT-044)', () => {
   // The Windows runner checks out with autocrlf. That gave the pipeline
   // script a CRLF shebang, vite's shebang strip left the carriage return

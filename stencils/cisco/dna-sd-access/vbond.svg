@@ -1,0 +1,39 @@
+<svg viewBox="9950.98 14313.98 1035.04 1041.04" version="1.2" preserveAspectRatio="xMidYMid" fill-rule="evenodd" stroke-width="28.222" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xml:space="preserve">
+ 
+ 
+ 
+ <g>
+  <g id="id2" class="Master_Slide">
+   <g id="bg-id2" class="Background"/>
+   <g id="bo-id2" class="BackgroundObjects"/>
+  </g>
+ </g>
+ <g class="SlideGroup">
+  <g>
+   <g id="container-id1">
+    <g id="id1" class="Slide" clip-path="url(#presentation_clip_path)">
+     <g class="Page">
+      <g class="Graphic">
+       <g id="id3">
+        <rect class="BoundingBox" stroke="none" fill="none" x="10100" y="14450" width="800" height="800"/>
+        <defs>
+         <clipPath id="clip_path_1" clipPathUnits="userSpaceOnUse">
+          <path d="M 10100,14450 L 10899,14450 10899,15249 10100,15249 10100,14450 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <path fill="rgb(250,250,250)" stroke="none" d="M 10479,15199 L 10479,15199 C 10149,15199 9984,14801 10216,14569 L 10216,14569 C 10449,14334 10849,14499 10849,14829 L 10849,14829 C 10847,15034 10682,15199 10479,15199 Z "/>
+         <path fill="rgb(0,80,115)" stroke="none" d="M 10479,14463 L 10479,14463 C 10803,14463 10966,14856 10737,15087 L 10737,15087 C 10506,15316 10113,15153 10113,14829 L 10113,14829 C 10113,14626 10276,14463 10479,14463 Z M 10479,14450 L 10479,14450 C 10140,14450 9971,14856 10210,15096 L 10210,15096 C 10449,15335 10856,15165 10856,14829 L 10856,14829 C 10856,14619 10686,14450 10479,14450 Z "/>
+         <path fill="rgb(250,250,250)" stroke="none" d="M 10479,15062 L 10479,15062 C 10269,15062 10166,14810 10314,14664 L 10314,14664 C 10460,14516 10712,14619 10712,14829 L 10712,14829 C 10712,14958 10608,15062 10479,15062 Z "/>
+         <path fill="rgb(0,80,115)" stroke="none" d="M 10479,14609 L 10479,14609 C 10676,14609 10775,14846 10636,14986 L 10636,14986 C 10496,15125 10259,15026 10259,14829 L 10259,14829 C 10259,14708 10358,14609 10479,14609 Z M 10479,14583 L 10479,14583 C 10259,14583 10149,14848 10303,15005 L 10303,15005 C 10460,15159 10724,15049 10724,14829 L 10724,14829 C 10724,14693 10614,14581 10479,14583 Z "/>
+         <path fill="rgb(0,80,115)" stroke="none" d="M 10163,14782 L 10354,14782 10354,14875 10163,14875 10163,14782 Z "/>
+         <path fill="rgb(0,80,115)" stroke="none" d="M 10602,14782 L 10792,14782 10792,14875 10602,14875 10602,14782 Z "/>
+        </g>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

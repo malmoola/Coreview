@@ -1,0 +1,1523 @@
+{
+  "icons": [
+    {
+      "id": "secure-catalyst-switch-color-and-subdued",
+      "name": "Secure Catalyst Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/secure-catalyst-switch-color-and-subdued.svg",
+      "slide": 1
+    },
+    {
+      "id": "secure-catalyst-switch-color-and-subdued-2",
+      "name": "Secure Catalyst Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/secure-catalyst-switch-color-and-subdued-2.svg",
+      "slide": 1
+    },
+    {
+      "id": "secure-catalyst-switch-color-and-subdued-3",
+      "name": "Secure Catalyst Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/secure-catalyst-switch-color-and-subdued-3.svg",
+      "slide": 1
+    },
+    {
+      "id": "secure-catalyst-switch-color-and-subdued-4",
+      "name": "Secure Catalyst Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/secure-catalyst-switch-color-and-subdued-4.svg",
+      "slide": 1
+    },
+    {
+      "id": "secure-catalyst-switch-color-and-subdued-5",
+      "name": "Secure Catalyst Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/secure-catalyst-switch-color-and-subdued-5.svg",
+      "slide": 1
+    },
+    {
+      "id": "workgroup-switch-color-and-subdued",
+      "name": "Workgroup Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/workgroup-switch-color-and-subdued.svg",
+      "slide": 1
+    },
+    {
+      "id": "workgroup-switch-color-and-subdued-2",
+      "name": "Workgroup Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/workgroup-switch-color-and-subdued-2.svg",
+      "slide": 1
+    },
+    {
+      "id": "secure-switch-color-and-subdued",
+      "name": "Secure Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/secure-switch-color-and-subdued.svg",
+      "slide": 1
+    },
+    {
+      "id": "secure-switch-color-and-subdued-2",
+      "name": "Secure Switch (color and subdued)",
+      "category": "LAN Switching",
+      "file": "lan-switching/secure-switch-color-and-subdued-2.svg",
+      "slide": 1
+    },
+    {
+      "id": "l3-switch-with-dual-supervisor",
+      "name": "L3 Switch with Dual Supervisor",
+      "category": "LAN Switching",
+      "file": "lan-switching/l3-switch-with-dual-supervisor.svg",
+      "slide": 1
+    },
+    {
+      "id": "l2-switch-with-dual-supervisor",
+      "name": "L2 Switch with Dual Supervisor",
+      "category": "LAN Switching",
+      "file": "lan-switching/l2-switch-with-dual-supervisor.svg",
+      "slide": 1
+    },
+    {
+      "id": "l2-modular",
+      "name": "L2 Modular",
+      "category": "LAN Switching",
+      "file": "lan-switching/l2-modular.svg",
+      "slide": 1
+    },
+    {
+      "id": "6500-vss",
+      "name": "6500 VSS",
+      "category": "LAN Switching",
+      "file": "lan-switching/6500-vss.svg",
+      "slide": 1
+    },
+    {
+      "id": "l3-modular",
+      "name": "L3 Modular",
+      "category": "LAN Switching",
+      "file": "lan-switching/l3-modular.svg",
+      "slide": 1
+    },
+    {
+      "id": "l2-modular-2",
+      "name": "L2 Modular",
+      "category": "LAN Switching",
+      "file": "lan-switching/l2-modular-2.svg",
+      "slide": 1
+    },
+    {
+      "id": "l3-modular-2",
+      "name": "L3 Modular",
+      "category": "LAN Switching",
+      "file": "lan-switching/l3-modular-2.svg",
+      "slide": 1
+    },
+    {
+      "id": "image189",
+      "name": "image189",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image189.svg",
+      "slide": 10
+    },
+    {
+      "id": "image190",
+      "name": "image190",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image190.svg",
+      "slide": 10
+    },
+    {
+      "id": "image191",
+      "name": "image191",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image191.svg",
+      "slide": 10
+    },
+    {
+      "id": "image192",
+      "name": "image192",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image192.svg",
+      "slide": 10
+    },
+    {
+      "id": "image193",
+      "name": "image193",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image193.svg",
+      "slide": 10
+    },
+    {
+      "id": "image194",
+      "name": "image194",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image194.svg",
+      "slide": 10
+    },
+    {
+      "id": "image195",
+      "name": "image195",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image195.svg",
+      "slide": 10
+    },
+    {
+      "id": "image196",
+      "name": "image196",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image196.svg",
+      "slide": 10
+    },
+    {
+      "id": "image197",
+      "name": "image197",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image197.svg",
+      "slide": 10
+    },
+    {
+      "id": "image198",
+      "name": "image198",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image198.svg",
+      "slide": 10
+    },
+    {
+      "id": "image200",
+      "name": "image200",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image200.svg",
+      "slide": 10
+    },
+    {
+      "id": "image201",
+      "name": "image201",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image201.svg",
+      "slide": 10
+    },
+    {
+      "id": "image202",
+      "name": "image202",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image202.svg",
+      "slide": 10
+    },
+    {
+      "id": "image203",
+      "name": "image203",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image203.svg",
+      "slide": 10
+    },
+    {
+      "id": "image204",
+      "name": "image204",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image204.svg",
+      "slide": 10
+    },
+    {
+      "id": "image205",
+      "name": "image205",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image205.svg",
+      "slide": 10
+    },
+    {
+      "id": "image206",
+      "name": "image206",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image206.svg",
+      "slide": 10
+    },
+    {
+      "id": "image207",
+      "name": "image207",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image207.svg",
+      "slide": 10
+    },
+    {
+      "id": "image208",
+      "name": "image208",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image208.svg",
+      "slide": 10
+    },
+    {
+      "id": "image209",
+      "name": "image209",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image209.svg",
+      "slide": 10
+    },
+    {
+      "id": "image210",
+      "name": "image210",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image210.svg",
+      "slide": 10
+    },
+    {
+      "id": "image211",
+      "name": "image211",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image211.svg",
+      "slide": 10
+    },
+    {
+      "id": "image212",
+      "name": "image212",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image212.svg",
+      "slide": 10
+    },
+    {
+      "id": "image213",
+      "name": "image213",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image213.svg",
+      "slide": 10
+    },
+    {
+      "id": "image214",
+      "name": "image214",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image214.svg",
+      "slide": 10
+    },
+    {
+      "id": "image215",
+      "name": "image215",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image215.svg",
+      "slide": 10
+    },
+    {
+      "id": "image216",
+      "name": "image216",
+      "category": "3 rd -Party",
+      "file": "3-rd-party/image216.svg",
+      "slide": 10
+    },
+    {
+      "id": "secure-router-color-and-subdued",
+      "name": "Secure Router (color and subdued)",
+      "category": "Routing WAN",
+      "file": "routing-wan/secure-router-color-and-subdued.svg",
+      "slide": 2
+    },
+    {
+      "id": "secure-router-color-and-subdued-2",
+      "name": "Secure Router (color and subdued)",
+      "category": "Routing WAN",
+      "file": "routing-wan/secure-router-color-and-subdued-2.svg",
+      "slide": 2
+    },
+    {
+      "id": "asr-9000",
+      "name": "ASR 9000",
+      "category": "Routing WAN",
+      "file": "routing-wan/asr-9000.svg",
+      "slide": 2
+    },
+    {
+      "id": "csr-1000v",
+      "name": "CSR 1000v",
+      "category": "Routing WAN",
+      "file": "routing-wan/csr-1000v.svg",
+      "slide": 2
+    },
+    {
+      "id": "wireless-router",
+      "name": "Wireless Router",
+      "category": "Routing WAN",
+      "file": "routing-wan/wireless-router.svg",
+      "slide": 2
+    },
+    {
+      "id": "l3-modular-3",
+      "name": "L3 Modular",
+      "category": "Routing WAN",
+      "file": "routing-wan/l3-modular-3.svg",
+      "slide": 2
+    },
+    {
+      "id": "ucs-express",
+      "name": "UCS Express",
+      "category": "Routing WAN",
+      "file": "routing-wan/ucs-express.svg",
+      "slide": 2
+    },
+    {
+      "id": "router-with-voice",
+      "name": "Router with Voice",
+      "category": "Routing WAN",
+      "file": "routing-wan/router-with-voice.svg",
+      "slide": 2
+    },
+    {
+      "id": "router-with-firewall",
+      "name": "Router with Firewall",
+      "category": "Routing WAN",
+      "file": "routing-wan/router-with-firewall.svg",
+      "slide": 2
+    },
+    {
+      "id": "netflow-router",
+      "name": "NetFlow Router",
+      "category": "Routing WAN",
+      "file": "routing-wan/netflow-router.svg",
+      "slide": 2
+    },
+    {
+      "id": "ip-telephone-router",
+      "name": "IP Telephone Router",
+      "category": "Routing WAN",
+      "file": "routing-wan/ip-telephone-router.svg",
+      "slide": 2
+    },
+    {
+      "id": "content-router",
+      "name": "Content Router",
+      "category": "Routing WAN",
+      "file": "routing-wan/content-router.svg",
+      "slide": 2
+    },
+    {
+      "id": "cisco-service-ready-engine",
+      "name": "Cisco Service Ready Engine",
+      "category": "Routing WAN",
+      "file": "routing-wan/cisco-service-ready-engine.svg",
+      "slide": 2
+    },
+    {
+      "id": "cisco-15800",
+      "name": "Cisco 15800",
+      "category": "Routing WAN",
+      "file": "routing-wan/cisco-15800.svg",
+      "slide": 2
+    },
+    {
+      "id": "appnav",
+      "name": "AppNav",
+      "category": "Routing WAN",
+      "file": "routing-wan/appnav.svg",
+      "slide": 2
+    },
+    {
+      "id": "router-with-firewall-2",
+      "name": "Router with Firewall",
+      "category": "Routing WAN",
+      "file": "routing-wan/router-with-firewall-2.svg",
+      "slide": 2
+    },
+    {
+      "id": "netflow-router-2",
+      "name": "NetFlow Router",
+      "category": "Routing WAN",
+      "file": "routing-wan/netflow-router-2.svg",
+      "slide": 2
+    },
+    {
+      "id": "nam-virtual-service-blade",
+      "name": "NAM Virtual Service Blade",
+      "category": "Routing WAN",
+      "file": "routing-wan/nam-virtual-service-blade.svg",
+      "slide": 2
+    },
+    {
+      "id": "net-mgmt-appliance",
+      "name": "Net Mgmt. Appliance",
+      "category": "Routing WAN",
+      "file": "routing-wan/net-mgmt-appliance.svg",
+      "slide": 2
+    },
+    {
+      "id": "nexus-9300",
+      "name": "Nexus 9300",
+      "category": "Data Center",
+      "file": "data-center/nexus-9300.svg",
+      "slide": 3
+    },
+    {
+      "id": "aci",
+      "name": "ACI",
+      "category": "Data Center",
+      "file": "data-center/aci.svg",
+      "slide": 3
+    },
+    {
+      "id": "x-509-certificate",
+      "name": "x.509 Certificate",
+      "category": "Data Center",
+      "file": "data-center/x-509-certificate.svg",
+      "slide": 3
+    },
+    {
+      "id": "hypervisor",
+      "name": "Hypervisor",
+      "category": "Data Center",
+      "file": "data-center/hypervisor.svg",
+      "slide": 3
+    },
+    {
+      "id": "dns-server",
+      "name": "DNS Server",
+      "category": "Data Center",
+      "file": "data-center/dns-server.svg",
+      "slide": 3
+    },
+    {
+      "id": "vts",
+      "name": "VTS",
+      "category": "Data Center",
+      "file": "data-center/vts.svg",
+      "slide": 3
+    },
+    {
+      "id": "fabric-interconnect",
+      "name": "Fabric Interconnect",
+      "category": "Data Center",
+      "file": "data-center/fabric-interconnect.svg",
+      "slide": 3
+    },
+    {
+      "id": "fibre-channel-director-mds-9000",
+      "name": "Fibre Channel Director MDS 9000",
+      "category": "Data Center",
+      "file": "data-center/fibre-channel-director-mds-9000.svg",
+      "slide": 3
+    },
+    {
+      "id": "virtual-matrix-switch",
+      "name": "Virtual Matrix Switch",
+      "category": "Data Center",
+      "file": "data-center/virtual-matrix-switch.svg",
+      "slide": 3
+    },
+    {
+      "id": "ucs-c-series-server",
+      "name": "UCS C-Series Server",
+      "category": "Data Center",
+      "file": "data-center/ucs-c-series-server.svg",
+      "slide": 3
+    },
+    {
+      "id": "ucs-5108-blade-chassis",
+      "name": "UCS 5108 Blade Chassis",
+      "category": "Data Center",
+      "file": "data-center/ucs-5108-blade-chassis.svg",
+      "slide": 3
+    },
+    {
+      "id": "storage",
+      "name": "Storage",
+      "category": "Data Center",
+      "file": "data-center/storage.svg",
+      "slide": 3
+    },
+    {
+      "id": "ups-rps",
+      "name": "UPS, RPS",
+      "category": "Data Center",
+      "file": "data-center/ups-rps.svg",
+      "slide": 3
+    },
+    {
+      "id": "ups-rps-2",
+      "name": "UPS, RPS",
+      "category": "Data Center",
+      "file": "data-center/ups-rps-2.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-2000-10ge",
+      "name": "Nexus 2000 10GE",
+      "category": "Data Center",
+      "file": "data-center/nexus-2000-10ge.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-1010",
+      "name": "Nexus 1010",
+      "category": "Data Center",
+      "file": "data-center/nexus-1010.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-5k-with-integrated-vsm",
+      "name": "Nexus 5K with Integrated VSM",
+      "category": "Data Center",
+      "file": "data-center/nexus-5k-with-integrated-vsm.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-5k",
+      "name": "Nexus 5k",
+      "category": "Data Center",
+      "file": "data-center/nexus-5k.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-4k",
+      "name": "Nexus 4k",
+      "category": "Data Center",
+      "file": "data-center/nexus-4k.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-3k",
+      "name": "Nexus 3k",
+      "category": "Data Center",
+      "file": "data-center/nexus-3k.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-2k",
+      "name": "Nexus 2k",
+      "category": "Data Center",
+      "file": "data-center/nexus-2k.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-1kv-vsm",
+      "name": "Nexus 1KV VSM",
+      "category": "Data Center",
+      "file": "data-center/nexus-1kv-vsm.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-1k",
+      "name": "Nexus 1k",
+      "category": "Data Center",
+      "file": "data-center/nexus-1k.svg",
+      "slide": 3
+    },
+    {
+      "id": "layer-3-nexus-5k-switch",
+      "name": "Layer 3 Nexus 5k Switch",
+      "category": "Data Center",
+      "file": "data-center/layer-3-nexus-5k-switch.svg",
+      "slide": 3
+    },
+    {
+      "id": "blade-server-color-and-subdued",
+      "name": "Blade Server (color and subdued)",
+      "category": "Data Center",
+      "file": "data-center/blade-server-color-and-subdued.svg",
+      "slide": 3
+    },
+    {
+      "id": "blade-server-color-and-subdued-2",
+      "name": "Blade Server (color and subdued)",
+      "category": "Data Center",
+      "file": "data-center/blade-server-color-and-subdued-2.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-7k",
+      "name": "Nexus 7k",
+      "category": "Data Center",
+      "file": "data-center/nexus-7k.svg",
+      "slide": 3
+    },
+    {
+      "id": "fibre-channel-fabric-switch",
+      "name": "Fibre Channel Fabric Switch",
+      "category": "Data Center",
+      "file": "data-center/fibre-channel-fabric-switch.svg",
+      "slide": 3
+    },
+    {
+      "id": "nexus-9500",
+      "name": "Nexus 9500",
+      "category": "Data Center",
+      "file": "data-center/nexus-9500.svg",
+      "slide": 3
+    },
+    {
+      "id": "secure-server",
+      "name": "Secure Server",
+      "category": "Data Center",
+      "file": "data-center/secure-server.svg",
+      "slide": 3
+    },
+    {
+      "id": "server",
+      "name": "Server",
+      "category": "Data Center",
+      "file": "data-center/server.svg",
+      "slide": 3
+    },
+    {
+      "id": "wifi-indicator",
+      "name": "WiFi Indicator",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wifi-indicator.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-bridge",
+      "name": "Wireless Bridge",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-bridge.svg",
+      "slide": 4
+    },
+    {
+      "id": "mesh-access-point",
+      "name": "Mesh Access Point",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/mesh-access-point.svg",
+      "slide": 4
+    },
+    {
+      "id": "dual-mode-access-point",
+      "name": "Dual Mode Access Point",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/dual-mode-access-point.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-location-appliance",
+      "name": "Wireless Location Appliance",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-location-appliance.svg",
+      "slide": 4
+    },
+    {
+      "id": "image71",
+      "name": "image71",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/image71.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-connectors-different-orientations",
+      "name": "Wireless Connectors (different orientations)",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-connectors-different-orientations.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-connectors-different-orientations-2",
+      "name": "Wireless Connectors (different orientations)",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-connectors-different-orientations-2.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-connectors-different-orientations-3",
+      "name": "Wireless Connectors (different orientations)",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-connectors-different-orientations-3.svg",
+      "slide": 4
+    },
+    {
+      "id": "image75",
+      "name": "image75",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/image75.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-connectors-different-orientations-4",
+      "name": "Wireless Connectors (different orientations)",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-connectors-different-orientations-4.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-connectors-different-orientations-5",
+      "name": "Wireless Connectors (different orientations)",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-connectors-different-orientations-5.svg",
+      "slide": 4
+    },
+    {
+      "id": "wireless-connectors-different-orientations-6",
+      "name": "Wireless Connectors (different orientations)",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/wireless-connectors-different-orientations-6.svg",
+      "slide": 4
+    },
+    {
+      "id": "image79",
+      "name": "image79",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/image79.svg",
+      "slide": 4
+    },
+    {
+      "id": "image80",
+      "name": "image80",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/image80.svg",
+      "slide": 4
+    },
+    {
+      "id": "image81",
+      "name": "image81",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/image81.svg",
+      "slide": 4
+    },
+    {
+      "id": "image82",
+      "name": "image82",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/image82.svg",
+      "slide": 4
+    },
+    {
+      "id": "3g-4g-indicator",
+      "name": "3G/4G Indicator",
+      "category": "WiFi Indicator",
+      "file": "wifi-indicator/3g-4g-indicator.svg",
+      "slide": 4
+    },
+    {
+      "id": "communications-manager",
+      "name": "Communications Manager",
+      "category": "Collaboration",
+      "file": "collaboration/communications-manager.svg",
+      "slide": 5
+    },
+    {
+      "id": "video-gateway",
+      "name": "Video Gateway",
+      "category": "Collaboration",
+      "file": "collaboration/video-gateway.svg",
+      "slide": 5
+    },
+    {
+      "id": "video-call-server",
+      "name": "Video Call Server",
+      "category": "Collaboration",
+      "file": "collaboration/video-call-server.svg",
+      "slide": 5
+    },
+    {
+      "id": "video-analytics",
+      "name": "Video Analytics",
+      "category": "Collaboration",
+      "file": "collaboration/video-analytics.svg",
+      "slide": 5
+    },
+    {
+      "id": "upc-unified-personal-communicator",
+      "name": "UPC Unified Personal Communicator",
+      "category": "Collaboration",
+      "file": "collaboration/upc-unified-personal-communicator.svg",
+      "slide": 5
+    },
+    {
+      "id": "transcoder",
+      "name": "Transcoder",
+      "category": "Collaboration",
+      "file": "collaboration/transcoder.svg",
+      "slide": 5
+    },
+    {
+      "id": "telepresence-endpoint-twin-data-display",
+      "name": "Telepresence Endpoint (twin data display)",
+      "category": "Collaboration",
+      "file": "collaboration/telepresence-endpoint-twin-data-display.svg",
+      "slide": 5
+    },
+    {
+      "id": "secondary-codec",
+      "name": "Secondary Codec",
+      "category": "Collaboration",
+      "file": "collaboration/secondary-codec.svg",
+      "slide": 5
+    },
+    {
+      "id": "primary-codec",
+      "name": "Primary Codec",
+      "category": "Collaboration",
+      "file": "collaboration/primary-codec.svg",
+      "slide": 5
+    },
+    {
+      "id": "laptop-video-client",
+      "name": "Laptop Video Client",
+      "category": "Collaboration",
+      "file": "collaboration/laptop-video-client.svg",
+      "slide": 5
+    },
+    {
+      "id": "joystick-keyboard",
+      "name": "Joystick Keyboard",
+      "category": "Collaboration",
+      "file": "collaboration/joystick-keyboard.svg",
+      "slide": 5
+    },
+    {
+      "id": "immersive-telepresence-endpoint",
+      "name": "Immersive Telepresence Endpoint",
+      "category": "Collaboration",
+      "file": "collaboration/immersive-telepresence-endpoint.svg",
+      "slide": 5
+    },
+    {
+      "id": "hdtv",
+      "name": "HDTV",
+      "category": "Collaboration",
+      "file": "collaboration/hdtv.svg",
+      "slide": 5
+    },
+    {
+      "id": "h-323",
+      "name": "H.323",
+      "category": "Collaboration",
+      "file": "collaboration/h-323.svg",
+      "slide": 5
+    },
+    {
+      "id": "telepresence-endpoint",
+      "name": "Telepresence Endpoint",
+      "category": "Collaboration",
+      "file": "collaboration/telepresence-endpoint.svg",
+      "slide": 5
+    },
+    {
+      "id": "virtual-desktop-service",
+      "name": "Virtual Desktop Service",
+      "category": "Collaboration",
+      "file": "collaboration/virtual-desktop-service.svg",
+      "slide": 5
+    },
+    {
+      "id": "telepresence-exchange",
+      "name": "Telepresence Exchange",
+      "category": "Collaboration",
+      "file": "collaboration/telepresence-exchange.svg",
+      "slide": 5
+    },
+    {
+      "id": "meeting-scheduling-and-management-server",
+      "name": "Meeting Scheduling and Management Server",
+      "category": "Collaboration",
+      "file": "collaboration/meeting-scheduling-and-management-server.svg",
+      "slide": 5
+    },
+    {
+      "id": "multipoint-meeting-server",
+      "name": "Multipoint Meeting Server",
+      "category": "Collaboration",
+      "file": "collaboration/multipoint-meeting-server.svg",
+      "slide": 5
+    },
+    {
+      "id": "content-recording-streaming-server",
+      "name": "Content Recording/ Streaming Server",
+      "category": "Collaboration",
+      "file": "collaboration/content-recording-streaming-server.svg",
+      "slide": 5
+    },
+    {
+      "id": "cisco-unified-presence-server",
+      "name": "Cisco Unified Presence Server",
+      "category": "Collaboration",
+      "file": "collaboration/cisco-unified-presence-server.svg",
+      "slide": 5
+    },
+    {
+      "id": "cisco-unified-contact-center-enterprise-and-hosted",
+      "name": "Cisco Unified Contact Center Enterprise and Hosted",
+      "category": "Collaboration",
+      "file": "collaboration/cisco-unified-contact-center-enterprise-and-hosted.svg",
+      "slide": 5
+    },
+    {
+      "id": "surveillance-camera",
+      "name": "Surveillance Camera",
+      "category": "Collaboration",
+      "file": "collaboration/surveillance-camera.svg",
+      "slide": 5
+    },
+    {
+      "id": "monitor",
+      "name": "Monitor (???)",
+      "category": "Collaboration",
+      "file": "collaboration/monitor.svg",
+      "slide": 5
+    },
+    {
+      "id": "operations-manager",
+      "name": "Operations Manager",
+      "category": "Collaboration",
+      "file": "collaboration/operations-manager.svg",
+      "slide": 5
+    },
+    {
+      "id": "contact-center-express",
+      "name": "Contact Center Express",
+      "category": "Collaboration",
+      "file": "collaboration/contact-center-express.svg",
+      "slide": 5
+    },
+    {
+      "id": "media-server",
+      "name": "Media Server",
+      "category": "Collaboration",
+      "file": "collaboration/media-server.svg",
+      "slide": 5
+    },
+    {
+      "id": "ip-ip-gateway",
+      "name": "IP-IP Gateway",
+      "category": "Collaboration",
+      "file": "collaboration/ip-ip-gateway.svg",
+      "slide": 5
+    },
+    {
+      "id": "encoders",
+      "name": "Encoders",
+      "category": "Collaboration",
+      "file": "collaboration/encoders.svg",
+      "slide": 5
+    },
+    {
+      "id": "phone-polycom",
+      "name": "Phone Polycom",
+      "category": "Collaboration",
+      "file": "collaboration/phone-polycom.svg",
+      "slide": 5
+    },
+    {
+      "id": "unity",
+      "name": "Unity",
+      "category": "Collaboration",
+      "file": "collaboration/unity.svg",
+      "slide": 5
+    },
+    {
+      "id": "shield",
+      "name": "Shield",
+      "category": "Collaboration",
+      "file": "collaboration/shield.svg",
+      "slide": 5
+    },
+    {
+      "id": "cisco-meetingplace-express",
+      "name": "Cisco MeetingPlace Express",
+      "category": "Collaboration",
+      "file": "collaboration/cisco-meetingplace-express.svg",
+      "slide": 5
+    },
+    {
+      "id": "decoders",
+      "name": "Decoders",
+      "category": "Collaboration",
+      "file": "collaboration/decoders.svg",
+      "slide": 5
+    },
+    {
+      "id": "clock",
+      "name": "Clock",
+      "category": "Collaboration",
+      "file": "collaboration/clock.svg",
+      "slide": 5
+    },
+    {
+      "id": "camera",
+      "name": "Camera",
+      "category": "Collaboration",
+      "file": "collaboration/camera.svg",
+      "slide": 5
+    },
+    {
+      "id": "ip-phone",
+      "name": "IP Phone",
+      "category": "Collaboration",
+      "file": "collaboration/ip-phone.svg",
+      "slide": 5
+    },
+    {
+      "id": "set-top",
+      "name": "Set Top",
+      "category": "Collaboration",
+      "file": "collaboration/set-top.svg",
+      "slide": 5
+    },
+    {
+      "id": "webex",
+      "name": "WebEx",
+      "category": "Collaboration",
+      "file": "collaboration/webex.svg",
+      "slide": 5
+    },
+    {
+      "id": "surveillance-camera-2",
+      "name": "Surveillance Camera",
+      "category": "Collaboration",
+      "file": "collaboration/surveillance-camera-2.svg",
+      "slide": 5
+    },
+    {
+      "id": "image124",
+      "name": "image124",
+      "category": "Collaboration",
+      "file": "collaboration/image124.svg",
+      "slide": 5
+    },
+    {
+      "id": "image125",
+      "name": "image125",
+      "category": "Collaboration",
+      "file": "collaboration/image125.svg",
+      "slide": 5
+    },
+    {
+      "id": "image126",
+      "name": "image126",
+      "category": "Collaboration",
+      "file": "collaboration/image126.svg",
+      "slide": 5
+    },
+    {
+      "id": "security-management-color-and-subdued",
+      "name": "Security Management (color and subdued)",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/security-management-color-and-subdued.svg",
+      "slide": 6
+    },
+    {
+      "id": "image128",
+      "name": "image128",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/image128.svg",
+      "slide": 6
+    },
+    {
+      "id": "vpn-concentrator",
+      "name": "VPN Concentrator",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/vpn-concentrator.svg",
+      "slide": 6
+    },
+    {
+      "id": "ssl-terminator",
+      "name": "SSL Terminator",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/ssl-terminator.svg",
+      "slide": 6
+    },
+    {
+      "id": "cisco-security-manager",
+      "name": "Cisco Security Manager",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/cisco-security-manager.svg",
+      "slide": 6
+    },
+    {
+      "id": "security-management-color-and-subdued-2",
+      "name": "Security Management (color and subdued)",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/security-management-color-and-subdued-2.svg",
+      "slide": 6
+    },
+    {
+      "id": "web-security",
+      "name": "Web Security",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/web-security.svg",
+      "slide": 6
+    },
+    {
+      "id": "nac-appliance",
+      "name": "NAC Appliance",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/nac-appliance.svg",
+      "slide": 6
+    },
+    {
+      "id": "key",
+      "name": "Key",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/key.svg",
+      "slide": 6
+    },
+    {
+      "id": "ironport",
+      "name": "Ironport",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/ironport.svg",
+      "slide": 6
+    },
+    {
+      "id": "email-security",
+      "name": "Email Security",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/email-security.svg",
+      "slide": 6
+    },
+    {
+      "id": "lock",
+      "name": "Lock",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/lock.svg",
+      "slide": 6
+    },
+    {
+      "id": "image139",
+      "name": "image139",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/image139.svg",
+      "slide": 6
+    },
+    {
+      "id": "image140",
+      "name": "image140",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/image140.svg",
+      "slide": 6
+    },
+    {
+      "id": "image141",
+      "name": "image141",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/image141.svg",
+      "slide": 6
+    },
+    {
+      "id": "ldap",
+      "name": "LDAP",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/ldap.svg",
+      "slide": 6
+    },
+    {
+      "id": "ips-ids",
+      "name": "IPS/IDS",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/ips-ids.svg",
+      "slide": 6
+    },
+    {
+      "id": "asa-5500",
+      "name": "ASA 5500",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/asa-5500.svg",
+      "slide": 6
+    },
+    {
+      "id": "acs",
+      "name": "ACS",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/acs.svg",
+      "slide": 6
+    },
+    {
+      "id": "image146",
+      "name": "image146",
+      "category": "Security, Clouds, and Connectors",
+      "file": "security-clouds-and-connectors/image146.svg",
+      "slide": 6
+    },
+    {
+      "id": "pos",
+      "name": "POS",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/pos.svg",
+      "slide": 7
+    },
+    {
+      "id": "tablet",
+      "name": "Tablet",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/tablet.svg",
+      "slide": 7
+    },
+    {
+      "id": "workstation",
+      "name": "Workstation",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/workstation.svg",
+      "slide": 7
+    },
+    {
+      "id": "secure-endpoints-pc-and-laptop",
+      "name": "Secure Endpoints (PC and Laptop)",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/secure-endpoints-pc-and-laptop.svg",
+      "slide": 7
+    },
+    {
+      "id": "cell-phone",
+      "name": "Cell Phone",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/cell-phone.svg",
+      "slide": 7
+    },
+    {
+      "id": "printer",
+      "name": "Printer",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/printer.svg",
+      "slide": 7
+    },
+    {
+      "id": "user",
+      "name": "User",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/user.svg",
+      "slide": 7
+    },
+    {
+      "id": "home-office",
+      "name": "Home Office",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/home-office.svg",
+      "slide": 7
+    },
+    {
+      "id": "handheld",
+      "name": "Handheld",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/handheld.svg",
+      "slide": 7
+    },
+    {
+      "id": "branch",
+      "name": "Branch",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/branch.svg",
+      "slide": 7
+    },
+    {
+      "id": "data-center",
+      "name": "Data Center",
+      "category": "Endpoint Client & Device Icons",
+      "file": "endpoint-client-device-icons/data-center.svg",
+      "slide": 7
+    },
+    {
+      "id": "vbond",
+      "name": "vBond",
+      "category": "DNA/SD-Access",
+      "file": "dna-sd-access/vbond.svg",
+      "slide": 8
+    },
+    {
+      "id": "vmanage",
+      "name": "vManage",
+      "category": "DNA/SD-Access",
+      "file": "dna-sd-access/vmanage.svg",
+      "slide": 8
+    },
+    {
+      "id": "vsmart",
+      "name": "vSmart",
+      "category": "DNA/SD-Access",
+      "file": "dna-sd-access/vsmart.svg",
+      "slide": 8
+    },
+    {
+      "id": "cisco-dna-center",
+      "name": "Cisco DNA Center",
+      "category": "DNA/SD-Access",
+      "file": "dna-sd-access/cisco-dna-center.svg",
+      "slide": 8
+    },
+    {
+      "id": "flow-collector",
+      "name": "Flow Collector",
+      "category": "DNA/SD-Access",
+      "file": "dna-sd-access/flow-collector.svg",
+      "slide": 8
+    },
+    {
+      "id": "stealthwatch-management-console-smc",
+      "name": "Stealthwatch Management Console (SMC)",
+      "category": "DNA/SD-Access",
+      "file": "dna-sd-access/stealthwatch-management-console-smc.svg",
+      "slide": 8
+    },
+    {
+      "id": "cognitive",
+      "name": "Cognitive",
+      "category": "DNA/SD-Access",
+      "file": "dna-sd-access/cognitive.svg",
+      "slide": 8
+    },
+    {
+      "id": "load-balancer",
+      "name": "Load Balancer",
+      "category": "SAFE",
+      "file": "safe/load-balancer.svg",
+      "slide": 9
+    },
+    {
+      "id": "anomaly-detection",
+      "name": "Anomaly Detection",
+      "category": "SAFE",
+      "file": "safe/anomaly-detection.svg",
+      "slide": 9
+    },
+    {
+      "id": "web-reputation-filtering",
+      "name": "Web Reputation / Filtering",
+      "category": "SAFE",
+      "file": "safe/web-reputation-filtering.svg",
+      "slide": 9
+    },
+    {
+      "id": "avc-application-visibility-control",
+      "name": "AVC-Application Visibility Control",
+      "category": "SAFE",
+      "file": "safe/avc-application-visibility-control.svg",
+      "slide": 9
+    },
+    {
+      "id": "anti-malware-2",
+      "name": "Anti-Malware 2",
+      "category": "SAFE",
+      "file": "safe/anti-malware-2.svg",
+      "slide": 9
+    },
+    {
+      "id": "web-application-firewall",
+      "name": "Web Application Firewall",
+      "category": "SAFE",
+      "file": "safe/web-application-firewall.svg",
+      "slide": 9
+    },
+    {
+      "id": "policy-configuration",
+      "name": "Policy / Configuration",
+      "category": "SAFE",
+      "file": "safe/policy-configuration.svg",
+      "slide": 9
+    },
+    {
+      "id": "analysis-correlation",
+      "name": "Analysis / Correlation",
+      "category": "SAFE",
+      "file": "safe/analysis-correlation.svg",
+      "slide": 9
+    },
+    {
+      "id": "flow-analytics",
+      "name": "Flow Analytics",
+      "category": "SAFE",
+      "file": "safe/flow-analytics.svg",
+      "slide": 9
+    },
+    {
+      "id": "virtual-private-network",
+      "name": "Virtual Private Network",
+      "category": "SAFE",
+      "file": "safe/virtual-private-network.svg",
+      "slide": 9
+    },
+    {
+      "id": "web-reputation-filtering-2",
+      "name": "Web Reputation / Filtering",
+      "category": "SAFE",
+      "file": "safe/web-reputation-filtering-2.svg",
+      "slide": 9
+    },
+    {
+      "id": "avc-application-visibility-control-2",
+      "name": "AVC-Application Visibility Control",
+      "category": "SAFE",
+      "file": "safe/avc-application-visibility-control-2.svg",
+      "slide": 9
+    },
+    {
+      "id": "flow-analytics-2",
+      "name": "Flow Analytics",
+      "category": "SAFE",
+      "file": "safe/flow-analytics-2.svg",
+      "slide": 9
+    },
+    {
+      "id": "virtual-private-network-2",
+      "name": "Virtual Private Network",
+      "category": "SAFE",
+      "file": "safe/virtual-private-network-2.svg",
+      "slide": 9
+    },
+    {
+      "id": "web-security-services",
+      "name": "Web Security Services",
+      "category": "SAFE",
+      "file": "safe/web-security-services.svg",
+      "slide": 9
+    },
+    {
+      "id": "web-security-services-2",
+      "name": "Web Security Services",
+      "category": "SAFE",
+      "file": "safe/web-security-services-2.svg",
+      "slide": 9
+    },
+    {
+      "id": "posture-assessment",
+      "name": "Posture Assessment",
+      "category": "SAFE",
+      "file": "safe/posture-assessment.svg",
+      "slide": 9
+    },
+    {
+      "id": "wireless-intrusion-prevention",
+      "name": "Wireless Intrusion Prevention",
+      "category": "SAFE",
+      "file": "safe/wireless-intrusion-prevention.svg",
+      "slide": 9
+    },
+    {
+      "id": "host-based-security",
+      "name": "Host Based Security",
+      "category": "SAFE",
+      "file": "safe/host-based-security.svg",
+      "slide": 9
+    },
+    {
+      "id": "monitoring",
+      "name": "Monitoring",
+      "category": "SAFE",
+      "file": "safe/monitoring.svg",
+      "slide": 9
+    },
+    {
+      "id": "virtual-private-network-connector",
+      "name": "Virtual Private Network Connector",
+      "category": "SAFE",
+      "file": "safe/virtual-private-network-connector.svg",
+      "slide": 9
+    },
+    {
+      "id": "anti-malware",
+      "name": "Anti-Malware",
+      "category": "SAFE",
+      "file": "safe/anti-malware.svg",
+      "slide": 9
+    },
+    {
+      "id": "next-generation-intrusion-prevention-system",
+      "name": "Next Generation Intrusion Prevention System",
+      "category": "SAFE",
+      "file": "safe/next-generation-intrusion-prevention-system.svg",
+      "slide": 9
+    },
+    {
+      "id": "access-control-and-trustsec",
+      "name": "Access Control And TrustSec",
+      "category": "SAFE",
+      "file": "safe/access-control-and-trustsec.svg",
+      "slide": 9
+    },
+    {
+      "id": "threat-intelligence",
+      "name": "Threat Intelligence",
+      "category": "SAFE",
+      "file": "safe/threat-intelligence.svg",
+      "slide": 9
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+<svg viewBox="10017.56 14293.56 957.88 1114.88" version="1.2" preserveAspectRatio="xMidYMid" fill-rule="evenodd" stroke-width="28.222" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xml:space="preserve">
+ 
+ 
+ 
+ <g>
+  <g id="id2" class="Master_Slide">
+   <g id="bg-id2" class="Background"/>
+   <g id="bo-id2" class="BackgroundObjects"/>
+  </g>
+ </g>
+ <g class="SlideGroup">
+  <g>
+   <g id="container-id1">
+    <g id="id1" class="Slide" clip-path="url(#presentation_clip_path)">
+     <g class="Page">
+      <g class="Graphic">
+       <g id="id3">
+        <rect class="BoundingBox" stroke="none" fill="none" x="10046" y="14318" width="908" height="1063"/>
+        <defs>
+         <clipPath id="clip_path_1" clipPathUnits="userSpaceOnUse">
+          <path d="M 10046,14318 L 10953,14318 10953,15380 10046,15380 10046,14318 Z "/>
+         </clipPath>
+        </defs>
+        <g clip-path="url(#clip_path_1)"/>
+        <defs>
+         <clipPath id="clip_path_2" clipPathUnits="userSpaceOnUse">
+          <path d="M 10109,14724 C 10098,14755 10088,14786 10078,14818 10067,14818 10057,14818 10046,14828 10057,14776 10067,14745 10088,14713 10140,14630 10223,14578 10307,14578 10390,14578 10442,14620 10515,14620 10577,14620 10619,14578 10713,14578 10786,14578 10859,14620 10911,14682 10859,14713 10828,14755 10807,14807 10796,14807 10786,14807 10775,14807 10796,14755 10828,14713 10869,14682 10828,14640 10765,14609 10713,14609 10671,14609 10630,14620 10598,14630 L 10598,14630 10515,14651 10411,14630 10411,14630 C 10380,14620 10348,14609 10307,14609 10234,14609 10161,14651 10109,14724 L 10109,14724 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <image x="10039" y="14521" width="906" height="344" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAALCAIAAAAMfhHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAABXElEQVQokbWSS0/CUBCFh6a0BS6EQrVEAbHGRBIjqIn6DzAu/L2yYeHKjSArouKLh7YJcBu4tN5yaV2QILC0eHYzOfnOzGQCnufBP4hfqR3mtnsEEwePqRwRkcSnlQiSgis2TKhh2uSbzWwyEjIKEnhubggszlt/7zc65oS5ajwkIxETOiB0wlwZiXupWAKJADAg9EUfYkIjEo+k4MxmmHaQ5/LpeCGXXOI6zC3XWpjQQi6ZzyQWk3XTMrClm7ZhWgCgxsOpeCizEZ3FzLesv/UaHSwjsXScFXgu4Hmew6Y39x/Edi5Pc4mo9Oeb6nhcqbdRSLg+1zgAqD4b5sgunez4gQLA0HIYm2pqDAC4kUUfmt2ipiRjIT/Qz/6oUm1ene0e5hQA4GpPXZHzjjTVD5ROWPmucXGwpcTCsw732vnKbkb9QAGgpfcptYv727+t2+qjTR1v3Vr63zXqB+xq9mWaqpn4AAAAAElFTkSuQmCC"/>
+        </g>
+        <g clip-path="url(#clip_path_1)"/>
+        <defs>
+         <clipPath id="clip_path_3" clipPathUnits="userSpaceOnUse">
+          <path d="M 10869,14682 C 10828,14713 10796,14755 10775,14807 10692,14797 10598,14797 10494,14797 10348,14797 10203,14797 10078,14818 10088,14786 10098,14755 10109,14724 10161,14651 10234,14609 10307,14609 10348,14609 10380,14620 10411,14630 L 10411,14630 10515,14651 10598,14630 10598,14630 C 10630,14620 10671,14609 10713,14609 10765,14609 10828,14640 10869,14682 L 10869,14682 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <image x="10039" y="14579" width="875" height="281" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAJCAIAAACudNvrAAAACXBIWXMAAAsTAAALEwEAmpwYAAABGElEQVQoka3SO0sDQRSG4TN7mY3rOsQkippFhQiJoIjY2lnY++cs/QVWFmonYicmKKIkXogSdcVbGMfdzF7mWEhAkipsnvrwwgeHICJ0nTc/rlttxyQTzHIszQ/Vlx+9i5jZtDTFco4FAJ9C3nnc74STjI5S3aaakOqNSxHhoptdmc8DAPmLhrE6rD2qJFkqjmnQK0HgneSlHQDAdHaEZXSd9N7ECBctTk1jc3WWIGIYJwdnDw7VyjOsLziY+jMXoTIAoHrzaumwPJdPWUQE7kcLxXHj25dXTW9rvaKRvkkD2j+93VgrFZht1BpPFTeXoWbK4uW9V3ZzBWYDAOzsnXARqHR+Arm9e4RdcFytyyjCoSL//3RYfgEBpApboOEkMwAAAABJRU5ErkJggg=="/>
+        </g>
+        <g clip-path="url(#clip_path_1)"/>
+        <defs>
+         <clipPath id="clip_path_4" clipPathUnits="userSpaceOnUse">
+          <path d="M 10640,14505 C 10598,14547 10536,14588 10473,14588 10463,14526 10494,14463 10525,14411 10567,14370 10640,14328 10692,14328 10703,14390 10671,14453 10640,14505 L 10640,14505 Z M 10557,14432 C 10546,14453 10515,14495 10505,14547 10546,14536 10588,14515 10619,14484 10630,14463 10650,14422 10661,14370 10619,14380 10577,14401 10557,14432 L 10557,14432 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <image x="10424" y="14315" width="313" height="313" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAACXBIWXMAAAsTAAALEwEAmpwYAAAA+klEQVQYlV3Ly0rDQBhA4b+3iSQykpTGEVMrlAqCtu5F0I0P4EP6AoI7cWNXXQhWtBvR0NSoTZpknFwmGRMXiqGe7cepFEUBy6UinzosTER/W6v/s7sX99HyM5EDwBKnIr8ez979uEswAEwdBgDVP755eHVpdHpgHO4Sl8b62krJ5gd9tr2TfYOosr0I5z5rN5WSRxOrhaUNTUmzr+G92cJSb1P9ZRpx2/H2Os3ZPDi/unUDejzo/Gx1AAg+ozSJL4djnglDV8+OBliWSkaNGlEVCTV2ttb7vbbH+MTyWSK8kFcuRmaXYG1VAoAF409vNEpSHSMF1WRU/QaOz3Cr3tPQEQAAAABJRU5ErkJggg=="/>
+        </g>
+        <g clip-path="url(#clip_path_1)"/>
+        <defs>
+         <clipPath id="clip_path_5" clipPathUnits="userSpaceOnUse">
+          <path d="M 10619,14484 C 10588,14515 10546,14536 10505,14547 10515,14495 10546,14453 10557,14432 10577,14401 10619,14380 10661,14370 10650,14422 10630,14463 10619,14484 L 10619,14484 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <image x="10467" y="14337" width="219" height="250" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAICAIAAAC6ZnJRAAAACXBIWXMAAAsTAAALEwEAmpwYAAAArUlEQVQImTXIywqCQBQA0DvOZCGSRBBBhBBUtNF10CL6i362PqBN2SI30oPRSjRfYY6j2aI6y4OqqoI/4+QfaCgSjL6bF+/13ma8nI47REC/XRmUINDUFgDYj1QAgLMb3/xk1JUzxjPGd0ePAMDGpJOekuUcAO7RS25gIU7Z1QskghjjlvPYWs5cV0mUpLgqzItr+1FbkZcLvSnViVjDiiTysphpA23YD57MpOEHS19XOQXZG0EAAAAASUVORK5CYII="/>
+        </g>
+        <g clip-path="url(#clip_path_1)"/>
+        <defs>
+         <clipPath id="clip_path_6" clipPathUnits="userSpaceOnUse">
+          <path d="M 10150,15245 C 10093,15156 10059,15063 10046,14978 L 10046,14828 C 10057,14818 10067,14818 10078,14818 10057,14932 10078,15078 10171,15224 10213,15286 10265,15359 10328,15359 L 10328,15359 10390,15338 10390,15338 C 10421,15328 10453,15307 10515,15307 10567,15307 10598,15328 10630,15338 L 10630,15338 10692,15359 10692,15359 C 10755,15359 10807,15276 10848,15213 10848,15213 10890,15151 10900,15120 10828,15078 10775,14995 10765,14901 10765,14901 10765,14890 10765,14880 10765,14859 10775,14828 10775,14807 10786,14807 10796,14807 10807,14807 10765,14922 10817,15057 10942,15109 10921,15161 10911,15182 10880,15234 10846,15285 10793,15354 10735,15380 L 10642,15380 C 10607,15365 10583,15338 10515,15338 10447,15338 10418,15365 10379,15380 L 10284,15380 C 10230,15356 10183,15294 10150,15245 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <image x="10039" y="14762" width="906" height="625" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAUCAIAAAD+/qGQAAAACXBIWXMAAAsTAAALEwEAmpwYAAACI0lEQVQ4jaXUS1PaUBgG4Nc0BGLCRSiCGcVOI1jRYUGdzrTunG76E7vqb+h0URd1U3sZnDrTegGlsSBEa0JBLtGEhHC6kEGwTjvT8y6/837P7nx49eZD2zD7dClrrZevP5KRsJOhWMvq+QUfKHLaMLPp1OiEsV0IXg8NCuDi0o6F+DEXhEyJXlq3Y3EsM+YSShIAwLKMYTljLgjRmleUbljgtIsxhCEgdq9P6cozgcqvzqjDTAlcvWNRunP3RULI11Ltxo2F+IrepnQ59t7a0kz+pK6cNQduPCTU26ZhOn/f/GcSUf9aWto6OM0dnds9l01M+1lmonjayC7EKOmkFBJ9nvf71aLaYACkE+EjtU6JXifi91ldJxEVGQCp2XD70twr6fTubkmzbDubjDMA/Dy3Mh/dPqx2HZcG7Trut+OfK/NRP88NPt/qotR33c0dhcbd3FH6rru6KAEYuF4Pu56VFVUvlLX/QwtlTVH19azs9bA3LgBZimTk+EYuX2sad26qelPVm12n9+dTrWls5PIZOS5LkevJBCFjl+ft5wOlqj/LyI8fJQC0Lk2lWtv/cVa76Aw7AcG38lBalqWgwAPYOax82j1emJt+8XR52LntAni3nf9SKAdFHkDLML0cm5qLJxOxWDjg5Vi90S5WtL1jtWv3hp3VpQfPn6RHkTtcAC3jave7CiAo8qn5uI+7ffgt2ymenLcME0AmORsUJ28VfgMdBzaYNmRruwAAAABJRU5ErkJggg=="/>
+        </g>
+        <g clip-path="url(#clip_path_1)"/>
+        <defs>
+         <clipPath id="clip_path_7" clipPathUnits="userSpaceOnUse">
+          <path d="M 10078,14818 C 10203,14797 10348,14797 10494,14797 10598,14797 10692,14797 10775,14807 10775,14828 10765,14859 10765,14880 10765,14890 10765,14901 10765,14901 10775,14995 10828,15078 10900,15120 10890,15151 10848,15213 10848,15213 10807,15276 10755,15359 10692,15359 L 10692,15359 10630,15338 10630,15338 C 10598,15328 10567,15307 10515,15307 10453,15307 10421,15328 10390,15338 L 10390,15338 10328,15359 10328,15359 C 10265,15359 10213,15286 10171,15224 10078,15078 10057,14932 10078,14818 L 10078,14818 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <image x="10039" y="14762" width="906" height="625" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAUCAIAAAD+/qGQAAAACXBIWXMAAAsTAAALEwEAmpwYAAACJUlEQVQ4jaXVy2sTQRwH8O88dvN+J90QahpYk0AsQmPowVMtnr34P/hHefHgXyBe7a0nD1IVilaKJAZqkt1sHjW72dd4aMxDtEr2y1yGmfnMb4Zlh7x4ffr00QOJ054xBdAfTua2C8Cynb4xxa3ZySTCsgTAFeTiW//Zk4fLIR5NK89fnd6+/m+50hcbZ1PJZqO2PsRN22Nc2s5dhslhJR3ZcIXnMsYDuj6YzOmGC0KCu4Tg2nIUrErmlDLKWEBXZqRnzNRicuWCILhr2k5Hm7bcneVt8ExMnjExnc2DuL6A7ThnXweHVWXhKunI5dWc0qAlQ+C8rWdjobulNADS7k1O3ndASFAX4JS6ntco5w7UAhFCvDw5Z5w5rh+cBsAZ8T2fA2iUs5+6BiH0n2v+J67rVXbiFEBtN/vDNBmjICRgkzi15mazWqQAEhH5Xjlvz00SOJZl7u8VEhF5cfZWveTalhTsJiQK17Za9RKAhRSS+HFT1fQBZ3S7Sjmjmj44bqohia9cAGopt18pGMPBdsXqWm+/UlBLuZvuxh/n6KBqWna7ryUzeV/8Oh0jtjUzRiPXsX3fl0PheCwWjSeXnyUlmBiaWkwdHVSXFBFCYDNv3p6/+9zJ5fIARuMxhVe7U6yWFSWbDMm8P5xcdHofL7s+WDqVAqDrWrNefnzYWEf+4AIYX88+fOkCSMUjtb3izWOzHst2Ltrfx9cmgPvV3VQ8+tuEn+PcyKjoX8K9AAAAAElFTkSuQmCC"/>
+        </g>
+        <g clip-path="url(#clip_path_1)"/>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

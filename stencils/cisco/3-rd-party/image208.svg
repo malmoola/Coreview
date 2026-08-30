@@ -1,0 +1,45 @@
+<svg viewBox="10142.24 14497.24 715.52 697.52" version="1.2" preserveAspectRatio="xMidYMid" fill-rule="evenodd" stroke-width="28.222" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xml:space="preserve">
+ 
+ 
+ 
+ <g>
+  <g id="id2" class="Master_Slide">
+   <g id="bg-id2" class="Background"/>
+   <g id="bo-id2" class="BackgroundObjects"/>
+  </g>
+ </g>
+ <g class="SlideGroup">
+  <g>
+   <g id="container-id1">
+    <g id="id1" class="Slide" clip-path="url(#presentation_clip_path)">
+     <g class="Page">
+      <g class="Graphic">
+       <g id="id3">
+        <rect class="BoundingBox" stroke="none" fill="none" x="10156" y="14521" width="688" height="657"/>
+        <defs>
+         <clipPath id="clip_path_1" clipPathUnits="userSpaceOnUse">
+          <path d="M 10156,14521 L 10843,14521 10843,15177 10156,15177 10156,14521 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <path fill="rgb(245,245,245)" stroke="none" d="M 10833,15094 L 10833,15094 C 10833,15146 10801,15177 10749,15177 10249,15177 10249,15177 10249,15177 10208,15177 10166,15146 10166,15094 10166,14594 10166,14594 10166,14594 10166,14552 10208,14511 10249,14511 10749,14511 10749,14511 10749,14511 10801,14511 10833,14552 10833,14594 L 10833,15094 Z "/>
+        </g>
+        <defs>
+         <clipPath id="clip_path_2" clipPathUnits="userSpaceOnUse">
+          <path d="M 10833,15094 L 10833,15094 C 10833,15146 10801,15177 10749,15177 L 10749,15177 10249,15177 10249,15177 C 10208,15177 10166,15146 10166,15094 L 10166,15094 10166,14594 10166,14594 C 10166,14565 10187,14536 10213,14521 L 10790,14521 C 10817,14536 10833,14565 10833,14594 L 10833,15094 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <image x="10169" y="14525" width="656" height="656" preserveAspectRatio="none" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAIAAAAmdTLBAAAACXBIWXMAAAsTAAALEwEAmpwYAAAB9ElEQVQ4jX2UPY4UMRCFv1fulQjYAyAhkXMEEu5CQMixEBHXQCIhICYjIQKJZHfHVY+g7NkZkLA68Ez7q5/3yq13779+/PKD8xIagxEKEUICMNiUXUWWs87Hjys4pGPoGIpgCIWC5m1TJosolJ65+Cv45tAxdITGIKQIBBK2bKcZxUwEwqe84MXKvJ5YLXT9QJlRSlmPTXnm4jUWpmPo5swHEgJDFRlWbnRgu+oAkBihERodIjQGRyiCEB2ggiiEW84yFRpxAAottUOMYARdyOj86lQC7DaCCjIcsfNHEKEIhRRdy7kFMKS8XSSq40rafIvSgvXT+o+Q5CpZl2+9z8Sjf2g7AVJvpCusnWO/v/DPa0rAa9psjKs39v4Hu3Xo/cFWxWUtbc6jKtlItsly2mXb56C48z8ypoomhb0V6eHLpIrcZ6qW/96/lUXIWrOtsNt/r9Ce6UzvWijv/rOY5SgkoW7REYo9by7SzvQsZ+0otXhnEcnc037l875/2WRxSmYxc+vXyMzliU0FFef7f56czszsRur6/hqfJjbH2Fdd/uf74Sw2DBy3T8bvu7yswmUNrea1K3LLbGf1CKyPxptXz/lrVfmUfph1P31/8v3JD7MeTn6YnnkJ3z4Zsv3h8/dP3359/3n3d6D/rpfPnr59/eIP9dSy6OnzxoYAAAAASUVORK5CYII="/>
+        </g>
+        <g>
+         <path fill="rgb(255,255,255)" stroke="none" d="M 10593,14896 L 10593,14896 C 10572,14886 10541,14854 10541,14844 10541,14823 10551,14813 10572,14792 10603,14771 10624,14740 10624,14709 10624,14667 10603,14636 10572,14615 10614,14615 10614,14615 10614,14615 10656,14584 10656,14584 10656,14584 10656,14584 10531,14584 10489,14584 10416,14584 10343,14636 10343,14709 10343,14771 10385,14834 10468,14834 L 10478,14823 C 10478,14834 10468,14844 10468,14854 10468,14875 10478,14886 10499,14906 10489,14906 10478,14906 10468,14906 10374,14906 10301,14969 10301,15031 10301,15094 10385,15125 10478,15125 10583,15125 10656,15063 10656,15011 10656,14959 10645,14927 10593,14896 Z M 10499,14802 L 10499,14802 C 10447,14802 10416,14761 10406,14709 10395,14646 10426,14604 10468,14604 10510,14604 10551,14656 10562,14709 10562,14771 10541,14802 10499,14802 Z M 10478,15104 L 10478,15104 C 10416,15104 10364,15063 10364,15011 10364,14959 10426,14917 10489,14917 10499,14917 10520,14927 10531,14927 10562,14948 10593,14969 10603,15000 L 10603,15011 C 10603,15063 10572,15104 10478,15104 Z "/>
+        </g>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

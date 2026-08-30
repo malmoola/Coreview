@@ -43,6 +43,20 @@ ground entirely and stayed dark-theme coloured on a white page.
 **Fixed:** they read `--text-dim`, `--warning` and `--accent`, which are the
 variables that were meant.
 
+### LT-002 — Cisco PPTX stencil pipeline — 2026-08-30
+Unblocked the moment the operator installed libreoffice-draw, and run for
+real: 215 EMF/WMF files from the deck became 217 SVGs in 9 categories under
+`stencils/cisco/`, 81% named from the caption boxes beside them (the 41
+unnamed are the slide-10 third-party logos and the wireless-connector
+strokes, which have no captions in the deck to take). The contact sheet was
+eyeballed, which caught one last conversion bug: LibreOffice writes
+EMF-wrapped bitmaps as `<image>` with a *negative height* — invalid SVG,
+drawn upside down where drawn at all, and invisible to the crop, which
+sliced through the three raster logos. `normalizeImages` rewrites them as
+positive geometry plus an explicit mirror; test first, then the fix, then
+the deck reconverted and the sheet re-checked. Committed per D-019; the app
+binary still ships none of it.
+
 ### LT-044 — **bug** Windows CI red: CRLF checkout breaks the stencil-test import
 **Source:** operator screenshot, 2026-08-30 — every run since #88 red on
 `test (windows-latest)` / Frontend tests, `SyntaxError: Invalid or unexpected
@@ -105,43 +119,6 @@ cleared with it.
 - The one `Group` ("Master.79") is expanded per Object or skipped entirely —
   "do NOT flatten it into a single unreadable blob".
 - The 5 bare unit rectangles are skipped.
-
-### LT-002 — Cisco PPTX stencil pipeline
-**Source:** asked 2026-08-30. Supersedes LT-020.
-**Blocked on:** LibreOffice. `soffice` is not installed and installing it needs
-root, which is the operator's call — the spec itself says "fail loudly if
-soffice is missing, do not silently skip", and this is that failure said
-loudly.
-**Checkpointed 2026-08-30, not abandoned:** `scripts/import-pptx-stencils.mjs`
-is written and everything that does not need LibreOffice is tested against the
-real deck — caption naming by geometry, slide-title categories, group
-expansion, the manifest, and the viewBox crop (tested against a synthetic
-LibreOffice-shaped SVG). The moment `soffice` exists, run:
-`node scripts/import-pptx-stencils.mjs <deck.pptx> stencils/cisco` and check
-the contact sheet it writes.
-**Would unblock it:** `sudo apt-get install libreoffice-draw`.
-**Acceptance (unchanged):**
-- `scripts/import-pptx-stencils.mjs`: unzip, convert every `ppt/media/*.emf`
-  with `libreoffice --headless --convert-to svg`, batched ~25 per invocation.
-  "Fail loudly if soffice is missing — do not silently skip."
-- Crop the viewBox to the real content bounding box plus ~2% padding and drop
-  `width`/`height`, because LibreOffice emits each icon on a full A4 page with
-  the artwork in the corner. "Without this every icon renders as a tiny speck
-  in a huge empty canvas — this is the current 'Untitled Drawing' bug."
-- Strip LibreOffice cruft: `presentation_clip_path` defs, the `ooo`/`smil`/
-  `anim`/`presentation` namespaces, the DOCTYPE, empty `<g>` wrappers, `<svg>`
-  stroke-width defaults; flatten `<g>` that carry only a clip-path.
-- Name each icon from the nearest caption text box below the picture, using
-  `<a:off>`/`<a:ext>` geometry; slide titles become categories; log any
-  picture with no caption rather than inventing one.
-- Expand `<p:grpSp>` groups into separate icons with the group transform
-  applied — not merged into one shape.
-- Output `stencils/cisco/<category>/<slug>.svg` plus `manifest.json`
-  (`[{ id, name, category, file, slide }]`), **committed to the repository** —
-  see D-019, which overrules the earlier policy.
-- Render a contact sheet of every produced SVG and confirm each icon is
-  centred, fills its tile and is recognisable, before wiring the palette to it.
-  Report converted / skipped / unnamed counts.
 
 ### LT-009 — Draw a port-channel as one link
 **Source:** asked 2026-08-29.

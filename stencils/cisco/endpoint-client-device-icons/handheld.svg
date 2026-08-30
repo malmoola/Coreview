@@ -1,0 +1,31 @@
+<svg viewBox="10130 14330 740 1040" version="1.2" preserveAspectRatio="xMidYMid" fill-rule="evenodd" stroke-width="28.222" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xml:space="preserve">
+ 
+ 
+ 
+ <g>
+  <g id="id2" class="Master_Slide">
+   <g id="bg-id2" class="Background"/>
+   <g id="bo-id2" class="BackgroundObjects"/>
+  </g>
+ </g>
+ <g class="SlideGroup">
+  <g>
+   <g id="container-id1">
+    <g id="id1" class="Slide" clip-path="url(#presentation_clip_path)">
+     <g class="Page">
+      <g class="Graphic">
+       <g id="id3">
+        <rect class="BoundingBox" stroke="none" fill="none" x="10150" y="14350" width="700" height="1000"/>
+        <path fill="rgb(255,255,255)" stroke="none" d="M 10203,14363 L 10796,14363 10796,14363 C 10817,14363 10834,14382 10834,14403 L 10834,15220 10834,15220 C 10834,15241 10817,15260 10796,15260 L 10203,15260 10203,15260 C 10182,15260 10163,15241 10163,15220 L 10163,14403 10163,14403 C 10163,14382 10182,14363 10203,14363 Z "/>
+        <path fill="rgb(0,80,115)" stroke="none" d="M 10796,14378 L 10796,14378 C 10810,14378 10821,14388 10821,14403 L 10821,15220 10821,15220 C 10821,15235 10810,15247 10796,15247 L 10203,15247 10203,15247 C 10188,15247 10178,15235 10178,15220 L 10178,14403 10178,14403 C 10178,14388 10188,14378 10203,14378 L 10796,14378 Z M 10796,14350 L 10203,14350 10203,14350 C 10173,14350 10150,14373 10150,14403 L 10150,15220 10150,15220 C 10150,15250 10173,15273 10203,15273 L 10796,15273 10796,15273 C 10825,15273 10848,15250 10848,15220 L 10848,14403 10848,14403 C 10848,14373 10825,14350 10796,14350 Z "/>
+        <path fill="rgb(0,80,115)" stroke="none" d="M 10499,14405 L 10499,14405 C 10520,14407 10520,14439 10499,14441 L 10499,14441 C 10478,14443 10478,14403 10499,14405 Z "/>
+        <path fill="rgb(0,80,115)" stroke="none" d="M 10499,15211 L 10499,15211 C 10470,15211 10455,15176 10476,15154 L 10476,15154 C 10495,15133 10531,15148 10531,15178 L 10531,15178 C 10531,15197 10516,15211 10499,15211 Z "/>
+        <path fill="rgb(0,80,115)" stroke="none" d="M 10216,14469 L 10783,14469 10783,15112 10216,15112 10216,14469 Z "/>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

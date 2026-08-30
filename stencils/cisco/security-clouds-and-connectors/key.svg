@@ -1,0 +1,34 @@
+<svg viewBox="10032 14628 936 440" version="1.2" preserveAspectRatio="xMidYMid" fill-rule="evenodd" stroke-width="28.222" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xml:space="preserve">
+ 
+ 
+ 
+ <g>
+  <g id="id2" class="Master_Slide">
+   <g id="bg-id2" class="Background"/>
+   <g id="bo-id2" class="BackgroundObjects"/>
+  </g>
+ </g>
+ <g class="SlideGroup">
+  <g>
+   <g id="container-id1">
+    <g id="id1" class="Slide" clip-path="url(#presentation_clip_path)">
+     <g class="Page">
+      <g class="Graphic">
+       <g id="id3">
+        <rect class="BoundingBox" stroke="none" fill="none" x="10050" y="14650" width="900" height="400"/>
+        <defs>
+         <clipPath id="clip_path_1" clipPathUnits="userSpaceOnUse">
+          <path d="M 10050,14650 L 10949,14650 10949,15049 10050,15049 10050,14650 Z "/>
+         </clipPath>
+        </defs>
+        <g>
+         <path fill="rgb(0,80,115)" stroke="none" d="M 10916,14813 L 10844,14747 10433,14747 10433,14747 C 10395,14686 10327,14650 10255,14650 L 10255,14650 C 10145,14646 10054,14733 10050,14843 L 10050,14843 C 10054,14953 10145,15037 10255,15035 L 10255,15035 C 10327,15035 10393,14999 10433,14938 L 10516,14938 10581,14876 10632,14923 10681,14879 10729,14925 10780,14879 10831,14925 10916,14845 10916,14845 C 10926,14834 10928,14826 10916,14813 Z M 10164,14891 L 10164,14891 C 10137,14893 10111,14870 10111,14843 L 10111,14843 C 10111,14813 10137,14790 10166,14790 L 10166,14790 C 10194,14790 10219,14813 10219,14843 L 10219,14843 C 10219,14870 10194,14893 10166,14893 L 10164,14891 Z "/>
+        </g>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

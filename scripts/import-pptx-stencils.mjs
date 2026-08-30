@@ -91,6 +91,28 @@ export function pathPoints(d) {
  * <ellipse>; the viewBox is rewritten to that box plus ~2% padding, and
  * width/height are dropped so the icon scales to its container.
  */
+/** EMF bitmaps arrive as `<image>` with a negative height: the DIB rows are
+ *  stored bottom-up and LibreOffice leans on the sign to flip them, which is
+ *  invalid SVG — Chromium draws the logo upside down where it draws it at
+ *  all. Positive geometry plus an explicit mirror says the same thing in
+ *  legal SVG, and gives the crop a box it can actually read. */
+export function normalizeImages(svg) {
+  return svg.replace(
+    /<image x="(-?[\d.]+)" y="(-?[\d.]+)" width="(-?[\d.]+)" height="(-?[\d.]+)"/g,
+    (whole, xs, ys, ws, hs) => {
+      let [x, y, w, h] = [+xs, +ys, +ws, +hs];
+      if (w >= 0 && h >= 0) return whole;
+      let flip = '';
+      if (h < 0) {
+        y += h; h = -h;
+        flip = ` transform="matrix(1 0 0 -1 0 ${2 * y + h})"`;
+      }
+      if (w < 0) { x += w; w = -w; }
+      return `<image${flip} x="${x}" y="${y}" width="${w}" height="${h}"`;
+    },
+  );
+}
+
 export function cropToContent(svg) {
   const points = [];
   for (const m of svg.matchAll(/<path[^>]*\sd="([^"]+)"/g)) {
@@ -103,6 +125,12 @@ export function cropToContent(svg) {
   for (const m of svg.matchAll(/<(?:circle|ellipse)[^>]*\bcx="(-?[\d.]+)"[^>]*\bcy="(-?[\d.]+)"[^>]*\br[xy]?="([\d.]+)"/g)) {
     const [cx, cy, r] = [+m[1], +m[2], +m[3]];
     points.push({ x: cx - r, y: cy - r }, { x: cx + r, y: cy + r });
+  }
+  // EMF-wrapped bitmaps come through as <image> with only a small invisible
+  // frame path around them; a crop that cannot see the raster slices it.
+  for (const m of svg.matchAll(/<image[^>]*\bx="(-?[\d.]+)"[^>]*\by="(-?[\d.]+)"[^>]*\bwidth="([\d.]+)"[^>]*\bheight="([\d.]+)"/g)) {
+    const [x, y, w, h] = [+m[1], +m[2], +m[3], +m[4]];
+    points.push({ x, y }, { x: x + w, y: y + h });
   }
   if (points.length === 0) return null;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -269,7 +297,7 @@ export function main(deck, outRoot) {
       if (n > 1) name = `${name}-${n}`;
 
       const raw = readFileSync(converted, 'utf8');
-      const cropped = cropToContent(stripCruft(raw));
+      const cropped = cropToContent(normalizeImages(stripCruft(raw)));
       if (!cropped) continue;
       const file = join(catDir, `${name}.svg`);
       writeFileSync(file, cropped);
