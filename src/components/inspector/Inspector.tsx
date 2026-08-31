@@ -688,7 +688,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
     <>
       <h2 className="cv-inspector-title">
         Node
-        <span className="cv-chip" style={{ background: STATUS_COLOR[status] }}>
+        <span className="cv-status-chip" style={{ background: STATUS_COLOR[status] }}>
           {STATUS_GLYPH[status]} {STATUS_LABEL[status]}
         </span>
       </h2>
@@ -976,7 +976,7 @@ function ProbeEditor({
           onChange={(e) => patch({ name: e.target.value })}
         />
         {runtime && (
-          <span className="cv-chip" style={{ background: STATUS_COLOR[runtime.status] }}>
+          <span className="cv-status-chip" style={{ background: STATUS_COLOR[runtime.status] }}>
             {STATUS_GLYPH[runtime.status]} {STATUS_LABEL[runtime.status]}
           </span>
         )}
@@ -1159,7 +1159,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
     <>
       <h2 className="cv-inspector-title">
         Link
-        <span className="cv-chip" style={{ background: STATUS_COLOR[status] }}>
+        <span className="cv-status-chip" style={{ background: STATUS_COLOR[status] }}>
           {STATUS_GLYPH[status]} {STATUS_LABEL[status]}
         </span>
       </h2>

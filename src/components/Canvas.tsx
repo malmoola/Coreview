@@ -464,12 +464,16 @@ export function Canvas() {
    *  page is off, there is nothing to fit but the devices. */
   const fitEverything = useCallback(() => {
     if (!(doc.canvas.page ?? true)) {
-      rf.fitView({ padding: 0.2 });
+      // A fit keeps the old ceiling: LT-047 opened the wheel's walls, and
+      // unbounded fitting turns two close devices into a monitor-filling
+      // glyph.
+      rf.fitView({ padding: 0.2, maxZoom: 2 });
       return;
     }
     // The same rect the page renderer draws — one function, not two copies.
     const sheet = effectivePage(doc.canvas.pageRect, doc.nodes);
     rf.fitBounds({ x: sheet.x, y: sheet.y, width: sheet.w, height: sheet.h }, { padding: 0.08 });
+    if (rf.getZoom() > 2) rf.zoomTo(2);
   }, [doc.canvas.page, doc.canvas.pageRect, doc.nodes, rf]);
 
   // Space held is "grab the diagram". Kept separate from the shortcut handler
@@ -805,6 +809,8 @@ export function Canvas() {
            side faces where it is going. Loose mode is what lets one of those
            sources also be the end of a link. */
         connectionMode={ConnectionMode.Loose}
+        minZoom={0.01}
+        maxZoom={100}
         onNodeClick={(_, n) => store.select(n.id, null)}
         onEdgeClick={(_, e) => store.select(null, e.id)}
         onPaneClick={() => {
@@ -851,6 +857,7 @@ export function Canvas() {
         panOnScroll={false}
         deleteKeyCode={null}
         fitView
+        fitViewOptions={{ maxZoom: 2 }}
         /* React Flow is MIT, and its authors ask rather than require that the
            badge stay. It is a link out to their site sitting on top of the
            operator's diagram, and it was being mistaken for part of Coreview. */

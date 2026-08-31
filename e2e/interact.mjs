@@ -946,6 +946,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
 // That changes how connections are made, so drawing one by hand has to be
 // checked rather than assumed still to work.
 {
+  await dismissRecovery();
   await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
   await page.waitForTimeout(200);
   const before = await page.locator(".react-flow__edge").count();
@@ -1744,7 +1745,9 @@ await dismissRecovery();
 
     // The menu was closed for the keyboard half; open it again on one of the
     // still-selected devices for the mouse half.
-    await byName(two[0]).click({ button: "right", position: { x: 10, y: 10 } });
+    // The glyph's own pixels, not a corner offset: below the old 0.5x fit
+    // floor (LT-047) the corner of one node can sit under a neighbour.
+    await byName(two[0]).locator(".cv-glyph-art").click({ button: "right" });
     await page.waitForTimeout(300);
     const xOf = (n) => byName(n).evaluate((el) => {
       const m = /translate\((-?[\d.]+)px/.exec(el.style.transform ?? "");
@@ -2296,6 +2299,110 @@ await dismissRecovery();
     });
   });
   await page.mouse.move(30, 400);
+}
+
+// ---- text has no borders, no box, no connectors (LT-049) -------------------
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc, nodes: [...st.doc.nodes, {
+      id: "txt1", type: "device", position: { x: 520, y: 40 }, width: 140, height: 40,
+      data: { label: "Bare text", deviceType: "text", tags: [], addresses: [],
+        locked: false, maintenance: false, showDetails: true },
+    }] } });
+  });
+  await page.waitForTimeout(400);
+  const txt = page.locator(".react-flow__node", { hasText: "Bare text" }).first();
+  await txt.click();
+  await page.waitForTimeout(300);
+  const inner = txt.locator(".cv-node").first();
+  const cs = await inner.evaluate((el) => {
+    const c = getComputedStyle(el);
+    return { shadow: c.boxShadow, border: c.borderColor };
+  });
+  check("selected text draws no selection rectangle", cs.shadow === "none", cs.shadow);
+  check("text has no border", cs.border === "rgba(0, 0, 0, 0)" || cs.border === "transparent", cs.border);
+  check("text has no connection handles", (await txt.locator(".cv-handle").count()) === 0);
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc, nodes: st.doc.nodes.filter((n) => n.id !== "txt1") } });
+  });
+}
+
+// ---- zoom without walls (LT-047) -------------------------------------------
+// The old stops were React Flow's defaults: 0.5x out, 2x in. Passing either
+// proves the walls moved.
+{
+  await dismissRecovery();
+  const scale = () => page.locator(".react-flow__viewport").evaluate((el) =>
+    new DOMMatrix(getComputedStyle(el).transform).a);
+  const pane = page.locator(".react-flow__pane");
+  const box = await pane.boundingBox();
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  for (let i = 0; i < 25; i++) await page.mouse.wheel(0, 240);
+  await page.waitForTimeout(400);
+  const far = await scale();
+  check("zooming out sails past the old 0.5x wall", far < 0.1, `scale ${far}`);
+  for (let i = 0; i < 50; i++) await page.mouse.wheel(0, -240);
+  await page.waitForTimeout(400);
+  const near = await scale();
+  check("zooming in sails past the old 2x wall", near > 5, `scale ${near}`);
+  // Put the view back for whatever runs after: the canvas menu's own
+  // "Fit view", because at 8x zoom every later click lands on one giant node.
+  await pane.click({ button: "right", position: { x: 30, y: 30 } });
+  await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(400);
+}
+
+// ---- the status chip is readable (LT-048) ----------------------------------
+// "can't really see the word healthy because its not white enough in dark
+// mode." Three components shared the class .cv-chip; the filter-chip rules
+// later in the stylesheet clobbered the status pill's ink, painting dim grey
+// on bright green. The check measures what is actually painted.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const node = st.doc.nodes.find((n) => n.data.label === "Core switch");
+    const probe = { id: "chip-probe", objectId: node.id, kind: "icmp",
+      target: "192.0.2.10", isPrimary: true, enabled: true, intervalMs: 5000 };
+    const runtime = new Map(st.runtime);
+    runtime.set("chip-probe", { probeId: "chip-probe", status: "healthy",
+      lastRttMs: 1.0, lastSuccessMs: Date.now() - 3000, lastFailureMs: null,
+      lastSummary: "Reply, 1 ms", consecutiveFailures: 0, failureThreshold: 3 });
+    window.__cvStore.setState({
+      doc: { ...st.doc, probes: [...st.doc.probes, probe] },
+      runtime,
+    });
+  });
+  await page.waitForTimeout(400);
+  const chip = page.locator(".cv-panel .cv-status-chip, .cv-panel .cv-chip[style]").first();
+  check("a monitored row shows its status chip", (await chip.count()) > 0);
+  if (await chip.count()) {
+    const ratio = await chip.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const lum = (c) => {
+        const [r, g, b] = c.match(/\d+/g).slice(0, 3).map(Number)
+          .map((v) => v / 255)
+          .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const a = lum(cs.color), b = lum(cs.backgroundColor);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    });
+    check("the chip's word clears the 4.5:1 contrast floor", ratio >= 4.5, `ratio ${ratio.toFixed(2)}`);
+  } else {
+    check("the chip's word clears the 4.5:1 contrast floor", false, "no chip found");
+  }
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({
+      doc: { ...st.doc, probes: st.doc.probes.filter((pr) => pr.id !== "chip-probe") },
+    });
+  });
 }
 
 // ---- a selected shape is outlined by its own outline (LT-004) --------------

@@ -333,8 +333,9 @@ export function TopBar({ onExit }: { onExit: () => void }) {
               ? (() => {
                   const sheet = effectivePage(store.doc.canvas.pageRect, store.doc.nodes);
                   rf.fitBounds({ x: sheet.x, y: sheet.y, width: sheet.w, height: sheet.h }, { padding: 0.08 });
+                  if (rf.getZoom() > 2) rf.zoomTo(2);
                 })()
-              : rf.fitView({ padding: 0.2 })
+              : rf.fitView({ padding: 0.2, maxZoom: 2 })
           }
         >
           Fit view

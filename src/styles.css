@@ -343,7 +343,10 @@ textarea.cv-input { resize: vertical; }
 .cv-help { color: var(--text-faint); font-size: 11px; line-height: 1.5; }
 .cv-error { color: var(--down); font-size: 12px; }
 
-.cv-chip {
+/* The status pill. Its own class, after three components shared .cv-chip and
+   the filter-chip rules further down clobbered this ink with --text-dim —
+   dim grey on bright green, the LT-048 bug. */
+.cv-status-chip {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 10px; font-weight: 600; color: var(--on-status);
   padding: 1px 7px; border-radius: 999px; white-space: nowrap;
@@ -424,6 +427,9 @@ textarea.cv-input { resize: vertical; }
 .cv-node[data-shape='diamond'] { transform: rotate(45deg); }
 .cv-node[data-shape='diamond'] .cv-node-body { transform: rotate(-45deg); }
 .cv-node[data-shape='text'] { border-color: transparent; background: transparent; }
+/* LT-049: a text object is not a box — no selection rectangle. The resize
+   handles are indication enough. */
+.cv-node[data-shape='text'].is-selected { box-shadow: none; }
 /* The label belongs inside the cloud, not in the corner of the box that
    contains it. */
 .cv-node[data-shape='cloud'] {

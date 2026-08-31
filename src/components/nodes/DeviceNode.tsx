@@ -354,10 +354,15 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
         handleClassName="cv-resize-handle"
       />
 
-      <Handle type="source" position={Position.Top} id="t" className="cv-handle" />
-      <Handle type="source" position={Position.Right} id="r" className="cv-handle" />
-      <Handle type="source" position={Position.Bottom} id="b" className="cv-handle" />
-      <Handle type="source" position={Position.Left} id="l" className="cv-handle" />
+      {/* A label is not something a cable plugs into (LT-049). */}
+      {!isText && (
+        <>
+          <Handle type="source" position={Position.Top} id="t" className="cv-handle" />
+          <Handle type="source" position={Position.Right} id="r" className="cv-handle" />
+          <Handle type="source" position={Position.Bottom} id="b" className="cv-handle" />
+          <Handle type="source" position={Position.Left} id="l" className="cv-handle" />
+        </>
+      )}
 
       {!isText && (
         <span

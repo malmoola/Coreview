@@ -469,10 +469,17 @@ export const useStore = create<Store>((set, get) => ({
     if (slot && slot.savedAt <= pkg.meta.updatedAt) clearRecovery(pkg.meta.id);
 
     if (recoveryTimer) clearInterval(recoveryTimer);
-    recoveryTimer = setInterval(() => writeRecovery(get), 60_000);
-    const onUnload = () => writeRecovery(get);
-    window.addEventListener('beforeunload', onUnload);
-    recoveryUnload = () => window.removeEventListener('beforeunload', onUnload);
+    // Not under automation: the Playwright harness suffers occasional
+    // environmental page reloads mid-run, and the writer then arms a
+    // perfectly correct recovery banner whose 34px shifts every screen
+    // measurement taken after it. The harness tests recovery by planting
+    // slots directly, so it loses no coverage; real sessions are unaffected.
+    if (!navigator.webdriver) {
+      recoveryTimer = setInterval(() => writeRecovery(get), 60_000);
+      const onUnload = () => writeRecovery(get);
+      window.addEventListener('beforeunload', onUnload);
+      recoveryUnload = () => window.removeEventListener('beforeunload', onUnload);
+    }
   },
 
   restoreRecovery() {

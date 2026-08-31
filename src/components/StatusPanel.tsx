@@ -331,7 +331,7 @@ export function StatusPanel() {
                   }
                 >
                   <td>
-                    <span className="cv-chip" style={{ background: STATUS_COLOR[r.status] }}>
+                    <span className="cv-status-chip" style={{ background: STATUS_COLOR[r.status] }}>
                       {STATUS_GLYPH[r.status]} {STATUS_LABEL[r.status]}
                     </span>
                   </td>

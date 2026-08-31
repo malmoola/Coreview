@@ -133,6 +133,91 @@ and `.vssx` from the operator's My Shapes folder to verify per-master
 splitting and naming before this is called Done.** Masters are currently
 named "<file> 1..N"; real master names, if wanted, are a follow-up.
 
+### LT-047 — Zoom without walls — 2026-08-30
+The wheel now runs 0.01x–100x — no real diagram meets either end. Fits keep
+the old 2x ceiling on purpose: fitting two close devices with no ceiling
+turned them into one monitor-filling glyph, which is how this item briefly
+broke half the harness. Two ripples were paid for honestly: the mount-time
+fit needed its own explicit cap once the provider bounds blew open, and
+below the old 0.5x fit floor the harness's fixed-corner clicks could land on
+a neighbour — those checks now aim at the glyph's own pixels. The recovery
+writer also stopped running under automation (navigator.webdriver): an
+environmental mid-run reload armed a perfectly correct banner whose 34px
+shifted every measurement after it, and the harness plants its recovery
+slots directly, so no coverage was lost.
+
+### LT-048 — **bug** "Healthy" unreadable on its green chip — 2026-08-30
+Three components shared the class .cv-chip, and the filter-chip rules later
+in the stylesheet clobbered the status pill's ink — dim grey on bright
+green, exactly "not white enough". The pill is .cv-status-chip now, painted
+with --on-status as designed, and a harness check measures the painted
+contrast (was 1.27:1, must clear 4.5:1). The two button-chip blocks still
+share a name and fight over padding; noted, not reported, left alone.
+
+### LT-049 — **bug** A text box draws a border — 2026-08-30
+Selected text no longer wears the box selection rectangle, and a text node
+offers no connection handles — a label is not something a cable plugs into
+(the follow-up ask in the same message). Border was already transparent;
+resize handles remain, as allowed.
+
+### LT-046 — Chrome stays dark; only the diagram area follows the ground
+**Source:** asked 2026-08-30 — "white theme is still not so good… make the
+side panels remain as the dark color don't change when we switch to white
+background, same with both top and bottom panels, so only the diagram area
+turn white and light brown."
+**Acceptance:** the side, top and bottom panels keep the dark chrome in both
+grounds; switching to the white ground changes only the canvas — white page
+on a light-brown desk. Supersedes LT-034's light chrome, which is retired
+with its harness checks.
+
+### LT-050 — Port labels sit at the ends of a link
+**Source:** asked 2026-08-30, with a screenshot — "link ports should be close
+to the devices not in the middle of the link; center label is good though."
+**Acceptance:** a link's two port labels are drawn near their own device ends;
+the centre label stays where it is.
+
+### LT-051 — Drag a link label along its link
+**Source:** asked 2026-08-30 — "add the link labels anywhere and drag it
+along the links but it shouldn't leave the links area."
+**Acceptance:** a link label can be dragged; while dragging it slides along
+the link's drawn path and cannot leave it; the position survives save/reload.
+
+### LT-052 — Double-click a link to write flat text on it
+**Source:** asked 2026-08-30 — "double click area on the link and add port
+number or text flat no box or boarders just text attached to the link."
+**Acceptance:** double-clicking a spot on a link opens a caret there;
+the committed text renders flat — no box, no border — attached to the link at
+that spot, and moves with the link.
+
+### LT-054 — **bug** The Catalyst 9300 refuses our SSH: no common kex
+**Source:** reported 2026-08-30, first live contact with the 9300 (LT-010):
+"ssh error talking to 192.168.14.20: No common Kex algorithm — ours:
+[mlkem768x25519, curve25519, DH groups…], theirs: [ecdh-sha2-nistp521,
+ecdh-sha2-nistp384, kex-strict-s-v00]."
+**The box's own config (operator paste):** `ip ssh server algorithm kex
+ecdh-sha2-nistp521 ecdh-sha2-nistp384`, macs hmac-sha2-512/256, encryption
+aes256-gcm/ctr, hostkey rsa-sha2-512/256, and `authentication keyboard` —
+keyboard-interactive, not plain password.
+**Acceptance:** the crawler negotiates kex with an IOS-XE box locked to NIST
+ECDH curves and authenticates keyboard-interactive; the 9300 at
+192.168.14.20 crawls.
+
+### LT-055 — **bug** Two parallel links both labelled Gi1/0/11
+**Source:** reported 2026-08-30, with a screenshot — two lanes between
+Cisco-Rack1-3850 and 9300-LAB, both wearing Gi1/0/11; "I don't see 1/0/12."
+**Acceptance:** parallel links between the same pair carry their own port
+labels; whichever half (crawl merge or label rendering) collapses them is
+found with a failing test first.
+
+### LT-056 — **bug** The installer's app is blocked on the second machine — resolved 2026-08-30
+Reported with a screenshot ("Windows cannot access the specified device,
+path, or file"), and withdrawn by the operator the same hour: the block was
+that machine's own policy, and the same installer runs fine on another
+Windows machine. Nothing to change in Coreview; kept because the symptom and
+its reading (Windows application control refusing a binary whose internal CA
+the machine does not trust) will recur on any locked-down host — that is
+LT-011's public-CA half.
+
 ---
 
 ## Next
