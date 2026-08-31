@@ -28,9 +28,8 @@ bar rather than a piece of work, and does not count against that.*
 - Where a bug cannot be fixed, it says why in plain words rather than being
   quietly closed.
 
-**Known bugs, open:** LT-004 (selection draws a box round a round shape),
-LT-005 (icon library cannot be cleared).
-**Known bugs, closed:** LT-030, LT-031.
+**Known bugs, open:** none — as of 2026-08-30.
+**Known bugs, closed:** LT-030, LT-031, LT-003, LT-044, LT-004, LT-005.
 
 ### LT-031 — **bug** Three CSS variables that were never defined — 2026-08-30
 **Source:** found while doing LT-001, not reported.
@@ -41,6 +40,23 @@ hardcoded fallback — which meant three pieces of the interface ignored the
 ground entirely and stayed dark-theme coloured on a white page.
 **Fixed:** they read `--text-dim`, `--warning` and `--accent`, which are the
 variables that were meant.
+
+### LT-004 — **bug** A selected shape is outlined by its own outline — 2026-08-30
+The square box round the circular router glyph was the NodeResizer's line
+rectangle. Every shape already draws its own highlight — the ring on a
+glyph, the stroked outline on a cloud, the radius-following shadow on a
+circle or diamond — so the resizer's line keeps its edge-drag hit area and
+loses its paint, and the corner handles stay, which the item allows. One
+specificity fight recorded: React Flow's own `.react-flow__resize-control.line`
+rule outweighs a single class, which is why the first fix changed nothing.
+Verified by measurement in the harness and by eye.
+
+### LT-005 — **bug** Clearing the icon library — 2026-08-30
+"clear" now sits next to "reload": it empties the palette section, forgets
+the stored `iconLibraryDir` so startup stops re-indexing it, and brings the
+folder input back so a different library can be chosen — without restarting
+the app, and without touching anything on disk, because the icons were never
+copied in. Staged and verified end-to-end through the dev store handle.
 
 ### LT-003 — **bug** Custom shape import bugs — 2026-08-30
 All four, in the icon-library scan, which is the app's custom-shape door:
@@ -103,18 +119,6 @@ runner or laptop — sees the bytes the tests were written against.
 ## Next
 
 *Accepted, not started.*
-
-### LT-004 — **bug** A selected shape is outlined by its own outline
-**Source:** asked 2026-08-30, with a screenshot of a router showing a square
-selection box round a circular glyph.
-**Acceptance:** selecting a shape highlights the shape itself, not a
-rectangular bounding box round it. Resize handles may still sit on the box.
-
-### LT-005 — **bug** Clearing the icon library
-**Source:** reported 2026-08-30: "Icon library stuck and can't clear it".
-**Acceptance:** a loaded icon library folder can be cleared or changed from the
-palette without restarting the app, and the stored `iconLibraryDir` setting is
-cleared with it.
 
 ### LT-006 — Lucidchart `.lcsl` import
 **Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.

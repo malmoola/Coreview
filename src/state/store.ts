@@ -214,6 +214,7 @@ interface Store {
   chooseFolder: (which: 'backupFolder' | 'exportFolder') => Promise<string | null>;
   clearFolder: (which: 'backupFolder' | 'exportFolder') => Promise<void>;
   loadIconLibrary: (dir: string) => Promise<void>;
+  clearIconLibrary: () => Promise<void>;
   setCanvas: (patch: Partial<ProjectDocument['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
@@ -1267,6 +1268,19 @@ export const useStore = create<Store>((set, get) => ({
       }
     } catch (e) {
       set({ iconLibrary: [], iconLibraryError: String(e) });
+    }
+  },
+
+  /** Forget the library folder: empty the palette section and clear the
+   *  stored setting, so the app stops re-indexing it on startup and the
+   *  folder input comes back. Nothing on disk is touched — the icons were
+   *  never copied in. */
+  async clearIconLibrary() {
+    set({ iconLibrary: [], iconLibraryDir: null, iconLibraryError: null });
+    try {
+      await ipc.setSetting('iconLibraryDir', null);
+    } catch {
+      /* cleared for this session even where forgetting it failed */
     }
   },
 

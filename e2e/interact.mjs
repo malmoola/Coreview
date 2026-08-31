@@ -2298,6 +2298,68 @@ await dismissRecovery();
   await page.mouse.move(30, 400);
 }
 
+// ---- a selected shape is outlined by its own outline (LT-004) --------------
+// The screenshot behind the item: a circular router glyph wearing a square
+// selection box. The square was the NodeResizer's line rectangle — every
+// shape's own highlight (the ring on a glyph, the stroked cloud outline, the
+// radius-following shadow on a circle) already traces the shape. The line
+// must stay draggable for edge-resizing but stop drawing the box; the corner
+// handles may stay visible — the item allows them.
+{
+  await dismissRecovery();
+  const dev = page.locator(".react-flow__node", { hasText: "Core switch" }).first();
+  await dev.click();
+  await page.waitForTimeout(300);
+  const lines = page.locator(".react-flow__resize-control.line");
+  check("selecting shows the resizer's edge controls", (await lines.count()) > 0);
+  const colors = await lines.evaluateAll((els) =>
+    els.map((el) => getComputedStyle(el).borderColor));
+  check("no rectangular box is drawn round the shape",
+    colors.every((c) => c === "rgba(0, 0, 0, 0)" || c === "transparent"), colors.join(" | "));
+  const handle = page.locator(".react-flow__resize-control.handle").first();
+  check("resize handles still sit on the box",
+    (await handle.count()) > 0 &&
+      (await handle.evaluate((el) => getComputedStyle(el).visibility)) !== "hidden");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+}
+
+// ---- clearing the icon library (LT-005) ------------------------------------
+// "Icon library stuck and can't clear it": once a folder was loaded, the
+// palette offered reload and nothing else — changing your mind meant editing
+// the database by hand. A real library needs the desktop backend, so the
+// harness stages a loaded one through the dev store handle and clears it.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    window.__cvStore.setState({
+      iconLibraryDir: "/tmp/fake-icons",
+      iconLibrary: [{ id: "x", name: "X", category: "C", svg: "<svg viewBox=\"0 0 1 1\"></svg>" }],
+      iconLibraryError: null,
+    });
+  });
+  await page.waitForTimeout(300);
+  check("a loaded library names its folder",
+    (await page.locator(".cv-palette", { hasText: "/tmp/fake-icons" }).count()) === 1);
+  const clearBtn = page.locator(".cv-palette button", { hasText: "clear" });
+  check("the loaded library offers clear next to reload", (await clearBtn.count()) === 1);
+  if (await clearBtn.count()) {
+    await clearBtn.click();
+    await page.waitForTimeout(300);
+    const st = await page.evaluate(() => {
+      const s = window.__cvStore.getState();
+      return { dir: s.iconLibraryDir, n: s.iconLibrary.length, err: s.iconLibraryError };
+    });
+    check("clearing empties the library and forgets the folder",
+      st.dir === null && st.n === 0 && st.err === null, JSON.stringify(st));
+    check("the folder input returns so a different library can be chosen",
+      (await page.locator('.cv-palette input[placeholder="/path/to/icons"]').count()) === 1);
+  } else {
+    check("clearing empties the library and forgets the folder", false, "no clear button");
+    check("the folder input returns so a different library can be chosen", false, "no clear button");
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

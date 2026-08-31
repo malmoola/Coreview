@@ -455,7 +455,12 @@ textarea.cv-input { resize: vertical; }
   border: 1.5px solid var(--line-strong); border-radius: 50%;
 }
 .cv-handle:hover { background: var(--accent); border-color: var(--accent); }
-.cv-resize-line { border-color: var(--accent); }
+/* LT-004: the resizer's line rectangle was the square box drawn round every
+   selected shape — a circle glyph wore a box. Each shape draws its own
+   highlight (ring, stroked outline, radius-following shadow), so the line
+   keeps its edge-drag hit area and loses its paint. The corner handles stay:
+   they say "resizable" without redrawing the bounds. */
+.react-flow__resize-control.line.cv-resize-line { border-color: transparent; }
 .cv-resize-handle { background: var(--accent); border: none; width: 7px; height: 7px; border-radius: 1px; }
 
 .cv-note {

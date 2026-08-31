@@ -104,6 +104,7 @@ function IconLibrarySection({
   const dir = useStore((s) => s.iconLibraryDir);
   const error = useStore((s) => s.iconLibraryError);
   const load = useStore((s) => s.loadIconLibrary);
+  const clear = useStore((s) => s.clearIconLibrary);
   const [path, setPath] = useState('');
 
   const shown = icons.filter(
@@ -157,6 +158,9 @@ function IconLibrarySection({
           {icons.length} icons from <span className="cv-mono">{dir}</span>{' '}
           <button type="button" className="cv-link" onClick={() => load(dir)}>
             reload
+          </button>{' '}
+          <button type="button" className="cv-link" onClick={() => void clear()}>
+            clear
           </button>
         </p>
       )}
