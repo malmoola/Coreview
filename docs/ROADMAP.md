@@ -344,6 +344,23 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-073 — **bug** Backing up three devices blanked the whole window — 2026-08-31
+**Source:** reported 2026-08-31 with a screenshot — three devices selected,
+backup pressed, and the app became an empty dark window.
+Two faults, both fixed. **The throw:** the Rust backup enum is tagged
+adjacently — `{kind, value:{…}}` — and every reader here expected the fields
+flat, so a successful save arrived with `bytes` undefined,
+`bytes.toLocaleString()` threw, and React unmounted the tree. Nothing caught
+it earlier because no test had ever seen a *successful* backup payload.
+Events are normalised at the IPC edge now (`normaliseBackupEvent`, tested
+against both shapes) and the panel reads a missing size as "size unknown".
+**The blank window:** a throw anywhere took the whole application down, with
+nothing said and no way back. Each region — toolbar, palette, diagram,
+inspector, monitoring panel — now sits in an error boundary that names what
+broke, shows the message, keeps the rest alive and offers "Try again".
+Verified by forcing a render fault in the harness: the window survives, the
+boundary reports it, untouched regions keep working, reopening is clean.
+
 ### LT-025 — Two roadmap files — 2026-08-31
 The MVP-era root `ROADMAP.md` is now a one-paragraph pointer to
 `docs/ROADMAP.md`, which is authoritative.
