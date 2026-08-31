@@ -320,6 +320,12 @@ export const ipc = {
   },
 
   /** Index a user-chosen folder of SVGs. Desktop only. */
+  /** The shapes that ship inside the installer (D-022). */
+  listBundledIcons(): Promise<IconLibrary> {
+    if (!isDesktop) return Promise.resolve({ dir: '', icons: [], skipped: [] });
+    return invoke<IconLibrary>('list_bundled_icons');
+  },
+
   listIconLibrary(dir: string) {
     return invoke<IconLibrary>('list_icon_library', { dir });
   },

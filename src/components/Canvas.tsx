@@ -182,7 +182,9 @@ export function Canvas() {
       const node = nodeForDrop(raw, position.x, position.y, {
         makeDeviceNode,
         makeNote,
-        iconLibrary: store.iconLibrary,
+        // The user's own folder first, so an id clash resolves to their
+        // icon; the bundled set (D-022) backs it.
+        iconLibrary: [...store.iconLibrary, ...store.bundledIcons],
       });
       if (node) store.addNode(node);
     },

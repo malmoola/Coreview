@@ -2667,6 +2667,47 @@ await dismissRecovery();
   });
 }
 
+// ---- the built-in shape library (LT-058 / D-022) ---------------------------
+// The bundled icons come from the Tauri resource dir, which the browser
+// harness cannot reach — the store is staged with two, which is exactly what
+// the app does after list_bundled_icons answers. What is checked is the
+// palette: a Shape library section, grouped, searchable, and untouched by
+// clearing the user's own folder.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    window.__cvStore.setState({ bundledIcons: [
+      { id: "asr-9000", name: "ASR 9000", category: "Routing WAN",
+        svg: '<svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"/></svg>' },
+      { id: "nexus-9300", name: "Nexus 9300", category: "Data Center",
+        svg: '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>' },
+    ] });
+  });
+  await page.waitForTimeout(300);
+  const section = page.locator(".cv-palette-group", { hasText: "Shape library" });
+  check("the palette has a built-in Shape library section", (await section.count()) === 1);
+  check("grouped by category",
+    (await section.locator("summary", { hasText: "Routing WAN" }).count()) === 1 &&
+      (await section.locator("summary", { hasText: "Data Center" }).count()) === 1);
+  await page.locator(".cv-palette-search").fill("nexus");
+  await page.waitForTimeout(300);
+  check("search reaches the built-in shapes",
+    (await section.locator(".cv-palette-item", { hasText: "Nexus 9300" }).count()) === 1 &&
+      (await section.locator(".cv-palette-item", { hasText: "ASR 9000" }).count()) === 0);
+  await page.locator(".cv-palette-search").fill("");
+  // Clearing the user's own folder must not touch the built-in set (LT-005).
+  await page.evaluate(() => {
+    window.__cvStore.setState({ iconLibraryDir: "/tmp/own", iconLibrary: [
+      { id: "mine", name: "Mine", category: "C", svg: "<svg viewBox=\"0 0 1 1\"></svg>" }] });
+  });
+  await page.waitForTimeout(200);
+  await page.locator(".cv-palette button", { hasText: "clear" }).click();
+  await page.waitForTimeout(300);
+  const left = await page.evaluate(() => window.__cvStore.getState().bundledIcons.length);
+  check("clearing the user folder leaves the built-in shapes standing", left === 2, `${left}`);
+  await page.evaluate(() => window.__cvStore.setState({ bundledIcons: [] }));
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

@@ -114,6 +114,9 @@ interface Store {
   iconLibrary: IconLibEntry[];
   iconLibraryDir: string | null;
   iconLibraryError: string | null;
+  /** The shapes that ship inside the installer (D-022) — always there,
+   *  untouched by loading or clearing the user's own folder. */
+  bundledIcons: IconLibEntry[];
   panelOpen: boolean;
   paletteOpen: boolean;
   inspectorOpen: boolean;
@@ -389,6 +392,7 @@ export const useStore = create<Store>((set, get) => ({
   iconLibrary: [],
   iconLibraryDir: null,
   iconLibraryError: null,
+  bundledIcons: [],
   settings: {
     reduceMotion:
       typeof window !== 'undefined' &&
@@ -1222,6 +1226,17 @@ export const useStore = create<Store>((set, get) => ({
       // Re-index the folder rather than trusting a remembered list: the icons
       // live outside the app and may have changed since last time.
       void get().loadIconLibrary(stored.iconLibraryDir);
+    }
+    // The built-in shapes (D-022). Quietly absent in the browser and in a
+    // build without the resource; the palette then simply has no built-in
+    // section rather than an error nobody can act on.
+    if (get().bundledIcons.length === 0) {
+      try {
+        const bundled = await ipc.listBundledIcons();
+        if (bundled.icons.length) set({ bundledIcons: bundled.icons });
+      } catch {
+        /* no bundled set here */
+      }
     }
   },
 

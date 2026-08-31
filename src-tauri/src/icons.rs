@@ -805,6 +805,24 @@ mod folder_tests {
         assert!(icon.svg.contains("<path") || icon.svg.contains("<image"), "nothing drawn");
     }
 
+    /// D-022/LT-058: what ships in the installer is the repo's `stencils/`
+    /// folder, bundled as a resource — this scans that exact folder and holds
+    /// the bar the palette depends on: a real set, categorised, every icon
+    /// carrying usable SVG.
+    #[test]
+    fn the_shipped_stencils_scan_into_a_full_palette() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../stencils");
+        let lib = super::scan(dir.to_str().expect("path")).expect("scan");
+        assert!(lib.icons.len() >= 200, "only {} icons", lib.icons.len());
+        let categories: std::collections::HashSet<_> =
+            lib.icons.iter().map(|i| i.category.as_str()).collect();
+        assert!(categories.len() >= 5, "categories: {categories:?}");
+        for icon in &lib.icons {
+            assert!(!icon.name.is_empty(), "{} has no name", icon.id);
+            assert!(icon.svg.contains("viewBox"), "{} has no viewBox", icon.id);
+        }
+    }
+
     /// LT-012/LT-045: a Visio drawing in the library folder becomes icons at
     /// scan time. Real file from libvisio's test suite; skips where the
     /// tools are missing (CI). A .vss stencil follows the identical path

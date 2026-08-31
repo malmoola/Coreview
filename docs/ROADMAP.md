@@ -133,6 +133,20 @@ and `.vssx` from the operator's My Shapes folder to verify per-master
 splitting and naming before this is called Done.** Masters are currently
 named "<file> 1..N"; real master names, if wanted, are a follow-up.
 
+### LT-058 — The Cisco shapes ship in the installer — 2026-08-31
+**Source:** "Change this statement you can bake into the installer please" —
+overruling the D-019 rider, logged as D-022.
+`stencils/` is bundled as a Tauri resource (~2 MB) and a `list_bundled_icons`
+command scans it with the same scanner as a user folder; the palette grows a
+built-in "Shape library" section — grouped, searchable, draggable — that
+loading or clearing the operator's own folder never touches. Verified: the
+repo's real stencils folder scans into 217 named, categorised icons (Rust
+test); the palette section, search and clear-independence run in the
+harness; the resource config passed context generation. **The last inch —
+the resource actually landing inside the NSIS/MSI/AppImage — is proven by
+the CI bundle jobs and then by the operator's next install: the palette
+should open with the Cisco set in it, no folder to point at.**
+
 ### LT-051 — Drag a link label along its link — 2026-08-31
 The centre label takes the pointer and slides: while dragging, the cursor
 roams and the label takes the nearest spot on the drawn path — it cannot

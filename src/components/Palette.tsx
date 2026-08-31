@@ -49,6 +49,8 @@ export function Palette() {
         </div>
       </div>
 
+      <BundledShapesSection query={q} onDrag={drag} />
+
       <IconLibrarySection query={q} onDrag={drag} />
 
       {PALETTE_GROUPS.map((group) => {
@@ -91,8 +93,70 @@ export function Palette() {
   );
 }
 
-/** SVGs indexed from a folder the operator chose. The artwork never ships with
- *  the app; this only reads what is already on their disk. */
+/** The shapes that ship inside the installer (D-022): the converted vendor
+ *  stencils, bundled as a resource and always in the palette. Absent in the
+ *  browser build, where there is no resource to read. */
+function BundledShapesSection({
+  query,
+  onDrag,
+}: {
+  query: string;
+  onDrag: (e: React.DragEvent, payload: string) => void;
+}) {
+  const icons = useStore((s) => s.bundledIcons);
+  const shown = icons.filter(
+    (i) =>
+      !query ||
+      i.name.toLowerCase().includes(query) ||
+      i.id.includes(query) ||
+      i.category.toLowerCase().includes(query),
+  );
+  const grouped = useMemo(() => {
+    const by = new Map<string, typeof shown>();
+    for (const icon of shown) {
+      const list = by.get(icon.category);
+      if (list) list.push(icon);
+      else by.set(icon.category, [icon]);
+    }
+    return [...by.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [shown]);
+  if (icons.length === 0) return null;
+  return (
+    <div className="cv-palette-group">
+      <h3>Shape library</h3>
+      {grouped.map(([category, items]) => (
+        <details key={category} open={Boolean(query)}>
+          <summary className="cv-palette-sub">
+            {category} <span className="cv-palette-count">{items.length}</span>
+          </summary>
+          <div className="cv-palette-grid">
+            {items.slice(0, 400).map((icon) => (
+              <button
+                key={icon.id}
+                type="button"
+                className="cv-palette-item"
+                draggable
+                onDragStart={(e) => onDrag(e, `icon:${icon.id}`)}
+                title={`${icon.name} — ${icon.category}`}
+              >
+                <img
+                  className="cv-palette-icon"
+                  alt=""
+                  src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(icon.svg)))}`}
+                />
+                {icon.name}
+              </button>
+            ))}
+          </div>
+        </details>
+      ))}
+      {query && shown.length === 0 && null}
+    </div>
+  );
+}
+
+/** SVGs indexed from a folder the operator chose; loading it is optional now
+ *  that a library ships built-in, and nothing is copied into the app. */
 function IconLibrarySection({
   query,
   onDrag,

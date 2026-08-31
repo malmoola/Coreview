@@ -233,6 +233,21 @@ pub fn list_icon_library(dir: String) -> CmdResult<crate::icons::IconLibrary> {
     crate::icons::scan(&dir)
 }
 
+/// The shapes that ship inside the installer (D-022): the converted vendor
+/// stencils bundled as a Tauri resource, indexed with the same scan as a
+/// user's own folder. In dev the resource dir is the repo's `stencils/`
+/// itself, resolved the same way.
+#[tauri::command]
+pub fn list_bundled_icons(app: AppHandle) -> CmdResult<crate::icons::IconLibrary> {
+    use tauri::path::BaseDirectory;
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .resolve("stencils", BaseDirectory::Resource)
+        .map_err(|e| format!("no bundled stencils: {e}"))?;
+    crate::icons::scan(dir.to_str().ok_or("resource path is not unicode")?)
+}
+
 // ------------------------------------------------------------------ exports
 
 /// Writes an export to the path the user picked in the save dialog.

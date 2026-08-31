@@ -198,3 +198,17 @@ failure mode is a phantom object in someone's inventory. Nothing here is in
 scales and pans with the diagram exactly as a node would.
 **Consequence:** `Fit view` had to learn about the page, because React Flow's
 `fitView` only knows about nodes and was putting the page edge off-screen.
+
+### D-022 — The converted stencils ship inside the installer — 2026-08-31
+**Decision:** `stencils/` is bundled into the application as a Tauri resource
+and the palette offers those shapes built-in, with no folder to point at.
+**Supersedes:** the rider on D-019. D-019 put the converted stencils in the
+repository but kept them out of the binary; the operator read that back and
+overruled it in his own words: "Change this statement you can bake into the
+installer please."
+**Rejected:** keeping the load-a-folder step for the shapes we already
+converted ourselves. It made the first-run palette look empty and put a
+manual step in front of the thing the pipeline was built to provide.
+**Cost accepted:** ~2 MB of installer, and the third-party-artwork line moves
+from "not in the binary" to "in the binary, for this operator's own use" —
+his call to make, and made explicitly.

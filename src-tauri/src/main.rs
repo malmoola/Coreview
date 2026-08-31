@@ -105,6 +105,7 @@ fn main() {
             commands::record_event,
             commands::app_info,
             commands::list_icon_library,
+            commands::list_bundled_icons,
             commands::save_export,
             commands::read_import,
             commands::get_settings,
