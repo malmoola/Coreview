@@ -133,6 +133,32 @@ and `.vssx` from the operator's My Shapes folder to verify per-master
 splitting and naming before this is called Done.** Masters are currently
 named "<file> 1..N"; real master names, if wanted, are a follow-up.
 
+### LT-053 — The edit corners hug the shape — 2026-08-31
+**Source:** asked 2026-08-30 with a screenshot ("many times i told you the
+shape should have no boarders and the edit corners should be close to the
+shape not far away") — and filed only now, which broke the file-first rule;
+the work itself went test-first as required.
+The glyph node was an invisible 168x92 box with a 46px icon floating in it:
+resize corners, connection dots and the ends of links all sat on the box,
+nowhere near the drawn shape, and resizing changed nothing visible. The
+node's bounds are now the art itself — the icon fills the node (resizing
+finally scales it, aspect kept), the label hangs below without counting
+toward the bounds, new devices drop at 76x76 square, and links terminate on
+the shape's edge instead of in the air beside it. Three consequences, each
+caught by the harness: the artwork owns no pointer events or it eats every
+click meant for the node; the resize controls stack above the full-bleed
+art; and the connection dots' positions were hardcoded to the old 46px art,
+clustering all four at the node's top where a drag-grab landed in a
+handle's hit area and became a connection attempt.
+
+### LT-057 — **bug** The spacing snap could never fire on its own — 2026-08-31
+Found while testing LT-053, not reported. The even-spacing rhythm competed
+against the edge snap by comparing corrections — but with no edge in reach,
+"stay where you are" costs zero and always won, so the rhythm only applied
+when an accidental edge alignment coexisted (the old 176x96 fixture provided
+one, hiding the bug). It now competes only when an alignment actually
+snapped; the guide-and-land harness check fails without it.
+
 ### LT-046 — Chrome stays dark; only the diagram area follows the ground — 2026-08-31
 Supersedes LT-034's light chrome, at the operator's word. The `.is-light`
 block now carries nothing but the drawing surface — white page, warm
