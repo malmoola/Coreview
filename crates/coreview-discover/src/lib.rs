@@ -34,6 +34,7 @@ mod oui_data;
 pub mod snmp;
 pub mod ssh;
 pub mod lldp;
+pub mod etherchannel;
 pub mod mac_table;
 pub mod telnet;
 pub mod types;

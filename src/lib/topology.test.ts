@@ -574,3 +574,48 @@ describe('CLASS_GLYPH', () => {
     for (const c of classes) expect(CLASS_GLYPH[c]).toBeTruthy();
   });
 });
+
+describe('port-channels fold into one link (LT-009)', () => {
+  const po1 = { name: 'Po1', protocol: 'LACP', members: ['Gi1/0/11', 'Gi1/0/12'] };
+  const at = (ip: string) => ({ addresses: [{ ip, interface: null, isManagement: true }] });
+  const pair = (a: Partial<CrawledDevice>, b: Partial<CrawledDevice>) => [
+    device('9300-LAB', '192.168.14.20', [
+      neighbor('Cisco-Rack1-3850', 'GigabitEthernet1/0/11', 'GigabitEthernet1/0/11', at('192.168.14.111')),
+      neighbor('Cisco-Rack1-3850', 'GigabitEthernet1/0/12', 'GigabitEthernet1/0/12', at('192.168.14.111')),
+    ], a),
+    device('Cisco-Rack1-3850', '192.168.14.111', [
+      neighbor('9300-LAB', 'GigabitEthernet1/0/11', 'GigabitEthernet1/0/11', at('192.168.14.20')),
+      neighbor('9300-LAB', 'GigabitEthernet1/0/12', 'GigabitEthernet1/0/12', at('192.168.14.20')),
+    ], b),
+  ];
+
+  it('two bundled cables draw as one Po link, members in the notes', () => {
+    // The lab, verbatim: Po1 over Gi1/0/11 + Gi1/0/12 on both switches.
+    const built = buildTopology(
+      { devices: pair({ portChannels: [po1] }, { portChannels: [po1] }), notVisited: [] },
+      'p1',
+    );
+    expect(built.edges).toHaveLength(1);
+    const d = built.edges[0]!.data!;
+    expect(d.sourcePortLabel).toBe('Po1');
+    expect(d.targetPortLabel).toBe('Po1');
+    expect(d.notes).toContain('Gi1/0/11');
+    expect(d.notes).toContain('Gi1/0/12');
+    expect(d.notes).toContain('2 bundled ports');
+  });
+
+  it('one side reporting the bundle is enough — the other was not crawled', () => {
+    const built = buildTopology(
+      { devices: pair({ portChannels: [po1] }, {}), notVisited: [] },
+      'p1',
+    );
+    expect(built.edges).toHaveLength(1);
+    expect(built.edges[0]!.data!.sourcePortLabel).toBe('Po1');
+  });
+
+  it('unbundled parallel cables still draw as two links', () => {
+    // D-014's line: never infer a bundle. No etherchannel data, no folding.
+    const built = buildTopology({ devices: pair({}, {}), notVisited: [] }, 'p1');
+    expect(built.edges).toHaveLength(2);
+  });
+});

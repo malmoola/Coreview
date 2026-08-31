@@ -182,6 +182,9 @@ export type CrawledDevice = {
    *  a name and nothing about what it connects to. */
   reachedBy: 'ssh' | 'snmp' | 'reported';
   attached: AttachedDevice[];
+  /** What the device says it has aggregated (LT-009): `show etherchannel
+   *  summary`, so two cables in a LAG draw as one link. */
+  portChannels?: { name: string; protocol: string; members: string[] }[];
 };
 
 /** Optional, and only used for devices that refuse SSH. */

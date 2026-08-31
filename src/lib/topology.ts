@@ -230,13 +230,48 @@ export function buildTopology(
   for (const d of src.devices) for (const n of d.neighbors) note(fromNeighbor(n, d.hops + 1));
   for (const n of src.notVisited) note(fromNeighbor(n, 1));
 
+  // Which bundle each member port belongs to, per device (LT-009). Two
+  // switches joined by two cables in a LAG are one logical link, and a
+  // diagram that draws two says there are two failure domains where there is
+  // one. Observation, not inference: this is the switch's own etherchannel
+  // table, which is what D-014 asked for instead of guessing from port
+  // numbers.
+  const bundleOf = new Map<string, Map<string, { name: string; members: string[] }>>();
+  for (const d of src.devices) {
+    const key = identity(d.hostname, d.address);
+    const map = new Map<string, { name: string; members: string[] }>();
+    for (const pc of d.portChannels ?? []) {
+      for (const m of pc.members) map.set(shortInterface(m), { name: pc.name, members: pc.members });
+    }
+    if (map.size) bundleOf.set(key, map);
+  }
+
   // Links, before filtering, so a dropped endpoint can be counted.
-  const links = new Map<string, { a: LinkEnd; b: LinkEnd }>();
+  const links = new Map<string, { a: LinkEnd; b: LinkEnd; viaBundle?: string[] }>();
   for (const d of src.devices) {
     const from = identity(d.hostname, d.address);
     for (const n of d.neighbors) {
       const to = identity(n.shortName || n.deviceId, n.addresses[0]?.ip ?? '');
       if (to === from) continue;
+      // A cable folds into a bundle when either end's table says its port
+      // is aggregated — either, because a crawl often reaches only one of
+      // the two switches, and the reached one's table must also fold the
+      // unreached side's raw reports or the diagram draws the LAG twice.
+      // Where only one table answered, its bundle name stands in for both
+      // ends, which is also what keeps the two directions collapsing to one
+      // key.
+      const nearBundle = bundleOf.get(from)?.get(shortInterface(n.localInterface ?? ''));
+      const farBundle = bundleOf.get(to)?.get(shortInterface(n.remoteInterface ?? ''));
+      const bundle = nearBundle ?? farBundle;
+      if (bundle) {
+        const end = {
+          a: { key: from, iface: nearBundle?.name ?? bundle.name },
+          b: { key: to, iface: farBundle?.name ?? bundle.name },
+          viaBundle: bundle.members,
+        };
+        links.set(linkKey(end.a, end.b), end);
+        continue;
+      }
       const end: { a: LinkEnd; b: LinkEnd } = {
         a: { key: from, iface: n.localInterface ?? '' },
         b: { key: to, iface: n.remoteInterface ?? '' },
@@ -438,7 +473,7 @@ export function buildTopology(
   const drawnLinks = new Set(
     (opts.existingEdges ?? []).map((e) => edgeSignature(e, (id) => id)),
   );
-  for (const { a, b } of links.values()) {
+  for (const { a, b, viaBundle } of links.values()) {
     const source = nodeFor.get(a.key);
     const target = nodeFor.get(b.key);
     if (!source || !target) {
@@ -456,11 +491,14 @@ export function buildTopology(
     if (drawnLinks.has(already)) continue;
 
     const full = [a.iface, b.iface].filter(Boolean).join(' \u2194 ');
+    const bundleNote = viaBundle?.length
+      ? ` — ${viaBundle.length} bundled ports: ${viaBundle.join(', ')}`
+      : '';
     const data: LinkData = {
       sourcePortLabel: shortInterface(a.iface),
       targetPortLabel: shortInterface(b.iface),
       label: '',
-      notes: full ? `Discovered: ${full}` : undefined,
+      notes: full ? `Discovered: ${full}${bundleNote}` : undefined,
       pathType: 'smoothstep',
       direction: 'none',
       width: 2,

@@ -136,6 +136,9 @@ pub struct CrawledDevice {
     /// where the registry knows it. Everything plugged in that says nothing
     /// for itself is in here.
     pub attached: Vec<AttachedDevice>,
+    /// What this device says it has aggregated (LT-009): the bundles from
+    /// `show etherchannel summary`, so two cables in a LAG draw as one link.
+    pub port_channels: Vec<crate::etherchannel::PortChannel>,
 }
 
 /// Something seen on a port that announced nothing about itself.
@@ -528,6 +531,7 @@ async fn identify_over_snmp(
         reached_by: ReachedBy::Snmp,
         // SNMP gives an identity and nothing about what is plugged in.
         attached: Vec::new(),
+        port_channels: Vec::new(),
     })
 }
 
@@ -640,6 +644,11 @@ async fn visit(
     // and on a real diagram those are most of what is plugged in.
     let learned = crate::mac_table::parse_mac_table(
         &device.run("show mac address-table").await.unwrap_or_default(),
+    );
+    // What is aggregated (LT-009). FortiOS rejects the command harmlessly and
+    // the parser reads an empty answer as no bundles.
+    let port_channels = crate::etherchannel::parse_etherchannel_summary(
+        &device.run("show etherchannel summary").await.unwrap_or_default(),
     );
 
     // FortiSwitch and FortiGate answer SSH and then reject all of the above
@@ -825,10 +834,23 @@ async fn visit(
     // A port with a discovery neighbour is a link to something that already
     // introduced itself; anything else learned there is behind that device,
     // not attached here. That is observed rather than assumed.
-    let uplinks: std::collections::HashSet<String> = neighbors
+    let mut uplinks: std::collections::HashSet<String> = neighbors
         .iter()
         .filter_map(|n| n.local_interface.clone())
         .collect();
+    // A bundle whose member is an uplink is an uplink itself: the MAC table
+    // reports addresses learned across a LAG on Po1, not on the member port,
+    // and without this the entire far side of the network shows as "attached"
+    // to this switch (seen live the first time the lab had a LAG, LT-009).
+    for pc in &port_channels {
+        if pc
+            .members
+            .iter()
+            .any(|m| uplinks.iter().any(|u| crate::crawl::same_interface(u, m)))
+        {
+            uplinks.insert(pc.name.clone());
+        }
+    }
     let population = crate::mac_table::count_by_port(&learned);
     let mut attached = Vec::new();
     for entry in &learned {
@@ -872,6 +894,7 @@ async fn visit(
             hops,
             reached_by: ReachedBy::Ssh,
             attached,
+            port_channels,
         },
         neighbors,
     })
@@ -954,6 +977,7 @@ fn reported_access_points(aps: &[crate::fortios::AccessPoint]) -> Vec<CrawledDev
                 hops: 0,
                 reached_by: ReachedBy::Reported,
                 attached: Vec::new(),
+                port_channels: Vec::new(),
             })
         })
         .collect()

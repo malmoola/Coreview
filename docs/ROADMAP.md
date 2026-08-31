@@ -167,6 +167,21 @@ edited by double-click, removed by committing nothing (so a stray
 double-click leaves no debris). Stored per-link (`texts`), undoable, saved.
 Same export caveat as LT-051.
 
+### LT-009 — Draw a port-channel as one link — 2026-08-31
+The operator bonded Gi1/0/11 + Gi1/0/12 between the 9300 and the 3850 as
+Po1, and the whole path was built against that live LAG the same hour:
+`show etherchannel summary` captured verbatim from both switches through the
+crawler's own login, a parser for it (continuation lines, static bundles,
+the empty table), the crawl asking every IOS device and carrying bundles to
+the front, and the topology fold — a cable folds into its bundle when either
+end's table says its port is aggregated, either because a crawl often
+reaches only one of the two switches. Unbundled parallel cables still draw
+as two links: D-014's line holds — the switch's own table, never inference.
+**Found live on the way:** MACs learned across a LAG report on Po1, not on
+the member port, so the uplink filter missed them and the entire far side of
+the network appeared "attached" to the 9300; a bundle whose member is an
+uplink is now an uplink itself.
+
 ### LT-060 — **bug** The 9300 still refused login after the kex fix — 2026-08-31
 Reproduced from this machine with the crawler's own code: transport now
 negotiates fine (the LT-054 fix holds — kex ecdh-sha2-nistp384, hostkey
@@ -333,19 +348,6 @@ and this unblocks. The scan already recognises `.lcsl` by name (LT-003).
 - The one `Group` ("Master.79") is expanded per Object or skipped entirely —
   "do NOT flatten it into a single unreadable blob".
 - The 5 bare unit rectangles are skipped.
-
-### LT-009 — Draw a port-channel as one link
-**Source:** asked 2026-08-29.
-**Blocked on:** a LAG configured on the lab switch. `show etherchannel summary`
-answers "Number of channel-groups in use: 0", so there is no populated table to
-write a parser against.
-**Unblocked 2026-08-31:** the operator bonded Gi1/0/11 + Gi1/0/12 between
-192.168.14.20 (9300) and 192.168.14.111 (3850) as Port-channel 1 on both
-sides. **Awaiting captures** (the rule is real output, not documentation):
-`show etherchannel summary` and `show cdp neighbors detail` from either
-switch — paste them and the parser follows.
-**Note:** inferring a bundle from consecutive port numbers was tried and
-reverted — see D-014.
 
 ### LT-010 — Verify against Catalyst 9000 / IOS-XE 17
 **Source:** asked 2026-08-29.
