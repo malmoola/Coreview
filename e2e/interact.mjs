@@ -24,7 +24,7 @@ const project = {
   document: {
     nodes: [
       {
-        id: "n1", type: "device", position: { x: 0, y: 0 }, width: 176, height: 96,
+        id: "n1", type: "device", position: { x: 0, y: 0 }, width: 76, height: 76,
         data: {
           label: "Core switch", deviceType: "core-switch", tags: [],
           addresses: [{ id: "a1", label: "Management", address: "192.0.2.10", isPrimary: true }],
@@ -40,7 +40,7 @@ const project = {
         },
       },
       {
-        id: "n2", type: "device", position: { x: 0, y: 260 }, width: 176, height: 96,
+        id: "n2", type: "device", position: { x: 0, y: 260 }, width: 76, height: 76,
         data: {
           label: "Access switch", deviceType: "access-switch", tags: [],
           addresses: [], locked: false, maintenance: false, showDetails: true,
@@ -50,7 +50,7 @@ const project = {
       // edits must not reach it, and it can testify that a drag moved a node
       // rather than panning the canvas.
       {
-        id: "n3", type: "device", position: { x: 640, y: 300 }, width: 176, height: 96,
+        id: "n3", type: "device", position: { x: 640, y: 300 }, width: 76, height: 76,
         data: {
           label: "Bystander", deviceType: "router", tags: [],
           addresses: [], locked: false, maintenance: false, showDetails: true,
@@ -269,6 +269,10 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
       after.w > before.w + 40 && after.h > before.h + 20,
       `${before.w}x${before.h} -> ${after.w}x${after.h}`,
     );
+    // Since LT-053 a resize genuinely scales the glyph, and every block after
+    // this one is laid out against the original size — put it back.
+    await page.keyboard.press("Control+z");
+    await page.waitForTimeout(400);
   }
 }
 
@@ -1209,9 +1213,13 @@ await dismissRecovery();
 
     // Dragging the section carries what is standing in it.
     const wasAt = await held.boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height - 8);
+    // By its own title text — the one pixel that is unambiguously the
+    // section's: the body is a backdrop under the devices, and the bottom
+    // edge can run behind the bottom panel.
+    const titleBox = await zone.locator(".cv-node-label").first().boundingBox();
+    await page.mouse.move(titleBox.x + titleBox.width / 2, titleBox.y + titleBox.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 90, box.y + box.height - 8 + 60, { steps: 14 });
+    await page.mouse.move(titleBox.x + titleBox.width / 2 + 90, titleBox.y + titleBox.height / 2 + 60, { steps: 14 });
     await page.mouse.up();
     await page.waitForTimeout(450);
     const nowAt = await held.boundingBox();
@@ -1426,8 +1434,8 @@ await dismissRecovery();
     // Clicked on each device own glyph: after the drag checks above, node
     // boxes overlap and a centre click lands on whichever is on top.
     const devs = page.locator(".react-flow__node:not(:has(.cv-note))");
-    await devs.nth(0).locator(".cv-glyph-art").click();
-    await devs.nth(1).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+    await devs.nth(0).locator(".cv-glyph-node").click();
+    await devs.nth(1).locator(".cv-glyph-node").click({ modifiers: ["Control"] });
     await page.waitForTimeout(350);
     const bulk = page.locator(".cv-inspector .cv-field", { hasText: "Appears on" });
     check("the bulk editor offers views", (await bulk.count()) === 1);
@@ -1517,7 +1525,9 @@ await dismissRecovery();
     if (handle) {
       await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
       await page.mouse.down();
-      await page.mouse.move(target.x + target.width / 2, target.y + 22, { steps: 18 });
+      // The left-edge midpoint is the left handle since LT-053 put handles on
+      // the node's real edges; a fixed +22 from the top misses at some zooms.
+      await page.mouse.move(target.x + 3, target.y + target.height / 2, { steps: 18 });
       // React Flow needs a moment with the pointer over the target before it
       // treats the drop as landing on it.
       await page.waitForTimeout(200);
@@ -1699,8 +1709,8 @@ await dismissRecovery();
       return m ? { x: Number(m[1]), y: Number(m[2]) } : null;
     });
 
-  await devs.nth(0).locator(".cv-glyph-art").click();
-  await devs.nth(1).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+  await devs.nth(0).locator(".cv-glyph-node").click();
+  await devs.nth(1).locator(".cv-glyph-node").click({ modifiers: ["Control"] });
   await page.waitForTimeout(300);
 
   await devs.nth(0).click({ button: "right", position: { x: 10, y: 10 } });
@@ -1728,8 +1738,8 @@ await dismissRecovery();
       return m ? Number(m[1]) : 0;
     });
     const yBefore = [await yOf(two[0]), await yOf(two[1])];
-    await byName(two[0]).locator(".cv-glyph-art").click();
-    await byName(two[1]).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+    await byName(two[0]).locator(".cv-glyph-node").click();
+    await byName(two[1]).locator(".cv-glyph-node").click({ modifiers: ["Control"] });
     await page.waitForTimeout(250);
     // At least the two named ones; a leftover from the menu step may ride
     // along, which the align handles fine.
@@ -1747,7 +1757,7 @@ await dismissRecovery();
     // still-selected devices for the mouse half.
     // The glyph's own pixels, not a corner offset: below the old 0.5x fit
     // floor (LT-047) the corner of one node can sit under a neighbour.
-    await byName(two[0]).locator(".cv-glyph-art").click({ button: "right" });
+    await byName(two[0]).locator(".cv-glyph-node").click({ button: "right" });
     await page.waitForTimeout(300);
     const xOf = (n) => byName(n).evaluate((el) => {
       const m = /translate\((-?[\d.]+)px/.exec(el.style.transform ?? "");
@@ -1787,9 +1797,9 @@ await dismissRecovery();
   // and a click there is swallowed without selecting anything.
   await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
   await page.waitForTimeout(250);
-  await devs.nth(0).locator(".cv-glyph-art").click();
+  await devs.nth(0).locator(".cv-glyph-node").click();
   await page.waitForTimeout(200);
-  await devs.nth(1).locator(".cv-glyph-art").click({ modifiers: ["Control"] });
+  await devs.nth(1).locator(".cv-glyph-node").click({ modifiers: ["Control"] });
   await page.waitForTimeout(350);
   const picked = await page.locator(".react-flow__node.selected").count();
   check("two devices are selected to copy", picked === 2, `${picked} selected`);
@@ -2100,7 +2110,7 @@ await dismissRecovery();
     const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(el.style.transform ?? "");
     return m ? { x: Number(m[1]), y: Number(m[2]) } : { x: 0, y: 0 };
   });
-  await dev.locator(".cv-glyph-art").click();
+  await dev.locator(".cv-glyph-node").click();
   await page.waitForTimeout(250);
 
   const start = await flowPos();
@@ -2130,7 +2140,7 @@ await dismissRecovery();
   check("Delete removes it again", (await nodeCount()) === before);
 
   // Esc selects nothing.
-  await dev.locator(".cv-glyph-art").click();
+  await dev.locator(".cv-glyph-node").click();
   await page.waitForTimeout(200);
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
@@ -2512,6 +2522,41 @@ await dismissRecovery();
       edges: st.doc.edges.filter((e) => !e.id.startsWith("lane-")) } });
   });
   await page.waitForTimeout(300);
+}
+
+// ---- the edit corners hug the shape (LT-053) -------------------------------
+// "the shape should have no borders and the edit corners should be close to
+// the shape not far away." The glyph node used to be an invisible 168x92 box
+// with a 46px icon floating in it: resize corners, connection dots and link
+// ends all sat on the box, nowhere near the drawn shape. The node's bounds
+// are now the art itself — the label hangs below without counting.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc, nodes: [...st.doc.nodes, {
+      id: "hug1", type: "device", position: { x: 540, y: 420 }, width: 80, height: 80,
+      data: { label: "Huggable", deviceType: "router", tags: [], addresses: [],
+        locked: false, maintenance: false, showDetails: true },
+    }] } });
+  });
+  await page.waitForTimeout(400);
+  const node = page.locator(".react-flow__node", { hasText: "Huggable" }).first();
+  await node.locator(".cv-glyph-node").click();
+  await page.waitForTimeout(300);
+  const art = await node.locator(".cv-glyph-art").boundingBox();
+  const handle = await page.locator(".react-flow__resize-control.handle.top.left").first().boundingBox();
+  check("a resize corner sits on the shape's own corner",
+    handle && Math.hypot(handle.x + handle.width / 2 - art.x, handle.y + handle.height / 2 - art.y) < 12,
+    handle ? `handle (${handle.x.toFixed(0)},${handle.y.toFixed(0)}) vs art (${art.x.toFixed(0)},${art.y.toFixed(0)})` : "no handle");
+  const label = await node.locator(".cv-glyph-text").boundingBox();
+  check("the label hangs below the shape without widening its bounds",
+    label && label.y >= art.y + art.height - 2, label ? `label y ${label.y.toFixed(0)} art bottom ${(art.y + art.height).toFixed(0)}` : "no label");
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc, nodes: st.doc.nodes.filter((n) => n.id !== "hug1") } });
+  });
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });

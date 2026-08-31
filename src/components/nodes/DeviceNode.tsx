@@ -253,8 +253,9 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
         {card}
         <NodeResizer
           isVisible={Boolean(selected) && !d.locked}
-          minWidth={72}
-          minHeight={72}
+          keepAspectRatio
+          minWidth={36}
+          minHeight={36}
           lineClassName="cv-resize-line"
           handleClassName="cv-resize-handle"
         />

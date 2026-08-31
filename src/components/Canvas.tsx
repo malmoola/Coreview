@@ -41,7 +41,13 @@ const edgeTypes = { live: LiveEdge };
 function defaultSize(type: DeviceType): { width: number; height: number } {
   if (type === 'zone') return { width: 420, height: 300 };
   if (type === 'callout') return { width: 190, height: 64 };
-  return { width: 168, height: 92 };
+  if (type === 'text') return { width: 168, height: 44 };
+  // Shapes keep the card proportions; a device is its glyph (LT-053), and a
+  // glyph's bounds are square so the corners sit on the drawn shape.
+  if (['rectangle', 'rounded', 'circle', 'diamond', 'cloud'].includes(type)) {
+    return { width: 168, height: 92 };
+  }
+  return { width: 76, height: 76 };
 }
 
 export function makeDeviceNode(type: DeviceType, x: number, y: number): TopoNode {
@@ -743,8 +749,16 @@ export function Canvas() {
         to: Math.max(...to),
       });
 
+      // "Nothing to snap to" is not a competitor: when no edge lined up,
+      // found.x is just where the box already is, and comparing against that
+      // zero made the rhythm unreachable except when an accidental edge
+      // alignment happened to coexist.
+      const xAligned = found.guides.some((g) => g.orientation === 'vertical');
       const rhythmX = spacingHint(dragged, others, 'x', tolerance);
-      if (rhythmX !== null && Math.abs(rhythmX - dragged.x) <= Math.abs(found.x - dragged.x)) {
+      if (
+        rhythmX !== null &&
+        (!xAligned || Math.abs(rhythmX - dragged.x) <= Math.abs(found.x - dragged.x))
+      ) {
         settled.x = rhythmX;
         const edges = span(
           [rhythmX, ...others.map((o) => o.x)],
@@ -757,8 +771,12 @@ export function Canvas() {
         });
       }
 
+      const yAligned = found.guides.some((g) => g.orientation === 'horizontal');
       const rhythmY = spacingHint(dragged, others, 'y', tolerance);
-      if (rhythmY !== null && Math.abs(rhythmY - dragged.y) <= Math.abs(found.y - dragged.y)) {
+      if (
+        rhythmY !== null &&
+        (!yAligned || Math.abs(rhythmY - dragged.y) <= Math.abs(found.y - dragged.y))
+      ) {
         settled.y = rhythmY;
         const edges = span(
           [rhythmY, ...others.map((o) => o.y)],
