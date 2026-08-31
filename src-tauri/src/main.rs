@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod icons;
+mod shapeconv;
 mod commands;
 mod discovery;
 mod vault_commands;

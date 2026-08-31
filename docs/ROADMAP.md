@@ -28,9 +28,8 @@ bar rather than a piece of work, and does not count against that.*
 - Where a bug cannot be fixed, it says why in plain words rather than being
   quietly closed.
 
-**Known bugs, open:** LT-003 (custom shapes import scrambled, transforms
-dropped, "Untitled Drawing"), LT-004 (selection draws a box round a round
-shape), LT-005 (icon library cannot be cleared).
+**Known bugs, open:** LT-004 (selection draws a box round a round shape),
+LT-005 (icon library cannot be cleared).
 **Known bugs, closed:** LT-030, LT-031.
 
 ### LT-031 — **bug** Three CSS variables that were never defined — 2026-08-30
@@ -42,6 +41,33 @@ hardcoded fallback — which meant three pieces of the interface ignored the
 ground entirely and stayed dark-theme coloured on a white page.
 **Fixed:** they read `--text-dim`, `--warning` and `--accent`, which are the
 variables that were meant.
+
+### LT-003 — **bug** Custom shape import bugs — 2026-08-30
+All four, in the icon-library scan, which is the app's custom-shape door:
+**The scrambling** was the sanitiser: it rebuilt the file byte-by-byte
+through a Latin-1 cast, so every non-ASCII glyph in an imported SVG came out
+as mojibake, and it deleted every `<image>` element wholesale, which blanked
+the artwork out of any icon carrying an embedded bitmap. Text now survives
+byte-faithful, and an `<image>` stays when its href is an inline
+`data:image/` URI — the kind that cannot reach the network; fetching hrefs
+still go. Sibling groups, paths and **nested transforms were already kept
+as-written**, which is now the documented, tested choice (preserve, never
+rewrite).
+**Naming:** index entry, else de-slugified filename, else the filename
+itself; "Untitled" only when there is genuinely nothing (`display_name`,
+tested).
+**Routing:** the scan now converts `.emf`/`.wmf` itself through LibreOffice —
+`src-tauri/src/shapeconv.rs` is a Rust port of the PPTX pipeline's crop,
+bitmap-legalising and cruft-stripping, tested against the same fixtures and
+numbers, and proven end-to-end by a committed real EMF from the Cisco deck
+(test gated on soffice; CI runners skip it, the soffice-missing report has
+its own test). A file soffice cannot draw is skipped *by name*; a folder of
+EMFs with no LibreOffice says to install libreoffice-draw instead of "N
+file(s) are not SVG".
+**Differs from the ask in one place:** `.lcsl` is recognised and named
+("a Lucidchart stencil — its converter is not built yet") rather than
+converted — the converter is LT-006, and the file it must be verified
+against is no longer on this machine. Routing it lands with LT-006.
 
 ### LT-002 — Cisco PPTX stencil pipeline — 2026-08-30
 Unblocked the moment the operator installed libreoffice-draw, and run for
@@ -71,19 +97,6 @@ alone: shebang+CR fails, CRLF everywhere else passes.
 runner or laptop — sees the bytes the tests were written against.
 **Acceptance:** a test that fails without the pin; Windows CI green.
 
-### LT-003 — **bug** Custom shape import bugs
-**Source:** asked 2026-08-30, with screenshots.
-**Acceptance:**
-- A multi-element SVG imports as one palette entry and one node whose renderer
-  draws the whole SVG. "One source file = one palette entry = one node" — stop
-  collapsing sibling `<g>`/`<path>` into a single scrambled object.
-- Nested transforms on grouped elements are not dropped: either apply parent
-  transforms to children at import, or preserve `<g transform>` as-is. Pick one
-  and be consistent.
-- An unnamed import falls back to the de-slugified source filename before
-  falling back to "Untitled".
-- The importer accepts `.emf`, `.svg` and `.lcsl` directly and routes each to
-  the right converter, instead of refusing non-SVG with a count in a toast.
 
 ---
 
@@ -105,6 +118,9 @@ cleared with it.
 
 ### LT-006 — Lucidchart `.lcsl` import
 **Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.
+**Blocked on:** the file. `Affinity-Native.lcsl` is no longer on this machine
+(2026-08-30) and the converter cannot be verified without it — re-provide it
+and this unblocks. The scan already recognises `.lcsl` by name (LT-003).
 **Acceptance:**
 - 35 shapes with real vector in `properties.Stencil.Shapes[]`: convert `Points`
   (normalised 0..1) and `Lines` (`p1`/`p2` indices, `n1`/`n2` cubic control

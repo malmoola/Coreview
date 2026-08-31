@@ -80,51 +80,78 @@ fn folder_category(root: &Path, path: &Path) -> String {
     }
 }
 
-/// Every SVG under a folder, including its subfolders.
+/// What a walk of the library folder found, sorted by what can be done
+/// with it.
+#[derive(Default)]
+struct Found {
+    svgs: Vec<PathBuf>,
+    /// EMF and WMF — convertible here, through LibreOffice.
+    convertible: Vec<PathBuf>,
+    /// Lucidchart stencils, named so the report can be specific.
+    lucid: Vec<PathBuf>,
+    /// Everything else this cannot read directly (a .pptx, a zip).
+    other_formats: usize,
+}
+
+/// Every shape file under a folder, including its subfolders.
 ///
 /// Flat-only was the bug behind "1 icon" on a library of a thousand: shape
 /// sets arrive as folders of folders, and only the top level was read.
-fn collect(
-    dir: &Path,
-    depth: usize,
-    out: &mut Vec<PathBuf>,
-    other_formats: &mut usize,
-) -> Result<(), String> {
-    if depth > MAX_DEPTH || out.len() >= MAX_ICONS {
+fn collect(dir: &Path, depth: usize, found: &mut Found) -> Result<(), String> {
+    if depth > MAX_DEPTH || found.svgs.len() >= MAX_ICONS {
         return Ok(());
     }
     let listing = match std::fs::read_dir(dir) {
         Ok(l) => l,
         // A folder that cannot be read is not fatal at depth: the rest of the
         // library is still worth having.
-        Err(e) if depth > 0 => {
-            *other_formats += 0;
-            let _ = e;
-            return Ok(());
-        }
+        Err(_) if depth > 0 => return Ok(()),
         Err(e) => return Err(e.to_string()),
     };
     for entry in listing.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_dir() {
-            collect(&path, depth + 1, out, other_formats)?;
+            collect(&path, depth + 1, found)?;
             continue;
         }
         match path.extension().and_then(|x| x.to_str()) {
-            Some(ext) if ext.eq_ignore_ascii_case("svg") => out.push(path),
+            Some(ext) if ext.eq_ignore_ascii_case("svg") => found.svgs.push(path),
+            // LT-003: an EMF is a shape, not a refusal. Converted below.
+            Some(ext) if ext.eq_ignore_ascii_case("emf") || ext.eq_ignore_ascii_case("wmf") => {
+                found.convertible.push(path)
+            }
+            Some(ext) if ext.eq_ignore_ascii_case("lcsl") => found.lucid.push(path),
             // A library's own paperwork — the name and category index, a
             // licence, a readme — is not a shape that failed to load, and
             // counting it as one made a perfectly good folder report a
             // problem it did not have.
             Some(ext) if is_paperwork(&path, ext) => {}
             // Anything else is a shape file this cannot read directly —
-            // a Visio stencil, a zip, an EMF. Counted so the interface can
-            // say so rather than silently showing an almost empty library.
-            Some(_) => *other_formats += 1,
+            // a Visio stencil, a zip. Counted so the interface can say so
+            // rather than silently showing an almost empty library.
+            Some(_) => found.other_formats += 1,
             None => {}
         }
     }
     Ok(())
+}
+
+/// The name an icon shows in the palette. The chain the operator asked for in
+/// LT-003: the index entry, else the de-slugified filename, else the raw
+/// filename, and "Untitled" only when there is genuinely nothing to use.
+fn display_name(given: &str, id: &str) -> String {
+    let given = given.trim();
+    if !given.is_empty() {
+        return given.to_string();
+    }
+    let h = humanise(id);
+    if !h.is_empty() {
+        return h;
+    }
+    if !id.is_empty() {
+        return id.to_string();
+    }
+    "Untitled".to_string()
 }
 
 /// Strip script, event handlers and external references.
@@ -135,7 +162,6 @@ fn collect(
 pub fn sanitise(input: &str) -> String {
     let mut s = strip_elements(input, "script");
     s = strip_elements(&s, "foreignObject");
-    s = strip_elements(&s, "image");
     s = strip_attributes(&s);
     s
 }
@@ -176,9 +202,17 @@ fn strip_elements(input: &str, tag: &str) -> String {
     out
 }
 
-/// Remove `on*="..."` handlers and any href that is not a local `#fragment`.
+/// Remove `on*="..."` handlers and any href that is neither a local
+/// `#fragment` nor an inline `data:image/...` — the two reference kinds that
+/// cannot reach the network. Embedded bitmaps ride in as data URIs, and an
+/// icon that arrives with its raster stripped out is the "scrambled object"
+/// of LT-003.
 fn strip_attributes(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
+    // Built as bytes and re-validated at the end: the first version pushed
+    // each non-ASCII byte through `as char`, which re-encoded it — every
+    // multi-byte glyph in an imported SVG came out as mojibake ("Décor" as
+    // "DÃ©cor" in the palette).
+    let mut out: Vec<u8> = Vec::with_capacity(input.len());
     let bytes = input.as_bytes();
     let mut i = 0usize;
     while i < bytes.len() {
@@ -211,24 +245,29 @@ fn strip_attributes(input: &str) -> String {
                         vend += 1;
                     }
                     let value = &input[vstart..vend.min(input.len())];
+                    let v = value.trim_start();
                     let drop = local.starts_with("on")
-                        || (local == "href" && !value.trim_start().starts_with('#'));
+                        || (local == "href"
+                            && !v.starts_with('#')
+                            && !v.starts_with("data:image/"));
                     if drop {
                         i = (vend + 1).min(bytes.len());
                         continue; // emit nothing for this attribute
                     }
-                    out.push_str(&input[start..(vend + 1).min(input.len())]);
+                    out.extend_from_slice(&bytes[start..(vend + 1).min(bytes.len())]);
                     i = (vend + 1).min(bytes.len());
                     continue;
                 }
             }
-            out.push_str(name);
+            out.extend_from_slice(name.as_bytes());
             continue;
         }
-        out.push(bytes[i] as char);
+        out.push(bytes[i]);
         i += 1;
     }
-    out
+    // Only whole input slices and ASCII went in, so this cannot fail; the
+    // fallback keeps a hostile edge case from panicking the scan.
+    String::from_utf8(out).unwrap_or_else(|_| input.to_string())
 }
 
 fn stem(path: &Path) -> String {
@@ -279,18 +318,24 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
 
     let mut icons = Vec::new();
     let mut skipped = Vec::new();
-    let mut entries = Vec::new();
-    let mut other_formats = 0usize;
-    collect(&root, 0, &mut entries, &mut other_formats)?;
-    entries.sort();
+    let mut found = Found::default();
+    collect(&root, 0, &mut found)?;
+    found.svgs.sort();
+    found.convertible.sort();
     // A folder of Visio stencils and zips found one loose SVG and reported
     // "1 icon", which reads as an empty library rather than as a library of
     // files this cannot open. Say what was there.
-    if other_formats > 0 {
+    if found.other_formats > 0 {
         skipped.push(format!(
-            "{other_formats} file(s) are not SVG — run scripts/import-shapes.mjs on them first"
+            "{} file(s) are in formats Coreview cannot read directly (.pptx, .vssx, .zip) — run scripts/import-shapes.mjs on them first",
+            found.other_formats
         ));
     }
+    for path in &found.lucid {
+        let n = path.file_name().and_then(|f| f.to_str()).unwrap_or("?");
+        skipped.push(format!("{n}: a Lucidchart stencil — its converter is not built yet"));
+    }
+    let entries = std::mem::take(&mut found.svgs);
 
     for path in entries {
         if icons.len() >= MAX_ICONS {
@@ -327,13 +372,73 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
             // The folder a shape sits in is what it is: Fortinet, Nexus 9000,
             // Wireless. Calling a thousand icons "Custom" is a list nobody can
             // find anything in.
-            .unwrap_or_else(|| (humanise(&id), folder_category(&root, &path)));
+            .unwrap_or_else(|| (String::new(), folder_category(&root, &path)));
         icons.push(IconEntry {
+            name: display_name(&name, &id),
             id,
-            name,
             category,
             svg: sanitise(&raw),
         });
+    }
+
+    // LT-003: EMF and WMF convert here rather than being refused with a
+    // count. LibreOffice draws them; the tidy pass is the same one the PPTX
+    // pipeline needed — crop the A4 page away, make the bitmaps legal.
+    if !found.convertible.is_empty() {
+        if !crate::shapeconv::soffice_available() {
+            skipped.push(format!(
+                "{} EMF/WMF file(s) need LibreOffice to convert — install libreoffice-draw and reload",
+                found.convertible.len()
+            ));
+        } else {
+            let work = std::env::temp_dir().join(format!("coreview-conv-{}", std::process::id()));
+            let _ = std::fs::create_dir_all(&work);
+            for batch in found.convertible.chunks(25) {
+                if icons.len() >= MAX_ICONS {
+                    skipped.push(format!("stopped at {MAX_ICONS} icons"));
+                    break;
+                }
+                let produced = match crate::shapeconv::convert_batch(batch, &work) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        skipped.push(e);
+                        continue;
+                    }
+                };
+                for src in batch {
+                    let file_name =
+                        src.file_name().and_then(|f| f.to_str()).unwrap_or("?").to_string();
+                    let out = work.join(src.file_stem().unwrap_or_default()).with_extension("svg");
+                    if !produced.contains(&out) {
+                        skipped.push(format!("{file_name}: LibreOffice could not draw it"));
+                        continue;
+                    }
+                    let raw = match std::fs::read_to_string(&out) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            skipped.push(format!("{file_name}: {e}"));
+                            continue;
+                        }
+                    };
+                    let Some(tidied) = crate::shapeconv::tidy_converted(&raw) else {
+                        skipped.push(format!("{file_name}: converted, but nothing was drawn"));
+                        continue;
+                    };
+                    let id = stem(src);
+                    let (name, category) = meta
+                        .get(&file_name)
+                        .cloned()
+                        .unwrap_or_else(|| (String::new(), folder_category(&root, src)));
+                    icons.push(IconEntry {
+                        name: display_name(&name, &id),
+                        id,
+                        category,
+                        svg: sanitise(&tidied),
+                    });
+                }
+            }
+            let _ = std::fs::remove_dir_all(&work);
+        }
     }
 
     Ok(IconLibrary {
@@ -388,11 +493,21 @@ mod tests {
         }
     }
 
+    /// LT-003 changed the spec here: an `<image>` used to be deleted
+    /// wholesale, which blanked the artwork out of every icon that carries
+    /// an embedded bitmap. Now the element stays and only a fetching href is
+    /// removed — a data URI cannot reach the network.
     #[test]
-    fn strips_embedded_images() {
+    fn keeps_embedded_bitmaps_but_not_fetching_ones() {
         let s = sanitise(r#"<svg><image href="http://x/y.png" x="0"/><path d="M1 1"/></svg>"#);
-        assert!(!s.to_lowercase().contains("<image"), "{s}");
+        assert!(!s.contains("http://x"), "an external image href survived: {s}");
         assert!(s.contains("<path"), "{s}");
+
+        let s = sanitise(r#"<svg><image href="data:image/png;base64,iVBOR" width="8"/></svg>"#);
+        assert!(s.contains("data:image/png;base64,iVBOR"), "an inline bitmap was stripped: {s}");
+
+        let s = sanitise(r#"<svg><image href="data:text/html,<script>x</script>" width="8"/></svg>"#);
+        assert!(!s.contains("data:text"), "only image data URIs may stay: {s}");
     }
 
     #[test]
@@ -402,6 +517,28 @@ mod tests {
         assert!(s.contains("viewBox"));
         assert!(s.contains("M2 2 L20 20"));
         assert!(s.contains("currentColor"));
+    }
+
+    /// LT-003: a multi-element SVG must come through whole — sibling groups
+    /// and paths intact, nested transforms kept as written, text unmangled.
+    /// The palette renders the sanitised text verbatim, so anything sanitise
+    /// bends here is what the operator sees scrambled on the canvas.
+    #[test]
+    fn a_multi_element_svg_survives_sanitising_whole() {
+        let svg = r##"<svg viewBox="0 0 100 100">
+  <g transform="translate(10,20)">
+    <g transform="scale(2)"><path d="M0 0 L10 0" stroke="currentColor"/></g>
+    <path d="M5 5 L5 15"/>
+  </g>
+  <path d="M50 50 L60 60"/>
+  <text x="1" y="2">Décor — étage</text>
+</svg>"##;
+        let s = sanitise(svg);
+        assert_eq!(s.matches("<path").count(), 3, "a sibling path was lost: {s}");
+        assert_eq!(s.matches("transform=").count(), 2, "a transform was dropped: {s}");
+        assert!(s.contains("translate(10,20)"), "{s}");
+        assert!(s.contains("scale(2)"), "{s}");
+        assert!(s.contains("Décor — étage"), "non-ASCII text was mangled: {s}");
     }
 
     #[test]
@@ -448,7 +585,7 @@ mod tests {
         assert_eq!(lib.icons.len(), 2, "clean.svg and hostile.svg: {:?}", lib.icons);
         let hostile = lib.icons.iter().find(|i| i.id.contains("hostile")).expect("hostile.svg");
         let lower = hostile.svg.to_lowercase();
-        for bad in ["<script", "onload", "<foreignobject", "<iframe", "evil.example", "<image"] {
+        for bad in ["<script", "onload", "<foreignobject", "<iframe", "evil.example"] {
             assert!(!lower.contains(bad), "{bad} survived scan: {}", hostile.svg);
         }
         assert!(hostile.svg.contains("<circle"), "the drawing must survive: {}", hostile.svg);
@@ -517,6 +654,7 @@ mod folder_tests {
         // The formats a real shape folder is actually full of.
         write(&root.join("Switches_Cisco_Nexus_9000.vss"), "binary-ish");
         write(&root.join("NetEquip.zip"), "PK\u{3}\u{4}");
+        write(&root.join("Affinity-Native.lcsl"), "{}");
         dir
     }
 
@@ -549,10 +687,88 @@ mod folder_tests {
         let dir = library();
         let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
         assert!(
-            lib.skipped.iter().any(|s| s.contains("not SVG")),
+            lib.skipped.iter().any(|s| s.contains("cannot read directly")),
             "skipped: {:?}",
             lib.skipped
         );
+        // LT-003: a Lucid stencil is named, not folded into a count.
+        assert!(
+            lib.skipped.iter().any(|s| s.contains("Affinity-Native.lcsl") && s.contains("Lucid")),
+            "skipped: {:?}",
+            lib.skipped
+        );
+    }
+
+    /// LT-003: an EMF routes to the converter instead of the refusal count —
+    /// and when it cannot be converted, the report names the file or names
+    /// the missing tool, never "N file(s) are not SVG".
+    #[test]
+    fn an_emf_is_routed_to_the_converter_not_refused() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write(&dir.path().join("router.emf"), "not really an emf");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert!(
+            !lib.skipped.iter().any(|s| s.contains("cannot read directly")),
+            "an EMF fell into the generic refusal: {:?}",
+            lib.skipped
+        );
+        assert!(
+            lib.skipped
+                .iter()
+                .any(|s| s.contains("router.emf") || s.contains("LibreOffice")),
+            "a failed EMF must be reported by name or by missing tool: {:?}",
+            lib.skipped
+        );
+    }
+
+    /// LT-003, run against a real EMF from the Cisco deck (a committed
+    /// fixture, per D-019). Skips where LibreOffice is not installed — the
+    /// CI runners — because the soffice-missing branch is covered above;
+    /// this one proves an actual conversion lands in the palette as a real,
+    /// cropped icon.
+    #[test]
+    fn a_real_emf_becomes_a_palette_icon() {
+        if !crate::shapeconv::soffice_available() {
+            eprintln!("skipping: soffice not installed here");
+            return;
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/sample.emf");
+        std::fs::copy(&fixture, dir.path().join("edge-router.emf")).expect("copy fixture");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert_eq!(lib.icons.len(), 1, "skipped: {:?}", lib.skipped);
+        let icon = &lib.icons[0];
+        assert_eq!(icon.name, "Edge Router", "named from the file: {}", icon.name);
+        assert!(icon.svg.contains("viewBox"), "{}", &icon.svg[..icon.svg.len().min(200)]);
+        // The crop must have replaced the A4 page: LibreOffice's page is
+        // 21000x29700 hundredths of a millimetre, and an uncropped speck
+        // would still carry it.
+        let vb = icon.svg.split("viewBox=\"").nth(1).and_then(|r| r.split('"').next()).expect("vb");
+        let n: Vec<f64> = vb.split(' ').filter_map(|v| v.parse().ok()).collect();
+        assert!(n[2] < 21000.0 * 0.9, "not cropped: viewBox {vb}");
+        assert!(icon.svg.contains("<path") || icon.svg.contains("<image"), "nothing drawn");
+    }
+
+    /// LT-003: the naming chain — index entry, else de-slugified filename,
+    /// else the filename itself. "Untitled" is the last resort, not the
+    /// default.
+    #[test]
+    fn an_unnamed_import_is_named_after_its_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write(&dir.path().join("asr-9000-edge.svg"), SVG);
+        write(&dir.path().join("___.svg"), SVG);
+        std::fs::write(
+            dir.path().join("index.json"),
+            r#"{"icons":[{"file":"asr-9000-edge.svg","name":"","category":"Routers"}]}"#,
+        )
+        .expect("write index");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        let named = lib.icons.iter().find(|i| i.id == "asr-9000-edge").expect("icon");
+        // The index gave an empty name; the filename is better than blank.
+        assert_eq!(named.name, "Asr 9000 Edge");
+        let odd = lib.icons.iter().find(|i| i.id == "___").expect("icon");
+        assert_eq!(odd.name, "___", "a filename with nothing to humanise stays itself");
+        assert!(lib.icons.iter().all(|i| !i.name.is_empty()));
     }
 
     #[test]
