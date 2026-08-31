@@ -16,6 +16,7 @@ import { describeRule, shouldAnimate } from '../../health/evaluate';
 import { STATUS_COLOR_DARK, readableOn, statusColors } from '../../theme';
 import { capPath, capsFor, dashFor } from '../../lib/linkStyle';
 import { jumpsFor, withJumps } from '../../lib/lineJumps';
+import { segmentMidpoints, waypointRoute } from '../../lib/waypointRoute';
 import {
   MAX_EDGES_FOR_JUMPS,
   allPaths,
@@ -184,27 +185,16 @@ function LiveEdgeInner(props: EdgeProps) {
   // export resolves link status the same way the canvas does.
   const status = linkStatusOf(id);
 
-  const [edgePath, labelX, labelY] = useMemo(
-    () =>
-      pathFor(data.pathType ?? 'smoothstep', {
-        sourceX,
-        sourceY,
-        targetX,
-        targetY,
-        sourcePosition,
-        targetPosition,
-      }, data.lane ?? 0),
-    [
-      data.pathType,
-      data.lane,
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      sourcePosition,
-      targetPosition,
-    ],
-  );
+  const wps = useMemo(() => data.waypoints ?? [], [data.waypoints]);
+  const [edgePath, labelX, labelY] = useMemo(() => {
+    if (wps.length > 0) {
+      const { path, labelAt } = waypointRoute({ x: sourceX, y: sourceY }, wps, { x: targetX, y: targetY });
+      return [path, labelAt.x, labelAt.y] as [string, number, number];
+    }
+    return pathFor(data.pathType ?? 'smoothstep', {
+      sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
+    }, data.lane ?? 0);
+  }, [data.pathType, data.lane, wps, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   const ground = useStore((s) => s.settings.ground);
   // A leader points a note at what it is about. It is an annotation, not a
@@ -294,6 +284,35 @@ function LiveEdgeInner(props: EdgeProps) {
     },
     [edgePath, id, rf, data.texts],
   );
+  // LT-068: Lucidchart-style routing handles. A selected link shows a filled
+  // square at each waypoint (drag to move, double-click to remove) and a
+  // hollow circle at each segment midpoint (drag to bend a new one in). The
+  // drag runs on window listeners so a handle re-rendering mid-drag does not
+  // drop it, and stops propagation so React Flow starts no selection.
+  const [wpDrag, setWpDrag] = useState<{ points: { x: number; y: number }[] } | null>(null);
+  const dragWaypoint = (startPoints: { x: number; y: number }[], index: number) =>
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      let points = startPoints.map((p) => ({ ...p }));
+      setWpDrag({ points });
+      const move = (ev: PointerEvent) => {
+        const f = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY });
+        points = points.map((p, i) => (i === index ? { x: f.x, y: f.y } : p));
+        setWpDrag({ points });
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        setWpDrag(null);
+        const store = useStore.getState();
+        store.commit();
+        store.updateEdgeData(id, { waypoints: points });
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    };
+
   const commitText = useCallback(
     (textId: string, value: string) => {
       const store = useStore.getState();
@@ -313,7 +332,11 @@ function LiveEdgeInner(props: EdgeProps) {
     labelFraction === 0.5 && dragAt?.key !== 'label'
       ? null // untouched links keep React Flow's own midpoint
       : pointAt(edgePath, labelFraction);
+  const livePath = wpDrag
+    ? waypointRoute({ x: sourceX, y: sourceY }, wpDrag.points, { x: targetX, y: targetY }).path
+    : edgePath;
   const drawnPath = useMemo(() => {
+    if (wps.length > 0 || wpDrag) return livePath;
     // A leader is an annotation. Hopping it over the cables it crosses would
     // say it is one of them.
     if (!jumpsEnabled || isLeader) return edgePath;
@@ -324,7 +347,7 @@ function LiveEdgeInner(props: EdgeProps) {
     // to clear the line it is hopping to read as a hop at all.
     const radius = Math.max(5, (data.width ?? 2) * 2.6);
     return withJumps(edgePath, jumpsFor(id, edgePath, others, radius * 2), radius);
-  }, [id, edgePath, jumpsEnabled, isLeader, version, data.width]);
+  }, [id, edgePath, livePath, wps.length, wpDrag, jumpsEnabled, isLeader, version, data.width]);
 
   const dash = isLeader ? (data.lineStyle === 'solid' ? undefined : '4 4') : dashFor(data.lineStyle, status);
   const caps = isLeader
@@ -567,6 +590,36 @@ function LiveEdgeInner(props: EdgeProps) {
             </div>
           );
         })}
+
+        {selected &&
+          (wpDrag?.points ?? wps).map((w, i) => (
+            <div
+              key={`wp-${i}`}
+              className="cv-edge-waypoint nodrag nopan"
+              style={{ transform: `translate(-50%, -50%) translate(${w.x}px, ${w.y}px)` }}
+              onPointerDown={dragWaypoint(wpDrag?.points ?? wps, i)}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                const store = useStore.getState();
+                store.commit();
+                store.updateEdgeData(id, { waypoints: (wpDrag?.points ?? wps).filter((_, j) => j !== i) });
+              }}
+            />
+          ))}
+        {selected &&
+          segmentMidpoints({ x: sourceX, y: sourceY }, wpDrag?.points ?? wps, { x: targetX, y: targetY }).map((m, i) => (
+            <div
+              key={`mid-${i}`}
+              className="cv-edge-addpoint nodrag nopan"
+              style={{ transform: `translate(-50%, -50%) translate(${m.x}px, ${m.y}px)` }}
+              onPointerDown={(e) => {
+                const base = wpDrag?.points ?? wps;
+                const inserted = [...base];
+                inserted.splice(i, 0, { x: m.x, y: m.y });
+                dragWaypoint(inserted, i)(e);
+              }}
+            />
+          ))}
 
         {data.targetPortLabel ? (
           <div

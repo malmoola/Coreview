@@ -322,6 +322,10 @@ export function Canvas() {
           store.updateEdgeData(edgeId, { pathType: next });
         },
       },
+      // LT-068: hand a link back to auto-routing.
+      ...(data?.waypoints?.length
+        ? [{ label: 'Reset routing', onSelect: () => store.updateEdgeData(edgeId, { waypoints: [] }) }]
+        : []),
       {
         label: data?.maintenance ? 'Clear maintenance' : 'Set maintenance',
         onSelect: () => store.updateEdgeData(edgeId, { maintenance: !data?.maintenance }),

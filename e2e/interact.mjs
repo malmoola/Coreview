@@ -2620,7 +2620,9 @@ await dismissRecovery();
   // LT-052: double-click a spot on the link and write straight onto it.
   const path = page.locator('.react-flow__edge[data-id="lx-e"] path').first();
   const pb = await path.boundingBox();
-  await page.mouse.dblclick(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
+  // At the corner of the smoothstep, not a segment midpoint where a routing
+  // handle sits — double-click adds text on the bare line (LT-052/068).
+  await page.mouse.dblclick(pb.x + pb.width * 0.5, pb.y + pb.height * 0.85);
   await page.waitForTimeout(400);
   const editor = page.locator(".cv-edge-flat input");
   check("double-clicking a link opens a caret there", (await editor.count()) === 1);
@@ -2753,6 +2755,68 @@ await dismissRecovery();
     window.__cvStore.setState({ doc: { ...st.doc,
       nodes: st.doc.nodes.filter((n) => n.id !== "probeme"),
       probes: st.doc.probes.filter((p) => p.objectId !== "probeme") } });
+  });
+}
+
+// ---- links can be reshaped by hand (LT-068) --------------------------------
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const mk = (id, x, y) => ({ id, type: "device", position: { x, y }, width: 76, height: 76,
+      data: { label: id, deviceType: "router", tags: [], addresses: [], locked: false, maintenance: false, showDetails: true } });
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: [...st.doc.nodes, mk("wpa", 1500, 1500), mk("wpb", 1900, 1500)],
+      edges: [...st.doc.edges, { id: "wp-e", source: "wpa", target: "wpb", sourceHandle: "r", targetHandle: "l",
+        type: "live", data: { sourcePortLabel: "", targetPortLabel: "", label: "", pathType: "straight",
+          direction: "none", width: 2, color: "#7c8fa3", enabled: true, maintenance: false,
+          healthRule: { type: "manual", manualStatus: "healthy" } } }] } });
+  });
+  await page.waitForTimeout(300);
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 40, y: 40 } });
+  await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+  const edge = () => page.evaluate(() => window.__cvStore.getState().doc.edges.find((e) => e.id === "wp-e"));
+  // Select the link; a hollow midpoint handle appears — drag it to bend.
+  await page.locator('.react-flow__edge[data-id="wp-e"]').click();
+  await page.waitForTimeout(300);
+  const add = page.locator(".cv-edge-addpoint").first();
+  check("a selected link shows a midpoint handle to bend it", (await add.count()) >= 1);
+  const box = await add.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y - 90, { steps: 14 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  let wp = (await edge()).data.waypoints;
+  check("dragging the handle drops a waypoint and bends the link",
+    Array.isArray(wp) && wp.length === 1, JSON.stringify(wp));
+  // The waypoint handle can be moved again.
+  await page.waitForTimeout(400); // let the create-drag's state settle
+  const dot = page.locator(".cv-edge-waypoint").first();
+  check("the bend shows a draggable waypoint handle", (await dot.count()) === 1);
+  const dbox = await dot.boundingBox();
+  await page.mouse.move(dbox.x + dbox.width / 2, dbox.y + dbox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dbox.x + 40, dbox.y - 20, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const wp2 = (await edge()).data.waypoints;
+  check("moving the handle moves the waypoint", Math.abs(wp2[0].x - wp[0].x) > 10 || Math.abs(wp2[0].y - wp[0].y) > 10,
+    `${JSON.stringify(wp)} -> ${JSON.stringify(wp2)}`);
+  // Reset routing clears it. Right-click the waypoint square, which is
+  // reliably on the (now bent) line — the edge group's bbox centre is not.
+  await page.locator(".cv-edge-waypoint").first().click({ button: "right" });
+  await page.waitForTimeout(200);
+  await page.locator(".cv-menu button", { hasText: "Reset routing" }).click();
+  await page.waitForTimeout(300);
+  check("reset routing hands the link back to auto",
+    ((await edge()).data.waypoints ?? []).length === 0);
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: st.doc.nodes.filter((n) => !n.id.startsWith("wp")),
+      edges: st.doc.edges.filter((e) => e.id !== "wp-e") } });
   });
 }
 

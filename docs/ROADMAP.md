@@ -334,13 +334,13 @@ LT-011's public-CA half.
 
 *Accepted, not started.*
 
-### LT-068 — Full manual control of link routing
-**Source:** asked 2026-08-31 — "full control of the links on the diagram like
-move them, reroute them, just like how any diagram tool would let you custom
-the links and route them the way you would want."
-**Acceptance:** a link can be reshaped by hand — drag a midpoint to bend it,
-add and move waypoints, the custom route kept (saved, undoable) until reset.
-Auto-routing stays the default; a hand-routed link keeps its shape.
+### LT-069 — Elbow links: drag a segment, press-and-hold to reset
+**Source:** shown 2026-08-31 (Lucidchart reference). For a step/elbow link,
+the handles are pill-shaped segment grips that slide a whole segment
+sideways keeping every corner at 90°, and press-and-hold on a grip resets
+the line. Distinct interaction from the free-waypoint model in LT-068.
+**Acceptance:** an elbow link's segments drag orthogonally; press-and-hold
+resets. Follows LT-068.
 
 ### LT-006 — Lucidchart `.lcsl` import
 **Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.
@@ -388,6 +388,19 @@ LT-045's converter work — the .vss route lands there.
 ---
 
 ## Done
+
+### LT-068 — Full manual control of link routing — 2026-08-31
+Reshape a link by hand, Lucidchart-style: a selected link shows a filled
+square at each waypoint (drag to move, double-click to remove) and a hollow
+circle at each segment midpoint (drag to bend a new waypoint in). The route
+is stored on the link (`waypoints`), undoable, saved, and drawn as a
+rounded polyline that keeps its shape — no auto-hop, no lane. "Reset routing"
+on the link's context menu hands it back to automatic. Double-click still
+adds flat text on the bare line (LT-052); the handles sit only on the
+vertices and midpoints, so the two do not fight. **Follow-up filed as LT-069:**
+the elbow/step line mode Lucid shows — pill grips that slide a whole segment
+orthogonally, and press-and-hold to reset — is a distinct interaction on top
+of this.
 
 ### LT-064 — **bug** Links lost their little jumps at crossings — 2026-08-31
 React Flow's smoothstep splits one straight segment at its border offsets

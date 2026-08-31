@@ -1523,3 +1523,20 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
 .cv-palette-lib::before { content: '▸'; font-size: 9px; color: var(--text-faint); }
 details[open] > .cv-palette-lib::before { content: '▾'; }
 .cv-palette-nested { margin-left: 8px; }
+
+/* --- LT-068: handles for reshaping a link by hand. A solid dot at each
+   waypoint (drag to move, double-click to drop), a hollow dot at each
+   segment midpoint (drag to bend a new one in). --- */
+.cv-edge-waypoint, .cv-edge-addpoint {
+  position: absolute; width: 10px; height: 10px;
+  pointer-events: auto; cursor: grab; z-index: 6;
+}
+/* A filled square at each real waypoint — Lucidchart's vertex handle. */
+.cv-edge-waypoint { background: var(--canvas-accent); border: 1.5px solid var(--page); border-radius: 2px; }
+/* A hollow circle at each segment midpoint — grab to add a bend. */
+.cv-edge-addpoint {
+  background: var(--page); border: 1.5px solid var(--canvas-accent);
+  border-radius: 50%; opacity: 0.7;
+}
+.cv-edge-addpoint:hover { opacity: 1; }
+.cv-edge-waypoint:active, .cv-edge-addpoint:active { cursor: grabbing; }

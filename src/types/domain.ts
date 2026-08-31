@@ -166,6 +166,10 @@ export interface LinkData extends Record<string, unknown> {
   sourcePortLabel: string;
   targetPortLabel: string;
   label: string;
+  /** Hand-placed routing waypoints in flow coordinates (LT-068). When set,
+   *  the link runs through them instead of auto-routing; empty or unset is
+   *  the automatic route. */
+  waypoints?: { x: number; y: number }[];
   /** Where along the drawn path the centre label sits, 0..1. Unset is the
    *  midpoint — every link ever drawn before LT-051. */
   labelAt?: number;
