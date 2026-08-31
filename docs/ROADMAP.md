@@ -586,6 +586,13 @@ This file, `docs/DECISIONS.md`, `docs/OPEN-QUESTIONS.md` and `CLAUDE.md`.
 
 *Raised but deliberately deferred. Not dropped.*
 
+### LT-063 — Bump the CI artifact actions off Node 20
+GitHub's runners warn on every run: actions/upload-artifact@v4 and
+download-artifact@v4 target deprecated Node 20 and are forced onto Node 24.
+Harmless today; the cure is bumping to their current majors (v7/v8 as of
+2026-08-31), deferred deliberately past a final-testing night because a
+major-version jump of CI actions is churn, not urgency.
+
 ### LT-024 — Connection points on imported shapes
 A Visio master carries named ports; an imported EMF is a picture. Reading ports
 would let a link land on "Gi0/1" rather than on the right-hand side. Deferred:
