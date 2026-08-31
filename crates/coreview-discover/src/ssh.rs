@@ -207,7 +207,7 @@ impl client::Handler for Verifier {
 /// This is a deliberate trade, and worth being clear about: talking to a switch
 /// that only speaks SHA-1 means using SHA-1. The honest options are to support
 /// it or to not manage the device.
-fn network_device_algorithms() -> Preferred {
+pub fn network_device_algorithms() -> Preferred {
     let mut kex: Vec<kex::Name> = Preferred::DEFAULT.kex.to_vec();
     // NIST ECDH: not in russh's defaults, but a hardened IOS-XE box is often
     // locked to exactly `ecdh-sha2-nistp521 ecdh-sha2-nistp384` — the lab
@@ -506,10 +506,24 @@ impl Device {
     }
 }
 
-/// Password first, then keyboard-interactive.
+/// Which method to lead with, given what the server advertised after a
+/// `none` query. Separated so the decision is testable without a server.
 ///
-/// Both are tried because devices differ about which one they offer for the
-/// same credentials, and Duo lives on keyboard-interactive.
+/// The order matters more than it looks: a hardened IOS-XE box configured
+/// `ip ssh server algorithm authentication keyboard` does not merely refuse
+/// a password attempt — it tears the session down, and the fallback that
+/// would have worked never gets to run ("Channel send error", LT-060). So
+/// password is only attempted when the server says it takes passwords; a
+/// server that advertises nothing gets keyboard-interactive, which every
+/// Cisco and Fortinet in the lab answers.
+fn password_first(advertised: &russh::MethodSet) -> bool {
+    advertised.iter().any(|m| *m == russh::MethodKind::Password)
+}
+
+/// Ask, then answer: a `none` query learns the advertised methods, then
+/// password and keyboard-interactive are tried in the order the server can
+/// survive. Both exist because devices differ about which one they offer for
+/// the same credentials, and Duo lives on keyboard-interactive.
 async fn authenticate(
     handle: &mut client::Handle<Verifier>,
     host: &str,
@@ -521,12 +535,25 @@ async fn authenticate(
         source: e,
     };
 
-    let ok = handle
-        .authenticate_password(&credentials.username, credentials.password.expose())
+    let advertised = match handle
+        .authenticate_none(&credentials.username)
         .await
-        .map_err(protocol)?;
-    if ok.success() {
-        return Ok(());
+        .map_err(protocol)?
+    {
+        russh::client::AuthResult::Success => return Ok(()),
+        russh::client::AuthResult::Failure {
+            remaining_methods, ..
+        } => remaining_methods,
+    };
+
+    if password_first(&advertised) {
+        let ok = handle
+            .authenticate_password(&credentials.username, credentials.password.expose())
+            .await
+            .map_err(protocol)?;
+        if ok.success() {
+            return Ok(());
+        }
     }
 
     let mut response = handle
@@ -639,6 +666,21 @@ mod tests {
         let modern = ciphers.iter().position(|c| *c == "aes256-ctr").unwrap();
         let legacy = ciphers.iter().position(|c| *c == "aes256-cbc").unwrap();
         assert!(modern < legacy, "CBC must sit below CTR and GCM");
+    }
+
+    /// LT-060: the lab 9300 tears the session down on a refused password
+    /// attempt, so the method choice must come from what the server
+    /// advertises — and a server advertising nothing gets
+    /// keyboard-interactive, never the fatal password try.
+    #[test]
+    fn password_only_when_the_server_takes_passwords() {
+        use russh::{MethodKind, MethodSet};
+        let none: MethodSet = MethodSet::empty();
+        assert!(!password_first(&none), "an empty advertisement must not invite a password");
+        let ki_only = MethodSet::from(&[MethodKind::KeyboardInteractive][..]);
+        assert!(!password_first(&ki_only));
+        let both = MethodSet::from(&[MethodKind::Password, MethodKind::KeyboardInteractive][..]);
+        assert!(password_first(&both));
     }
 
     /// LT-054: the lab 9300 is locked to `ip ssh server algorithm kex

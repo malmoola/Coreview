@@ -42,6 +42,9 @@ async fn main() {
 
     let config = Arc::new(client::Config {
         inactivity_timeout: Some(Duration::from_secs(60)),
+        // The same offer the crawler makes, or this tool diagnoses a
+        // different client than the one that failed.
+        preferred: coreview_discover::ssh::network_device_algorithms(),
         ..Default::default()
     });
     let mut handle = client::connect(config, (host.as_str(), 22), AcceptAny)

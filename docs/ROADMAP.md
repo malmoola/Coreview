@@ -167,6 +167,22 @@ edited by double-click, removed by committing nothing (so a stray
 double-click leaves no debris). Stored per-link (`texts`), undoable, saved.
 Same export caveat as LT-051.
 
+### LT-060 — **bug** The 9300 still refused login after the kex fix — 2026-08-31
+Reproduced from this machine with the crawler's own code: transport now
+negotiates fine (the LT-054 fix holds — kex ecdh-sha2-nistp384, hostkey
+rsa-sha2-512), and then the refused password attempt kills the session.
+`ip ssh server algorithm authentication keyboard` means IOS-XE does not
+merely decline a password try — it tears the connection down, and the
+keyboard-interactive fallback that would have worked never got to run
+("Channel send error"). The crawler now asks first: a `none` query learns
+the advertised methods, password is attempted only where the server takes
+passwords, and a server advertising nothing goes straight to
+keyboard-interactive — whose prompt on this box is literally "Password: ",
+which the existing prompt-matching answers. Proven live: the crawler's own
+Device path logged into 192.168.14.20 and ran commands. The `raw_login`
+diagnostic also now uses the crawler's algorithm offer instead of russh
+defaults, so it diagnoses the client that actually failed.
+
 ### LT-053 — The edit corners hug the shape — 2026-08-31
 **Source:** asked 2026-08-30 with a screenshot ("many times i told you the
 shape should have no boarders and the edit corners should be close to the
@@ -269,6 +285,29 @@ its reading (Windows application control refusing a binary whose internal CA
 the machine does not trust) will recur on any locked-down host — that is
 LT-011's public-CA half.
 
+### LT-059 — **bug** The bundled Cisco shapes do not appear in the installed app
+**Source:** reported 2026-08-31 with a screenshot — "I still don't see the
+imported cisco shapes."
+**Suspected cause:** Tauri places resources whose source lies outside
+`src-tauri/` under a `_up_/` prefix in the resource directory, so
+`resolve("stencils", Resource)` looks where nothing is. Fix with the map
+form of `bundle.resources` and prove it by building a bundle and looking
+inside it.
+
+### LT-061 — A device's check targets its address by itself
+**Source:** asked 2026-08-31 — "the probe address are not automatically
+populated."
+**Acceptance:** a device that has an address gets its check aimed at that
+address without the operator wiring it by hand — devices added from
+discovery arrive probeable, and giving a drawn device its first address
+populates the check target.
+
+### LT-062 — A new device joins a running validation
+**Source:** asked 2026-08-31 — "when I add a new device it doesn't start
+probing automatically, it's forcing me to stop validation and start again."
+**Acceptance:** while validation runs, adding a device (or a check) starts
+probing it within one interval; no stop/start. Removing one stops its probe.
+
 ---
 
 ## Next
@@ -300,9 +339,11 @@ and this unblocks. The scan already recognises `.lcsl` by name (LT-003).
 **Blocked on:** a LAG configured on the lab switch. `show etherchannel summary`
 answers "Number of channel-groups in use: 0", so there is no populated table to
 write a parser against.
-**Would unblock it:** two ports bonded on the test switch, then the parser is a
-morning's work against real output. Operator said 2026-08-30 he will source a
-Cisco switch with port-channels configured.
+**Unblocked 2026-08-31:** the operator bonded Gi1/0/11 + Gi1/0/12 between
+192.168.14.20 (9300) and 192.168.14.111 (3850) as Port-channel 1 on both
+sides. **Awaiting captures** (the rule is real output, not documentation):
+`show etherchannel summary` and `show cdp neighbors detail` from either
+switch — paste them and the parser follows.
 **Note:** inferring a bundle from consecutive port numbers was tried and
 reverted — see D-014.
 

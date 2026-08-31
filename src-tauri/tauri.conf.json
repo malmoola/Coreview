@@ -59,8 +59,8 @@
       }
     },
     "category": "Utility",
-    "resources": [
-      "../stencils/"
-    ]
+    "resources": {
+      "../stencils/": "stencils/"
+    }
   }
 }
