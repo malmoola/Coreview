@@ -150,3 +150,24 @@ describe('withJumps', () => {
     expect(second).toBeGreaterThan(first);
   });
 });
+
+describe('crossings under a smoothstep link still hop (LT-064)', () => {
+  // The exact paths React Flow drew for a horizontal link crossed by a
+  // vertical one — the horizontal is split at its border offsets into
+  // collinear runs, and the crossing at x=338 lands 3.5px from the 341.5
+  // joint. It used to be dropped for sitting at a run's end.
+  const h = 'M186.5 138L206.5,138L341.5,138L341.5,138L476.5,138';
+  const v = 'M338 46.5L338 66.5L338 151.5L338 151.5L338 236.5L338 300';
+
+  it('finds the crossing and renders an arc for it', () => {
+    const jumps = jumpsFor('h', h, [['v', v]]);
+    expect(jumps).toHaveLength(1);
+    const out = withJumps(h, jumps, 5);
+    expect(out).toMatch(/A5,5 /);
+  });
+
+  it('a straight line with no crossing is returned untouched', () => {
+    expect(withJumps(h, [], 5)).toBe(h);
+    expect(withJumps(h, jumpsFor('h', h, []), 5)).toBe(h);
+  });
+});

@@ -50,6 +50,36 @@ export function straightRuns(d: string): Segment[] {
       at = { x: nums[nums.length - 2]!, y: nums[nums.length - 1]! };
     }
   }
+  return coalesceCollinear(out);
+}
+
+/** Merge consecutive runs that lie on one straight line.
+ *
+ *  React Flow's smoothstep emits its 20px border offsets as extra waypoints,
+ *  so one visually straight segment arrives as two or three collinear runs
+ *  (`186.5→206.5→341.5→476.5`, all on the same y). A crossing that lands near
+ *  one of those internal joints then falls at a run boundary and the hop is
+ *  dropped for being too close to an end — which is why crossings under a
+ *  smoothstep link stopped hopping. Coalescing makes each straight line one
+ *  run again, so a crossing anywhere along it is comfortably mid-run. */
+function coalesceCollinear(runs: Segment[]): Segment[] {
+  const out: Segment[] = [];
+  for (const r of runs) {
+    if (r.x === r.x2 && r.y === r.y2) continue; // a zero-length joint
+    const last = out[out.length - 1];
+    if (last) {
+      const a = { x: last.x2 - last.x, y: last.y2 - last.y };
+      const b = { x: r.x2 - r.x, y: r.y2 - r.y };
+      const joined = last.x2 === r.x && last.y2 === r.y;
+      const collinear = Math.abs(a.x * b.y - a.y * b.x) < 1e-6 && a.x * b.x + a.y * b.y > 0;
+      if (joined && collinear) {
+        last.x2 = r.x2;
+        last.y2 = r.y2;
+        continue;
+      }
+    }
+    out.push({ ...r });
+  }
   return out;
 }
 
@@ -128,19 +158,39 @@ export function withJumps(d: string, jumps: Point[], radius = 5): string {
   const tokens = d.match(/[MLQCA][^MLQCA]*/gi) ?? [];
   let at: Point | null = null;
   let out = '';
+  // Consecutive collinear `L` runs are one straight line for hop purposes —
+  // smoothstep splits a straight segment at its border offsets, and a hop
+  // near one of those joints was being dropped for sitting at a run's end
+  // (the crossings-do-not-hop bug). Buffer a straight run's start and end,
+  // and flush it as one span the moment the direction changes.
+  let runStart: Point | null = null;
+  const flushRun = (end: Point) => {
+    if (runStart) out += rewriteRun(runStart, end, jumps, radius);
+    else out += `L${end.x},${end.y}`;
+    runStart = null;
+  };
 
   for (const token of tokens) {
     const kind = token[0]!.toUpperCase();
     const nums = (token.slice(1).match(/-?\d*\.?\d+(?:e-?\d+)?/g) ?? []).map(Number);
     if (kind === 'L' && nums.length >= 2 && at) {
       const end = { x: nums[0]!, y: nums[1]! };
-      out += rewriteRun(at, end, jumps, radius);
+      if (end.x === at.x && end.y === at.y) continue; // zero-length joint
+      if (runStart) {
+        const a = { x: at.x - runStart.x, y: at.y - runStart.y };
+        const b = { x: end.x - at.x, y: end.y - at.y };
+        const collinear = Math.abs(a.x * b.y - a.y * b.x) < 1e-6 && a.x * b.x + a.y * b.y > 0;
+        if (!collinear) flushRun(at);
+      }
+      if (!runStart) runStart = at;
       at = end;
       continue;
     }
+    if (runStart && at) flushRun(at);
     out += token;
     if (nums.length >= 2) at = { x: nums[nums.length - 2]!, y: nums[nums.length - 1]! };
   }
+  if (runStart && at) flushRun(at);
   return out;
 }
 

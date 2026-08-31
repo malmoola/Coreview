@@ -9,7 +9,7 @@ import {
   type EdgeProps,
 } from '@xyflow/react';
 
-import type { HealthStatus, LinkData } from '../../types/domain';
+import type { DeviceNodeData, HealthStatus, LinkData } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 import { useStore } from '../../state/store';
 import { describeRule, shouldAnimate } from '../../health/evaluate';
@@ -171,7 +171,7 @@ function pathFor(
 }
 
 function LiveEdgeInner(props: EdgeProps) {
-  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected } =
+  const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected } =
     props;
   const data = (props.data ?? {}) as LinkData;
 
@@ -373,7 +373,24 @@ function LiveEdgeInner(props: EdgeProps) {
   const liveProbe = probesForLink.find((p) => p.enabled);
   const live = liveProbe ? runtime.get(liveProbe.id) : undefined;
 
+  // LT-067: the physical ports at each end, which is the first thing a
+  // network engineer wants off a link — what plugs into what. A port-channel
+  // lists its members from the discovery note; a plain link shows A's port
+  // and B's.
+  const nameOf = (nodeId: string) =>
+    (doc.nodes.find((n) => n.id === nodeId)?.data as DeviceNodeData | undefined)?.label ?? nodeId;
+  const sp = data.sourcePortLabel?.trim();
+  const tp = data.targetPortLabel?.trim();
+  const bundleMembers = /(\d+) bundled ports: ([^\n]+)/.exec(data.notes ?? '');
+  const portLine =
+    sp || tp
+      ? bundleMembers
+        ? `Port-channel: ${nameOf(source)} ${sp || '?'} \u2194 ${nameOf(target)} ${tp || '?'} (${bundleMembers[2]})`
+        : `Ports: ${nameOf(source)} ${sp || '?'} \u2194 ${nameOf(target)} ${tp || '?'}`
+      : null;
+
   const tooltip = [
+    portLine,
     `Health: ${STATUS_LABEL[status]}`,
     `Rule: ${ruleText}`,
     liveProbe ? `Target: ${liveProbe.target}` : null,

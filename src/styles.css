@@ -1511,3 +1511,15 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   border-radius: 3px;
   padding: 0 3px;
 }
+
+/* --- LT-066: the built-in shape library folds behind one header, its
+   categories nested a level in. --- */
+.cv-palette-lib {
+  cursor: pointer; font-weight: 600; font-size: 12px;
+  padding: 4px 0; list-style: none;
+  display: flex; align-items: center; gap: 6px;
+}
+.cv-palette-lib::-webkit-details-marker { display: none; }
+.cv-palette-lib::before { content: '▸'; font-size: 9px; color: var(--text-faint); }
+details[open] > .cv-palette-lib::before { content: '▾'; }
+.cv-palette-nested { margin-left: 8px; }

@@ -123,34 +123,40 @@ function BundledShapesSection({
   if (icons.length === 0) return null;
   return (
     <div className="cv-palette-group">
-      <h3>Shape library</h3>
-      {grouped.map(([category, items]) => (
-        <details key={category} open={Boolean(query)}>
-          <summary className="cv-palette-sub">
-            {category} <span className="cv-palette-count">{items.length}</span>
-          </summary>
-          <div className="cv-palette-grid">
-            {items.slice(0, 400).map((icon) => (
-              <button
-                key={icon.id}
-                type="button"
-                className="cv-palette-item"
-                draggable
-                onDragStart={(e) => onDrag(e, `icon:${icon.id}`)}
-                title={`${icon.name} — ${icon.category}`}
-              >
-                <img
-                  className="cv-palette-icon"
-                  alt=""
-                  src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(icon.svg)))}`}
-                />
-                {icon.name}
-              </button>
-            ))}
-          </div>
-        </details>
-      ))}
-      {query && shown.length === 0 && null}
+      {/* LT-066: the whole built-in library behind one collapsed header —
+          hundreds of shapes across nine categories were taking the panel.
+          Open only while searching, and the categories nest one level in. */}
+      <details open={Boolean(query)}>
+        <summary className="cv-palette-lib">
+          Shape library <span className="cv-palette-count">{icons.length}</span>
+        </summary>
+        {grouped.map(([category, items]) => (
+          <details key={category} className="cv-palette-nested" open={Boolean(query)}>
+            <summary className="cv-palette-sub">
+              {category} <span className="cv-palette-count">{items.length}</span>
+            </summary>
+            <div className="cv-palette-grid">
+              {items.slice(0, 400).map((icon) => (
+                <button
+                  key={icon.id}
+                  type="button"
+                  className="cv-palette-item"
+                  draggable
+                  onDragStart={(e) => onDrag(e, `icon:${icon.id}`)}
+                  title={`${icon.name} — ${icon.category}`}
+                >
+                  <img
+                    className="cv-palette-icon"
+                    alt=""
+                    src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(icon.svg)))}`}
+                  />
+                  {icon.name}
+                </button>
+              ))}
+            </div>
+          </details>
+        ))}
+      </details>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } 
 import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/ipc';
 import { uid } from '../lib/id';
 import { newProbe } from '../lib/probes';
+import { migrateDocument } from '../lib/migrate';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
@@ -453,11 +454,15 @@ export const useStore = create<Store>((set, get) => ({
       set({ statusMessage: 'That project could not be found in local storage.' });
       return;
     }
-    const doc = { ...emptyDocument(), ...(pkg.document as ProjectDocument) };
+    const merged = { ...emptyDocument(), ...(pkg.document as ProjectDocument) };
+    // LT-065: bring an old document's device glyphs onto square bounds so the
+    // selection ring and corners hug them. Marks the doc dirty only when it
+    // actually changed something, so opening a current project is read-only.
+    const { doc, changed } = migrateDocument(merged);
     set({
       meta: pkg.meta,
       doc,
-      dirty: false,
+      dirty: changed > 0,
       lastSavedAt: pkg.meta.updatedAt,
       past: [],
       future: [],
