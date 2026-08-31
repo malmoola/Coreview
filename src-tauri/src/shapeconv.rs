@@ -439,19 +439,44 @@ pub fn soffice_available() -> bool {
 /// not the verdict — a file with no output is the failure, and the caller
 /// reports those by name. Only a soffice that cannot start at all is an error.
 pub fn convert_batch(files: &[PathBuf], out_dir: &Path) -> Result<Vec<PathBuf>, String> {
+    // LT-070: soffice serialises on a shared user profile, so two conversions
+    // at once — cargo's parallel tests, or a user who already has LibreOffice
+    // open — collided and one silently produced nothing. A private profile
+    // per invocation removes the lock entirely.
+    let profile = unique_profile_dir();
+    let _ = std::fs::create_dir_all(&profile);
     let mut cmd = std::process::Command::new("soffice");
-    cmd.args(["--headless", "--convert-to", "svg", "--outdir"]).arg(out_dir);
+    cmd.arg(format!("-env:UserInstallation=file://{}", profile.display()))
+        .args(["--headless", "--convert-to", "svg", "--outdir"])
+        .arg(out_dir);
     for f in files {
         cmd.arg(f);
     }
-    cmd.output().map_err(|e| format!("soffice failed to start: {e}"))?;
-    Ok(files
+    let result = cmd.output().map_err(|e| format!("soffice failed to start: {e}"));
+    let produced = files
         .iter()
         .filter_map(|f| {
             let candidate = out_dir.join(f.file_stem()?).with_extension("svg");
             candidate.exists().then_some(candidate)
         })
-        .collect())
+        .collect();
+    let _ = std::fs::remove_dir_all(&profile);
+    result?;
+    Ok(produced)
+}
+
+/// A temp directory unique to this invocation, for a soffice profile that no
+/// other soffice shares. Process id plus a monotonic counter and the clock is
+/// enough for the concurrency this sees.
+fn unique_profile_dir() -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    std::env::temp_dir().join(format!("coreview-soffice-{}-{}-{}", std::process::id(), n, nanos))
 }
 
 /// The full treatment for one LibreOffice-made SVG: cruft off, bitmaps made
@@ -565,6 +590,33 @@ mod tests {
         assert!(!svgs.is_empty());
         assert!(svgs[0].contains("<svg "), "{}", &svgs[0][..60.min(svgs[0].len())]);
         assert!(!svgs[0].contains("svg:"));
+    }
+
+    /// LT-070: soffice serialises on a shared user profile, so two
+    /// conversions at once (cargo's parallel tests, or a user with
+    /// LibreOffice already open) collided and one produced nothing. Each
+    /// invocation must now carry its own profile. Skips without soffice.
+    #[test]
+    fn concurrent_conversions_do_not_collide() {
+        if !soffice_available() {
+            eprintln!("skipping: soffice not installed here");
+            return;
+        }
+        let fixture =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/sample.emf");
+        let dirs: Vec<tempfile::TempDir> = (0..4).map(|_| tempfile::tempdir().unwrap()).collect();
+        let handles: Vec<_> = dirs
+            .iter()
+            .map(|d| {
+                let out = d.path().to_path_buf();
+                let fx = fixture.clone();
+                std::thread::spawn(move || convert_batch(&[fx], &out).map(|v| v.len()))
+            })
+            .collect();
+        for h in handles {
+            let n = h.join().unwrap().expect("convert");
+            assert_eq!(n, 1, "a concurrent conversion produced nothing");
+        }
     }
 
     #[test]

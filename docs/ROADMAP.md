@@ -389,6 +389,17 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-070 — **bug** Shape conversion failed when LibreOffice was already busy — 2026-08-31
+The overnight smoke caught it: `a_real_emf_becomes_a_palette_icon` failed
+intermittently because `cargo test` runs the soffice-backed tests in
+parallel, and two `soffice --convert-to` invocations sharing the default
+user profile collide — one silently produces no output. A user with
+LibreOffice already open would hit the identical failure on every import.
+Each soffice call now gets its own `-env:UserInstallation` profile directory
+(created and cleaned per call), so nothing shares a lock. Reproduced with two
+concurrent conversions, fixed, and confirmed stable across repeated full
+backend runs that were flaky before.
+
 ### LT-068 — Full manual control of link routing — 2026-08-31
 Reshape a link by hand, Lucidchart-style: a selected link shows a filled
 square at each waypoint (drag to move, double-click to remove) and a hollow
