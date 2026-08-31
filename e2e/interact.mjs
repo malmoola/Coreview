@@ -2708,6 +2708,54 @@ await dismissRecovery();
   await page.evaluate(() => window.__cvStore.setState({ bundledIcons: [] }));
 }
 
+// ---- the check follows the address (LT-061) --------------------------------
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc, nodes: [...st.doc.nodes, {
+      id: "probeme", type: "device", position: { x: 900, y: 900 }, width: 76, height: 76,
+      data: { label: "Probe-Me", deviceType: "router", tags: [], addresses: [],
+        locked: false, maintenance: false, showDetails: true },
+    }] } });
+  });
+  const probes = () => page.evaluate(() =>
+    window.__cvStore.getState().doc.probes.filter((p) => p.objectId === "probeme"));
+  check("a device with no address has no check to aim", (await probes()).length === 0);
+  await page.evaluate(() => {
+    window.__cvStore.getState().updateNodeData("probeme", {
+      addresses: [{ id: "a1", label: "Mgmt", address: "192.0.2.77", isPrimary: true }],
+    });
+  });
+  let got = await probes();
+  check("giving it an address creates its check, aimed there",
+    got.length === 1 && got[0].target === "192.0.2.77" && got[0].enabled,
+    JSON.stringify(got.map((p) => p.target)));
+  await page.evaluate(() => {
+    window.__cvStore.getState().updateNodeData("probeme", {
+      addresses: [{ id: "a1", label: "Mgmt", address: "192.0.2.88", isPrimary: true }],
+    });
+  });
+  got = await probes();
+  check("changing the address moves the check with it",
+    got.length === 1 && got[0].target === "192.0.2.88", JSON.stringify(got.map((p) => p.target)));
+  // A target aimed on purpose stays aimed until the addresses change again.
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const mine = st.doc.probes.find((p) => p.objectId === "probeme");
+    st.upsertProbe({ ...mine, target: "203.0.113.5" });
+  });
+  got = await probes();
+  check("a hand-aimed target is not overwritten by itself",
+    got[0].target === "203.0.113.5", got[0].target);
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: st.doc.nodes.filter((n) => n.id !== "probeme"),
+      probes: st.doc.probes.filter((p) => p.objectId !== "probeme") } });
+  });
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

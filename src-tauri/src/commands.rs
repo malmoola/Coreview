@@ -136,6 +136,34 @@ pub async fn start_validation(
     })
 }
 
+/// Bring a running session's targets in line with the document (LT-062).
+/// Adding a check while validation runs starts probing it within one
+/// interval; deleting one stops its probe; nothing restarts. With no session
+/// running this quietly does nothing — the next start carries the change.
+#[tauri::command]
+pub async fn update_validation(
+    state: State<'_, AppState>,
+    probes: Vec<ProbeConfig>,
+) -> CmdResult<SessionInfo> {
+    let sid = state.session_id.lock().map_err(db_err)?.clone();
+    let pid = state.project_id.lock().map_err(db_err)?.clone();
+    let (Some(sid), Some(pid)) = (sid, pid) else {
+        return Ok(SessionInfo {
+            session_id: None,
+            project_id: None,
+            state: SessionState::Stopped,
+            probe_count: 0,
+        });
+    };
+    let count = state.engine.update(probes).await?;
+    Ok(SessionInfo {
+        session_id: Some(sid),
+        project_id: Some(pid),
+        state: SessionState::Running,
+        probe_count: count,
+    })
+}
+
 #[tauri::command]
 pub async fn stop_validation(state: State<'_, AppState>) -> CmdResult<SessionInfo> {
     stop_internal(&state).await?;

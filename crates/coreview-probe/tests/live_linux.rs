@@ -371,3 +371,61 @@ async fn a_cancelled_probe_leaves_no_zombie() {
         after.saturating_sub(before)
     );
 }
+
+/// LT-062: a probe added while the session runs starts producing samples
+/// without a stop/start, and a removed one stops. Real engine, real pings
+/// against loopback.
+#[tokio::test]
+async fn a_probe_added_mid_session_starts_probing() {
+    let (engine, mut rx) = Engine::new(20);
+    let mut first = probe("first", "127.0.0.1", ProbeKind::Icmp);
+    first.interval_seconds = 1;
+    engine
+        .start("s-update".into(), "live-test".into(), vec![first.clone()])
+        .await
+        .expect("start");
+
+    // The joiner, one interval in.
+    let mut second = probe("second", "127.0.0.1", ProbeKind::Icmp);
+    second.interval_seconds = 1;
+    let count = engine
+        .update(vec![first.clone(), second.clone()])
+        .await
+        .expect("update");
+    assert_eq!(count, 2, "the session now watches both");
+
+    // Samples for the joiner must arrive without any restart.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut joined = false;
+    while Instant::now() < deadline {
+        match tokio::time::timeout(Duration::from_secs(2), rx.recv()).await {
+            Ok(Some(EngineEvent::Sample { result, .. })) if result.probe_id == "second" => {
+                joined = true;
+                break;
+            }
+            Ok(Some(_)) => {}
+            _ => break,
+        }
+    }
+    assert!(joined, "the added probe never produced a sample");
+
+    // And a removed one stops: drop the first, drain briefly, then require
+    // silence from it.
+    engine.update(vec![second]).await.expect("update 2");
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    while tokio::time::timeout(Duration::from_millis(50), rx.recv()).await.is_ok() {}
+    let mut late_first = false;
+    let quiet_until = Instant::now() + Duration::from_secs(3);
+    while Instant::now() < quiet_until {
+        if let Ok(Some(EngineEvent::Sample { result, .. })) =
+            tokio::time::timeout(Duration::from_millis(500), rx.recv()).await
+        {
+            if result.probe_id == "first" {
+                late_first = true;
+            }
+        }
+    }
+    assert!(!late_first, "a removed probe kept producing samples");
+
+    engine.stop().await;
+}

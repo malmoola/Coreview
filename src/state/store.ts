@@ -4,6 +4,7 @@ import { applyEdgeChanges, applyNodeChanges, type EdgeChange, type NodeChange } 
 
 import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/ipc';
 import { uid } from '../lib/id';
+import { newProbe } from '../lib/probes';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
@@ -217,6 +218,7 @@ interface Store {
   chooseFolder: (which: 'backupFolder' | 'exportFolder') => Promise<string | null>;
   clearFolder: (which: 'backupFolder' | 'exportFolder') => Promise<void>;
   loadIconLibrary: (dir: string) => Promise<void>;
+  ensureNodeCheck: (id: string) => void;
   clearIconLibrary: () => Promise<void>;
   setCanvas: (patch: Partial<ProjectDocument['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
@@ -872,6 +874,36 @@ export const useStore = create<Store>((set, get) => ({
       },
       dirty: true,
     }));
+    // LT-061: the primary check follows the primary address. A device that
+    // has an address and no check gets one; a check aimed at nothing gets
+    // the address the moment it exists. Only address edits do this — a
+    // target typed into the check itself is never overwritten from here.
+    if ('addresses' in patch) get().ensureNodeCheck(id);
+  },
+
+  /** The automatic half of monitoring (LT-061): give a device's primary
+   *  check the device's primary address. Called on address edits; a check
+   *  the operator aimed somewhere on purpose keeps its aim unless the
+   *  addresses change again. */
+  ensureNodeCheck(id) {
+    const { doc, meta } = get();
+    if (!meta) return;
+    const node = doc.nodes.find((n) => n.id === id);
+    if (!node || node.type !== 'device') return;
+    const d = node.data as DeviceNodeData;
+    const primary =
+      d.addresses?.find((a) => a.isPrimary && a.address.trim())?.address.trim() ??
+      d.addresses?.find((a) => a.address.trim())?.address.trim();
+    if (!primary) return;
+    const mine = doc.probes.filter((p) => p.objectId === id);
+    if (mine.length === 0) {
+      get().upsertProbe(newProbe('node', id, meta.id, primary, 'Management'));
+      return;
+    }
+    const lead = mine.find((p) => p.isPrimary) ?? mine[0]!;
+    if (lead.target.trim() !== primary) {
+      get().upsertProbe({ ...lead, target: primary });
+    }
   },
 
   updateManyNodeData(ids, patch, label) {
@@ -1338,6 +1370,41 @@ function linkName(state: Store, edgeId: string): string {
   const dst = label(state.doc.nodes.find((n) => n.id === edge.target));
   return `${src} ↔ ${dst}`;
 }
+
+// LT-062: a check added, changed or removed while validation runs reaches
+// the engine without a stop/start. Watching the store beats wiring every
+// mutation site: undo, restore and bulk edits all funnel through here too.
+// Debounced so a burst of edits lands as one push; the engine diffs.
+let probeSync: ReturnType<typeof setTimeout> | null = null;
+let lastSyncedProbes: unknown = null;
+useStore.subscribe((s) => {
+  if (s.session.state !== 'running') {
+    lastSyncedProbes = s.doc.probes;
+    return;
+  }
+  if (s.doc.probes === lastSyncedProbes) return;
+  lastSyncedProbes = s.doc.probes;
+  if (probeSync) clearTimeout(probeSync);
+  probeSync = setTimeout(() => {
+    const { session, doc, meta } = useStore.getState();
+    if (session.state !== 'running' || !meta) return;
+    const probes = doc.probes
+      .filter((p) => p.enabled && p.kind !== 'manual')
+      .map((p) => ({ ...p, projectId: meta.id }));
+    void ipc
+      .updateValidation(probes)
+      .then((info) => {
+        useStore.setState({
+          statusMessage: `Validating ${info.probeCount} target${info.probeCount === 1 ? '' : 's'} from this machine.`,
+        });
+      })
+      .catch((err) => {
+        useStore.setState({
+          statusMessage: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, 400);
+});
 
 // The Playwright harness cannot start a real validation session — that needs
 // the Tauri backend — so in dev the store is reachable from the page and the

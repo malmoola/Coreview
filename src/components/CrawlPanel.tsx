@@ -400,11 +400,11 @@ export function CrawlPanel({
     for (const node of placed) {
       store.addNode(node);
       const address = (node.data as DeviceNodeData).addresses?.[0]?.address;
-      const reached = (node.data as DeviceNodeData).tags?.includes('discovered');
-      // Only what was logged into is monitored. A crawl of a flat network can
-      // see hundreds of endpoints, and probing all of them is a decision, not
-      // a side effect of drawing them.
-      if (address && reached) {
+      // Ticking the row was the decision (LT-061): everything placed with an
+      // address arrives monitored, not just what was logged into. The old
+      // reached-only rule left "Seen by a neighbour" devices on the diagram
+      // with a check target of "—" and nothing ever probing them.
+      if (address) {
         store.upsertProbe(newProbe('node', node.id, store.meta.id, address, 'Discovered'));
       }
     }

@@ -401,6 +401,12 @@ export const ipc = {
     );
   },
 
+  /** Bring a running session's targets in line with the document (LT-062). */
+  async updateValidation(probes: Probe[]): Promise<SessionInfo> {
+    if (!isDesktop) return { sessionId: null, projectId: null, state: 'stopped', probeCount: 0 };
+    return camel<SessionInfo>(await invoke('update_validation', { probes: snake(probes) }));
+  },
+
   async stopValidation(): Promise<SessionInfo> {
     if (!isDesktop) return { sessionId: null, projectId: null, state: 'stopped', probeCount: 0 };
     return camel<SessionInfo>(await invoke('stop_validation'));

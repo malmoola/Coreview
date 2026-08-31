@@ -28,7 +28,7 @@ pub enum ObjectKind {
     Link,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProbeConfig {
     pub id: String,
     pub project_id: String,

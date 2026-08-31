@@ -80,6 +80,14 @@ struct Session {
     project_id: String,
     token: CancellationToken,
     tasks: JoinSet<()>,
+    /// One token per probe, so a single target can be stopped while the
+    /// session runs — how a deleted check leaves a live session (LT-062).
+    per_probe: HashMap<String, CancellationToken>,
+    /// Shared with every probe task; kept so tasks added mid-session queue
+    /// behind the same concurrency cap as the ones that started it.
+    semaphore: Arc<Semaphore>,
+    /// Grows for the stagger, so late joiners spread out like the others.
+    spawned: usize,
 }
 
 pub struct Engine {
@@ -149,63 +157,127 @@ impl Engine {
         }
 
         let token = CancellationToken::new();
-        let semaphore = Arc::new(Semaphore::new(self.max_concurrency));
-        let mut tasks = JoinSet::new();
-
-        for (index, cfg) in enabled.iter().cloned().enumerate() {
-            let engine = Arc::clone(self);
-            let token = token.child_token();
-            let semaphore = Arc::clone(&semaphore);
-            let session_id = session_id.clone();
-            // Deterministic stagger: 100 targets do not fire on the same tick.
-            let stagger = Duration::from_millis(((index as u64) * 137) % 3_000);
-
-            tasks.spawn(async move {
-                tokio::select! {
-                    _ = token.cancelled() => return,
-                    _ = tokio::time::sleep(stagger) => {}
-                }
-                let interval = Duration::from_secs(cfg.interval_seconds.max(1));
-                loop {
-                    if token.is_cancelled() {
-                        return;
-                    }
-                    let permit = tokio::select! {
-                        _ = token.cancelled() => return,
-                        p = semaphore.clone().acquire_owned() => match p {
-                            Ok(p) => p,
-                            Err(_) => return,
-                        }
-                    };
-                    let result = tokio::select! {
-                        _ = token.cancelled() => { drop(permit); return; }
-                        r = run_once(&cfg) => r,
-                    };
-                    drop(permit);
-
-                    engine.record(&session_id, &cfg, result).await;
-
-                    tokio::select! {
-                        _ = token.cancelled() => return,
-                        _ = tokio::time::sleep(interval) => {}
-                    }
-                }
-            });
-        }
-
-        let count = enabled.len();
-        *self.session.lock().await = Some(Session {
+        let mut session = Session {
             id: session_id.clone(),
             project_id: project_id.clone(),
             token,
-            tasks,
-        });
+            tasks: JoinSet::new(),
+            per_probe: HashMap::new(),
+            semaphore: Arc::new(Semaphore::new(self.max_concurrency)),
+            spawned: 0,
+        };
+        for cfg in enabled.iter().cloned() {
+            self.spawn_probe(&mut session, cfg);
+        }
+        let count = enabled.len();
+        *self.session.lock().await = Some(session);
 
         let _ = self.events.send(EngineEvent::SessionState {
             session_id,
             project_id,
             state: SessionState::Running,
         });
+        Ok(count)
+    }
+
+    /// One probe's loop, identical whether it joined at start or mid-session.
+    fn spawn_probe(self: &Arc<Self>, session: &mut Session, cfg: ProbeConfig) {
+        let engine = Arc::clone(self);
+        let probe_token = session.token.child_token();
+        session.per_probe.insert(cfg.id.clone(), probe_token.clone());
+        let semaphore = Arc::clone(&session.semaphore);
+        let session_id = session.id.clone();
+        // Deterministic stagger: 100 targets do not fire on the same tick,
+        // and a late joiner spreads out the same way.
+        let stagger = Duration::from_millis(((session.spawned as u64) * 137) % 3_000);
+        session.spawned += 1;
+
+        session.tasks.spawn(async move {
+            tokio::select! {
+                _ = probe_token.cancelled() => return,
+                _ = tokio::time::sleep(stagger) => {}
+            }
+            let interval = Duration::from_secs(cfg.interval_seconds.max(1));
+            loop {
+                if probe_token.is_cancelled() {
+                    return;
+                }
+                let permit = tokio::select! {
+                    _ = probe_token.cancelled() => return,
+                    p = semaphore.clone().acquire_owned() => match p {
+                        Ok(p) => p,
+                        Err(_) => return,
+                    }
+                };
+                let result = tokio::select! {
+                    _ = probe_token.cancelled() => { drop(permit); return; }
+                    r = run_once(&cfg) => r,
+                };
+                drop(permit);
+
+                engine.record(&session_id, &cfg, result).await;
+
+                tokio::select! {
+                    _ = probe_token.cancelled() => return,
+                    _ = tokio::time::sleep(interval) => {}
+                }
+            }
+        });
+    }
+
+    /// Bring a running session's targets in line with the document (LT-062):
+    /// a check added while validation runs starts probing within one
+    /// interval, a removed one stops, a changed one restarts with its new
+    /// settings. No session, no error — the next start carries the change.
+    pub async fn update(self: &Arc<Self>, probes: Vec<ProbeConfig>) -> Result<usize, String> {
+        let mut guard = self.session.lock().await;
+        let Some(session) = guard.as_mut() else {
+            return Err("no running session".to_string());
+        };
+        let wanted: HashMap<String, ProbeConfig> = probes
+            .into_iter()
+            .filter(|p| p.enabled && p.project_id == session.project_id && p.kind != ProbeKind::Manual)
+            .map(|p| (p.id.clone(), p))
+            .collect();
+
+        let mut cfgs = self.configs.lock().await;
+        let gone: Vec<String> = cfgs.keys().filter(|id| !wanted.contains_key(*id)).cloned().collect();
+        let changed: Vec<String> = cfgs
+            .iter()
+            .filter(|(id, have)| wanted.get(*id).is_some_and(|w| w != *have))
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in gone.iter().chain(changed.iter()) {
+            if let Some(token) = session.per_probe.remove(id) {
+                token.cancel();
+            }
+            cfgs.remove(id);
+        }
+        {
+            let mut states = self.states.lock().await;
+            for id in &gone {
+                states.remove(id);
+            }
+        }
+        let session_id = session.id.clone();
+        let mut added = 0usize;
+        for (id, cfg) in &wanted {
+            if cfgs.contains_key(id) {
+                continue;
+            }
+            cfgs.insert(id.clone(), cfg.clone());
+            self.states.lock().await.entry(id.clone()).or_default();
+            self.spawn_probe(session, cfg.clone());
+            added += 1;
+        }
+        let count = cfgs.len();
+        drop(cfgs);
+        let _ = self.events.send(EngineEvent::SessionState {
+            session_id,
+            project_id: session.project_id.clone(),
+            state: SessionState::Running,
+        });
+        let _ = added;
         Ok(count)
     }
 

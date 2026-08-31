@@ -99,6 +99,7 @@ fn main() {
             commands::validate_target,
             commands::start_validation,
             commands::stop_validation,
+            commands::update_validation,
             commands::session_status,
             commands::probe_snapshot,
             commands::list_events,

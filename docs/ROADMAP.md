@@ -167,6 +167,26 @@ edited by double-click, removed by committing nothing (so a stray
 double-click leaves no debris). Stored per-link (`texts`), undoable, saved.
 Same export caveat as LT-051.
 
+### LT-061 — A device's check targets its address by itself — 2026-08-31
+The primary check follows the primary address: a device that gains an
+address gets a check aimed at it, changing the address moves the check, and
+a target the operator aimed by hand is never overwritten from the address
+side. Crawl-placed devices arrive monitored whether or not they were logged
+into — ticking the row was the decision, and the old reached-only rule was
+what left "Seen by a neighbour" devices with a target of "—". Ping-sweep and
+CSV already did this. Harness-verified end to end.
+
+### LT-062 — A new device joins a running validation — 2026-08-31
+No more stop/start: the engine holds one cancellation token per probe and
+can bring a running session's targets in line with the document — a check
+added mid-session starts producing samples within one interval (staggered
+like the rest, behind the same concurrency cap), a removed one stops, a
+changed one restarts with its new settings. The store watches its own probe
+list and pushes the change debounced, which covers every path — inspector
+edits, discovery adds, undo, restore — without wiring each one. Proven live:
+a real engine, real pings, a probe added mid-session sampled and a removed
+one went silent.
+
 ### LT-009 — Draw a port-channel as one link — 2026-08-31
 The operator bonded Gi1/0/11 + Gi1/0/12 between the 9300 and the 3850 as
 Po1, and the whole path was built against that live LAG the same hour:
@@ -308,26 +328,6 @@ imported cisco shapes."
 `resolve("stencils", Resource)` looks where nothing is. Fix with the map
 form of `bundle.resources` and prove it by building a bundle and looking
 inside it.
-
-### LT-061 — A device's check targets its address by itself
-**Source:** asked 2026-08-31 — "the probe address are not automatically
-populated."
-**Acceptance:** a device that has an address gets its check aimed at that
-address without the operator wiring it by hand — devices added from
-discovery arrive probeable, and giving a drawn device its first address
-populates the check target.
-
-### LT-062 — A new device joins a running validation
-**Source:** asked 2026-08-31 — "when I add a new device it doesn't start
-probing automatically, it's forcing me to stop validation and start again."
-**Acceptance:** while validation runs, adding a device (or a check) starts
-probing it within one interval; no stop/start. Removing one stops its probe.
-
----
-
-## Next
-
-*Accepted, not started.*
 
 ### LT-006 — Lucidchart `.lcsl` import
 **Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.
