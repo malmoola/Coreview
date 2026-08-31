@@ -367,12 +367,18 @@ one per straight run, which is what Lucidchart shows.
 
 ### LT-072 — A bezier link's curve can be adjusted — 2026-08-31
 A selected curved link offers one ring handle at the middle of the curve;
-dragging it away from the straight line between the ends bows the curve
-(React Flow's curvature is exactly that bow as a fraction of the span, so the
-pointer's perpendicular distance maps onto it directly), double-click hands
-it back to automatic. Stored on the link, undoable, saved. A bezier shows
-only this handle — no elbow grips, no waypoint dots — so the three routing
-modes never crowd each other.
+dragging it away from the straight line between the ends bows the curve,
+double-click hands it back to automatic. Stored on the link, undoable, saved.
+A bezier shows only this handle — no elbow grips, no waypoint dots — so the
+three routing modes never crowd each other.
+**Reported not working, and it was:** the first cut passed a `curvature`
+option to React Flow's `getBezierPath`, which in the pinned version *ignores
+it* — every value returned a byte-identical path, so the handle moved and
+nothing happened. Proven by isolating the call, then replaced with our own
+cubic (`src/lib/bezierPath.ts`, tested): each end leaves along the side its
+handle is on, and curvature is how far the control point reaches along that
+end's own axis. Curvature 0.5 reproduces React Flow's old curve exactly, so
+no diagram drawn before this moves.
 
 ### LT-027 — Colour by VLAN — 2026-08-31
 Colour-devices-by joins health, role, subnet and tag with VLAN. The MAC-table

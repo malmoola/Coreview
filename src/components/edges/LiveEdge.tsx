@@ -17,6 +17,7 @@ import { STATUS_COLOR_DARK, readableOn, statusColors } from '../../theme';
 import { capPath, capsFor, dashFor } from '../../lib/linkStyle';
 import { jumpsFor, withJumps } from '../../lib/lineJumps';
 import { segmentMidpoints, waypointRoute } from '../../lib/waypointRoute';
+import { bezierPath, type Side } from '../../lib/bezierPath';
 import { dragSegment, pathVertices, segmentGrips } from '../../lib/elbowRoute';
 import {
   MAX_EDGES_FOR_JUMPS,
@@ -169,8 +170,18 @@ function pathFor(
     case 'smoothstep':
       return getSmoothStepPath({ ...p, borderRadius: 12, stepPosition: laneStep(lane) });
     default:
-      // LT-072: how far the curve bows, when the operator has set it.
-      return getBezierPath(curvature === undefined ? p : { ...p, curvature });
+      // LT-072: our own cubic, because React Flow's getBezierPath ignores the
+      // `curvature` option in this version — every value drew the identical
+      // path, which is why the curve handle appeared to do nothing.
+      return bezierPath({
+        sourceX: p.sourceX,
+        sourceY: p.sourceY,
+        targetX: p.targetX,
+        targetY: p.targetY,
+        sourcePosition: p.sourcePosition as Side | undefined,
+        targetPosition: p.targetPosition as Side | undefined,
+        curvature,
+      });
   }
 }
 
