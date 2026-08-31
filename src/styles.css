@@ -1479,3 +1479,35 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* --- LT-051/052: labels that ride the link. The centre label takes the
+   pointer again — it is a thing you drag now, which costs the hover-the-link
+   trick underneath it and is worth it. Flat text is written straight on the
+   line: no box, no border, just ink with the canvas halo. --- */
+.cv-edge-center { pointer-events: auto; cursor: grab; }
+.cv-edge-center:active { cursor: grabbing; }
+.cv-edge-flat {
+  position: absolute;
+  pointer-events: auto;
+  cursor: grab;
+  background: none;
+  border: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink);
+  white-space: nowrap;
+  text-shadow:
+    0 0 3px var(--desk), 0 0 3px var(--desk),
+    1px 0 2px var(--desk), -1px 0 2px var(--desk),
+    0 1px 2px var(--desk), 0 -1px 2px var(--desk);
+}
+.cv-edge-flat:active { cursor: grabbing; }
+.cv-edge-flat input {
+  width: 90px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--label-bg);
+  border: 1px solid var(--page-border);
+  border-radius: 3px;
+  padding: 0 3px;
+}

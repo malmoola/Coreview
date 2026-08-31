@@ -2559,6 +2559,114 @@ await dismissRecovery();
   });
 }
 
+// ---- link labels slide along the link; double-click writes on it (LT-051/052)
+// A staged pair of its own: by this point in the run the fixture nodes have
+// been dragged all over, and a label sitting under one of them would make
+// this a test of the mess rather than of the feature.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const mkNode = (id, x, y) => ({
+      id, type: "device", position: { x, y }, width: 76, height: 76,
+      data: { label: id, deviceType: "router", tags: [], addresses: [],
+        locked: false, maintenance: false, showDetails: true },
+    });
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: [...st.doc.nodes, mkNode("lx1", 1400, 1200), mkNode("lx2", 1800, 1420)],
+      edges: [...st.doc.edges, {
+        id: "lx-e", source: "lx1", target: "lx2", sourceHandle: "r", targetHandle: "l",
+        type: "live",
+        data: { sourcePortLabel: "", targetPortLabel: "", label: "Uplink-LX",
+          pathType: "smoothstep", direction: "none", width: 2, color: "#7c8fa3",
+          enabled: true, maintenance: false,
+          healthRule: { type: "manual", manualStatus: "healthy" } },
+      }] } });
+  });
+  await page.waitForTimeout(400);
+  // Bring the staged pair into view.
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 40, y: 40 } });
+  await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+
+  const edge = () => page.evaluate(() =>
+    window.__cvStore.getState().doc.edges.find((e) => e.id === "lx-e"));
+  const label = page.locator(".cv-edge-center", { hasText: "Uplink-LX" }).first();
+  check("the centre label is there to drag", (await label.count()) === 1);
+  const before = await label.boundingBox();
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(before.x - 90, before.y - 40, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const after = await label.boundingBox();
+  check("the label moved along its link",
+    Math.hypot(after.x - before.x, after.y - before.y) > 25,
+    `(${before.x.toFixed(0)},${before.y.toFixed(0)}) -> (${after.x.toFixed(0)},${after.y.toFixed(0)})`);
+  const at = (await edge()).data.labelAt;
+  check("the position is remembered on the link, on the path",
+    typeof at === "number" && at > 0.02 && at < 0.5, `labelAt ${at}`);
+  // It cannot leave the link: dragged far off sideways it stays on the path.
+  const mid = await label.boundingBox();
+  await page.mouse.move(mid.x + mid.width / 2, mid.y + mid.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(mid.x + mid.width / 2, mid.y - 250, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const off = await label.boundingBox();
+  check("dragged away it does not leave the link's area",
+    Math.abs(off.y - mid.y) < 120, `y ${mid.y.toFixed(0)} -> ${off.y.toFixed(0)}`);
+
+  // LT-052: double-click a spot on the link and write straight onto it.
+  const path = page.locator('.react-flow__edge[data-id="lx-e"] path').first();
+  const pb = await path.boundingBox();
+  await page.mouse.dblclick(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
+  await page.waitForTimeout(400);
+  const editor = page.locator(".cv-edge-flat input");
+  check("double-clicking a link opens a caret there", (await editor.count()) === 1);
+  if (await editor.count()) {
+    await editor.fill("Gi1/0/19");
+    await editor.press("Enter");
+    await page.waitForTimeout(400);
+  }
+  const flat = page.locator(".cv-edge-flat", { hasText: "Gi1/0/19" });
+  check("the text stays on the link", (await flat.count()) === 1);
+  if (await flat.count()) {
+    const cs = await flat.first().evaluate((el) => {
+      const c = getComputedStyle(el);
+      return { bg: c.backgroundColor, border: c.borderStyle };
+    });
+    check("flat: no box, no border",
+      (cs.bg === "rgba(0, 0, 0, 0)" || cs.bg === "transparent") && cs.border === "none",
+      JSON.stringify(cs));
+    const stored = (await edge()).data.texts;
+    check("the text is part of the link and will save with it",
+      Array.isArray(stored) && stored.length === 1 && stored[0].text === "Gi1/0/19",
+      JSON.stringify(stored));
+    await flat.first().dblclick();
+    await page.waitForTimeout(300);
+    const again = page.locator(".cv-edge-flat input");
+    if (await again.count()) {
+      await again.fill("");
+      await again.press("Enter");
+      await page.waitForTimeout(300);
+    }
+    check("emptied text leaves nothing behind",
+      (await page.locator(".cv-edge-flat", { hasText: "Gi1/0/19" }).count()) === 0 &&
+        ((await edge()).data.texts ?? []).length === 0);
+  } else {
+    check("flat: no box, no border", false, "no flat text");
+    check("the text is part of the link and will save with it", false, "no flat text");
+    check("emptied text leaves nothing behind", false, "no flat text");
+  }
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: st.doc.nodes.filter((n) => !n.id.startsWith("lx")),
+      edges: st.doc.edges.filter((e) => e.id !== "lx-e") } });
+  });
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

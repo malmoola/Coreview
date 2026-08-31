@@ -16,7 +16,8 @@ import '@xyflow/react/dist/style.css';
 
 import { DeviceNode } from './nodes/DeviceNode';
 import { NoteNode } from './nodes/NoteNode';
-import { EdgeMarkerDefs, LiveEdge } from './edges/LiveEdge';
+import { EdgeMarkerDefs, LiveEdge, nearestFractionOnPath } from './edges/LiveEdge';
+import { allPaths } from './edges/pathRegistry';
 import { STATUS_COLOR_DARK, canvasPalette } from '../theme';
 import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
@@ -31,7 +32,7 @@ import { isEditable, isVisible, layersOf } from '../lib/layers';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
-import type { DeviceNodeData, DeviceType, NoteNodeData } from '../types/domain';
+import type { DeviceNodeData, DeviceType, LinkData, NoteNodeData } from '../types/domain';
 
 const nodeTypes = { device: DeviceNode, note: NoteNode };
 const edgeTypes = { live: LiveEdge };
@@ -831,6 +832,23 @@ export function Canvas() {
         maxZoom={100}
         onNodeClick={(_, n) => store.select(n.id, null)}
         onEdgeClick={(_, e) => store.select(null, e.id)}
+        /* LT-052: double-click a spot on a link and write straight onto it.
+           The empty text renders as an open caret; committing nothing removes
+           it, so a stray double-click leaves no debris. */
+        onEdgeDoubleClick={(event, edge) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const flow = rf.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+          const path = allPaths().get(edge.id);
+          const at = (path && nearestFractionOnPath(path, flow.x, flow.y)) || 0.5;
+          const texts = ((edge.data as LinkData | undefined)?.texts ?? []).concat({
+            id: uid(),
+            at,
+            text: '',
+          });
+          store.commit();
+          store.updateEdgeData(edge.id, { texts });
+        }}
         onPaneClick={() => {
           store.select(null, null);
           setMenu(null);

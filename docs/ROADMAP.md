@@ -133,6 +133,26 @@ and `.vssx` from the operator's My Shapes folder to verify per-master
 splitting and naming before this is called Done.** Masters are currently
 named "<file> 1..N"; real master names, if wanted, are a follow-up.
 
+### LT-051 — Drag a link label along its link — 2026-08-31
+The centre label takes the pointer and slides: while dragging, the cursor
+roams and the label takes the nearest spot on the drawn path — it cannot
+leave the link — and on release the fraction is stored on the link
+(`labelAt`), undoable, saved with the document. An untouched link keeps
+React Flow's own midpoint, so nothing already drawn moves. One cost taken
+knowingly: the label used to be transparent to the pointer so hovering the
+line through it worked; a thing you drag has to take the pointer.
+**Differs from the ask in one place:** the SVG/PNG export still draws the
+centre label at the midpoint — the export knows the chord, not the drawn
+path. Say the word and it learns.
+
+### LT-052 — Double-click a link to write flat text on it — 2026-08-31
+Double-click a spot on a link and a caret opens right there; the committed
+text renders flat — no box, no border, mono ink with the canvas halo —
+attached to the link at that spot, draggable along it like the centre label,
+edited by double-click, removed by committing nothing (so a stray
+double-click leaves no debris). Stored per-link (`texts`), undoable, saved.
+Same export caveat as LT-051.
+
 ### LT-053 — The edit corners hug the shape — 2026-08-31
 **Source:** asked 2026-08-30 with a screenshot ("many times i told you the
 shape should have no boarders and the edit corners should be close to the
@@ -225,19 +245,6 @@ Selected text no longer wears the box selection rectangle, and a text node
 offers no connection handles — a label is not something a cable plugs into
 (the follow-up ask in the same message). Border was already transparent;
 resize handles remain, as allowed.
-
-### LT-051 — Drag a link label along its link
-**Source:** asked 2026-08-30 — "add the link labels anywhere and drag it
-along the links but it shouldn't leave the links area."
-**Acceptance:** a link label can be dragged; while dragging it slides along
-the link's drawn path and cannot leave it; the position survives save/reload.
-
-### LT-052 — Double-click a link to write flat text on it
-**Source:** asked 2026-08-30 — "double click area on the link and add port
-number or text flat no box or boarders just text attached to the link."
-**Acceptance:** double-clicking a spot on a link opens a caret there;
-the committed text renders flat — no box, no border — attached to the link at
-that spot, and moves with the link.
 
 ### LT-056 — **bug** The installer's app is blocked on the second machine — resolved 2026-08-30
 Reported with a screenshot ("Windows cannot access the specified device,

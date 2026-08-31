@@ -166,6 +166,12 @@ export interface LinkData extends Record<string, unknown> {
   sourcePortLabel: string;
   targetPortLabel: string;
   label: string;
+  /** Where along the drawn path the centre label sits, 0..1. Unset is the
+   *  midpoint — every link ever drawn before LT-051. */
+  labelAt?: number;
+  /** Flat text attached to the link (LT-052): a port number written straight
+   *  on the line, no box, no border. Each remembers its spot along the path. */
+  texts?: { id: string; at: number; text: string }[];
   pathType: LinkPathType;
   direction: LinkDirection;
   width: number;

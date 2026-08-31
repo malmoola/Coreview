@@ -1,7 +1,8 @@
-import { memo, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
+  useReactFlow,
   getBezierPath,
   getSmoothStepPath,
   getStraightPath,
@@ -38,6 +39,50 @@ export const STATUS_COLOR = STATUS_COLOR_DARK;
  * by roughly the spacing between the devices they run to.
  */
 const PORT_LABEL_AT = 0.32;
+
+/** A point at a fraction along the drawn path, or null where SVG geometry
+ *  is unavailable (jsdom) — callers fall back to the straight chord. */
+function pointAt(edgePath: string, at: number): { x: number; y: number } | null {
+  try {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', edgePath);
+    const len = p.getTotalLength();
+    if (!len || !Number.isFinite(len)) return null;
+    const pt = p.getPointAtLength(len * Math.min(1, Math.max(0, at)));
+    return { x: pt.x, y: pt.y };
+  } catch {
+    return null;
+  }
+}
+
+/** The fraction along the path nearest to a point — how a dragged label is
+ *  kept on its link (LT-051): the cursor roams, the label takes the closest
+ *  spot on the line. Sampled, then refined once around the best sample.
+ *  Exported for the canvas, which uses it to place a double-clicked text
+ *  (LT-052) at the spot that was clicked. */
+export function nearestFractionOnPath(edgePath: string, x: number, y: number): number | null {
+  try {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', edgePath);
+    const len = p.getTotalLength();
+    if (!len || !Number.isFinite(len)) return null;
+    let best = 0;
+    let bestD = Infinity;
+    const probe = (t: number) => {
+      const pt = p.getPointAtLength(len * t);
+      const d = (pt.x - x) ** 2 + (pt.y - y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = t;
+      }
+    };
+    for (let i = 0; i <= 80; i += 1) probe(i / 80);
+    for (let i = -9; i <= 9; i += 1) probe(best + i / 800);
+    return Math.min(0.97, Math.max(0.03, best));
+  } catch {
+    return null;
+  }
+}
 
 /** Where along the drawn path the two port labels sit.
  *
@@ -200,6 +245,74 @@ function LiveEdgeInner(props: EdgeProps) {
   // its parallel neighbour appears.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const anchors = useMemo(() => portAnchors(id, edgePath), [id, edgePath, version]);
+
+  // LT-051/052: the centre label and any flat text slide along the link and
+  // never leave it. While a drag is live the fraction is local state; the
+  // store learns it once on release, as one undoable edit.
+  const rf = useReactFlow();
+  const [dragAt, setDragAt] = useState<{ key: string; at: number } | null>(null);
+  const dragRef = useRef<{ key: string; at: number } | null>(null);
+  const [editingText, setEditingText] = useState<string | null>(null);
+  const beginLabelDrag = useCallback(
+    (key: string, startAt: number) => (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const el = e.currentTarget as HTMLElement;
+      el.setPointerCapture(e.pointerId);
+      dragRef.current = { key, at: startAt };
+      setDragAt(dragRef.current);
+      const move = (ev: PointerEvent) => {
+        const flow = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY });
+        const at = nearestFractionOnPath(edgePath, flow.x, flow.y);
+        if (at !== null) {
+          dragRef.current = { key, at };
+          setDragAt(dragRef.current);
+        }
+      };
+      const up = () => {
+        el.removeEventListener('pointermove', move);
+        el.removeEventListener('pointerup', up);
+        const final = dragRef.current;
+        dragRef.current = null;
+        setDragAt(null);
+        if (!final) return;
+        const store = useStore.getState();
+        store.commit();
+        if (final.key === 'label') {
+          store.updateEdgeData(id, { labelAt: final.at });
+        } else {
+          store.updateEdgeData(id, {
+            texts: (data.texts ?? []).map((t) =>
+              t.id === final.key ? { ...t, at: final.at } : t,
+            ),
+          });
+        }
+      };
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+    },
+    [edgePath, id, rf, data.texts],
+  );
+  const commitText = useCallback(
+    (textId: string, value: string) => {
+      const store = useStore.getState();
+      const trimmed = value.trim();
+      store.commit();
+      store.updateEdgeData(id, {
+        texts: trimmed
+          ? (data.texts ?? []).map((t) => (t.id === textId ? { ...t, text: trimmed } : t))
+          : (data.texts ?? []).filter((t) => t.id !== textId),
+      });
+      setEditingText(null);
+    },
+    [id, data.texts],
+  );
+  const labelFraction = dragAt?.key === 'label' ? dragAt.at : (data.labelAt ?? 0.5);
+  const labelPoint =
+    labelFraction === 0.5 && dragAt?.key !== 'label'
+      ? null // untouched links keep React Flow's own midpoint
+      : pointAt(edgePath, labelFraction);
   const drawnPath = useMemo(() => {
     // A leader is an annotation. Hopping it over the cables it crosses would
     // say it is one of them.
@@ -386,10 +499,13 @@ function LiveEdgeInner(props: EdgeProps) {
           <div
             className="cv-edge-label cv-edge-center"
             style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              transform: `translate(-50%, -50%) translate(${labelPoint ? labelPoint.x : labelX}px, ${
+                labelPoint ? labelPoint.y : labelY
+              }px)`,
               borderColor: color,
             }}
             title={tooltip}
+            onPointerDown={beginLabelDrag('label', labelFraction)}
           >
             <span className="cv-edge-glyph" style={{ color }} aria-hidden>
               {STATUS_GLYPH[status]}
@@ -397,6 +513,43 @@ function LiveEdgeInner(props: EdgeProps) {
             {data.label}
           </div>
         ) : null}
+
+        {(data.texts ?? []).map((t) => {
+          const at = dragAt?.key === t.id ? dragAt.at : t.at;
+          const pt = pointAt(edgePath, at) ?? {
+            x: sourceX + (targetX - sourceX) * at,
+            y: sourceY + (targetY - sourceY) * at,
+          };
+          const editing = editingText === t.id || t.text === '';
+          return (
+            <div
+              key={t.id}
+              className="cv-edge-flat nodrag nopan"
+              style={{ transform: `translate(-50%, -50%) translate(${pt.x}px, ${pt.y}px)` }}
+              onPointerDown={editing ? undefined : beginLabelDrag(t.id, at)}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setEditingText(t.id);
+              }}
+            >
+              {editing ? (
+                <input
+                  autoFocus
+                  defaultValue={t.text}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') commitText(t.id, (e.target as HTMLInputElement).value);
+                    if (e.key === 'Escape') commitText(t.id, t.text);
+                  }}
+                  onBlur={(e) => commitText(t.id, e.target.value)}
+                />
+              ) : (
+                t.text
+              )}
+            </div>
+          );
+        })}
 
         {data.targetPortLabel ? (
           <div
