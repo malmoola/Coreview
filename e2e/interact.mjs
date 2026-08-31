@@ -2467,6 +2467,54 @@ await dismissRecovery();
   }
 }
 
+// ---- port labels at the ends, one per cable (LT-050 / LT-055) --------------
+// Two parallel cables between one pair used to wear their chips at 0.32
+// along the straight chord — the same chord for both, so the pairs stacked
+// and the lab showed two links both reading "Gi1/0/11" with 1/0/12 hidden
+// underneath. Chips now ride the drawn path, near their own ends.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const mk = (id, sp, tp) => ({
+      id, source: "n1", target: "n3", sourceHandle: "r", targetHandle: "l",
+      type: "live",
+      data: { sourcePortLabel: sp, targetPortLabel: tp, label: "",
+        pathType: "smoothstep", direction: "none", width: 2, color: "#7c8fa3",
+        enabled: true, maintenance: false,
+        healthRule: { type: "manual", manualStatus: "healthy" } },
+    });
+    window.__cvStore.setState({ doc: { ...st.doc, edges: [...st.doc.edges,
+      mk("lane-a", "Gi1/0/11", "Gi1/0/11"), mk("lane-b", "Gi1/0/12", "Gi1/0/12")] } });
+  });
+  await page.waitForTimeout(500);
+  const chip = (t) => page.locator(".cv-edge-port", { hasText: t });
+  check("both cables show their own port label",
+    (await chip("Gi1/0/11").count()) >= 2 && (await chip("Gi1/0/12").count()) >= 2,
+    `11s: ${await chip("Gi1/0/11").count()}, 12s: ${await chip("Gi1/0/12").count()}`);
+  const a = await chip("Gi1/0/11").first().boundingBox();
+  const b = await chip("Gi1/0/12").first().boundingBox();
+  const overlap = a && b &&
+    a.x < b.x + b.width && b.x < a.x + a.width &&
+    a.y < b.y + b.height && b.y < a.y + a.height;
+  check("the two source chips do not stack on one spot", !overlap,
+    a && b ? `a=(${a.x.toFixed(0)},${a.y.toFixed(0)}) b=(${b.x.toFixed(0)},${b.y.toFixed(0)})` : "missing chip");
+  // Near its own device: the chip's centre must be much closer to the source
+  // node than to the target node.
+  const srcBox = await page.locator('[data-id="n1"]').boundingBox();
+  const dstBox = await page.locator('[data-id="n3"]').boundingBox();
+  const cx = a.x + a.width / 2, cy = a.y + a.height / 2;
+  const d = (bb) => Math.hypot(cx - (bb.x + bb.width / 2), cy - (bb.y + bb.height / 2));
+  check("a source chip sits near its own device, not mid-link",
+    d(srcBox) < d(dstBox) / 2, `to-src ${d(srcBox).toFixed(0)} to-dst ${d(dstBox).toFixed(0)}`);
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc,
+      edges: st.doc.edges.filter((e) => !e.id.startsWith("lane-")) } });
+  });
+  await page.waitForTimeout(300);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

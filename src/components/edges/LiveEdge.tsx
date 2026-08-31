@@ -39,6 +39,44 @@ export const STATUS_COLOR = STATUS_COLOR_DARK;
  */
 const PORT_LABEL_AT = 0.32;
 
+/** Where along the drawn path the two port labels sit.
+ *
+ *  They used to sit on the straight chord between the handles, a third of
+ *  the way along. Two parallel cables between one pair share that chord, so
+ *  their chips stacked — the lab showed two links both reading "Gi1/0/11"
+ *  with the 1/0/12 pair hidden exactly underneath (LT-055) — and a third of
+ *  the way along is the middle of the room, not the port (LT-050). On the
+ *  drawn path the lanes have separated, and a fixed distance from each end
+ *  keeps the chip beside its own device at any link length. */
+function portAnchors(id: string, edgePath: string): { s: DOMPoint; t: DOMPoint } | null {
+  try {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', edgePath);
+    const len = p.getTotalLength();
+    if (!len || !Number.isFinite(len)) return null;
+    // Parallel cables out of one handle share their first stretch of path, so
+    // a fixed distance stacks their chips exactly — which is how "Gi1/0/12"
+    // hid under "Gi1/0/11". Edges sharing this edge's start point are ranked
+    // by id, and each rank slides one chip-length further along the trunk.
+    const head = (d: string) => d.slice(0, d.indexOf('L') > 0 ? d.indexOf('L') : 24);
+    const mine = head(edgePath);
+    let rank = 0;
+    for (const [otherId, otherPath] of allPaths()) {
+      if (otherId !== id && head(otherPath) === mine && otherId < id) rank += 1;
+    }
+    // A full chip-length per rank, or neighbouring chips still overlap.
+    const near = (end: number) =>
+      Math.min(46 + rank * 66, len * (0.4 - 0.08 * Math.min(rank, 3))) * end;
+    return {
+      s: p.getPointAtLength(near(1)),
+      t: p.getPointAtLength(len - near(1)),
+    };
+  } catch {
+    // jsdom has no SVG geometry; the chord fallback below still renders.
+    return null;
+  }
+}
+
 /** Dot travel time in seconds. Deliberately not derived from RTT: a constant
  *  speed keeps the animation a status indicator rather than a fake throughput
  *  gauge. Warning is slower purely as a second, non-color cue. */
@@ -158,6 +196,10 @@ function LiveEdgeInner(props: EdgeProps) {
   }, [id, edgePath]);
   useEffect(() => () => forgetPath(id), [id]);
 
+  // Re-ranked when the registry settles, or a chip keeps a stale rank after
+  // its parallel neighbour appears.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const anchors = useMemo(() => portAnchors(id, edgePath), [id, edgePath, version]);
   const drawnPath = useMemo(() => {
     // A leader is an annotation. Hopping it over the cables it crosses would
     // say it is one of them.
@@ -332,8 +374,8 @@ function LiveEdgeInner(props: EdgeProps) {
             className="cv-edge-label cv-edge-port"
             style={{
               transform: `translate(-50%, -50%) translate(${
-                sourceX + (targetX - sourceX) * PORT_LABEL_AT
-              }px, ${sourceY + (targetY - sourceY) * PORT_LABEL_AT}px)`,
+                anchors ? anchors.s.x : sourceX + (targetX - sourceX) * PORT_LABEL_AT
+              }px, ${anchors ? anchors.s.y : sourceY + (targetY - sourceY) * PORT_LABEL_AT}px)`,
             }}
           >
             {data.sourcePortLabel}
@@ -361,8 +403,8 @@ function LiveEdgeInner(props: EdgeProps) {
             className="cv-edge-label cv-edge-port"
             style={{
               transform: `translate(-50%, -50%) translate(${
-                targetX + (sourceX - targetX) * PORT_LABEL_AT
-              }px, ${targetY + (sourceY - targetY) * PORT_LABEL_AT}px)`,
+                anchors ? anchors.t.x : targetX + (sourceX - targetX) * PORT_LABEL_AT
+              }px, ${anchors ? anchors.t.y : targetY + (sourceY - targetY) * PORT_LABEL_AT}px)`,
             }}
           >
             {data.targetPortLabel}

@@ -133,6 +133,21 @@ and `.vssx` from the operator's My Shapes folder to verify per-master
 splitting and naming before this is called Done.** Masters are currently
 named "<file> 1..N"; real master names, if wanted, are a follow-up.
 
+### LT-050 — Port labels sit at the ends of a link — 2026-08-30
+Chips now ride the drawn path a fixed distance from each end — beside their
+own device — instead of a third of the way along the straight chord, which
+was the middle of the room. The centre label is untouched. Verified by
+measurement (a chip must sit far closer to its device than to the other
+end) and by eye against a staged pair.
+
+### LT-055 — **bug** Two parallel links both labelled Gi1/0/11 — 2026-08-30
+Same root as LT-050: parallel cables out of one handle share the straight
+chord, so their chips stacked exactly and "Gi1/0/12" sat hidden underneath
+"Gi1/0/11". On the drawn path, edges sharing a start point are ranked by id
+and each rank slides one chip-length further along the trunk, so every
+cable's port is readable. The lab picture itself still wants a re-crawl
+once a build with LT-054's kex fix reaches the 9300.
+
 ### LT-054 — **bug** The Catalyst 9300 refuses our SSH: no common kex — 2026-08-30
 First live contact with the 9300 (LT-010) and the crawler could not even
 shake hands: the box is locked to `ip ssh server algorithm kex
@@ -182,12 +197,6 @@ grounds; switching to the white ground changes only the canvas — white page
 on a light-brown desk. Supersedes LT-034's light chrome, which is retired
 with its harness checks.
 
-### LT-050 — Port labels sit at the ends of a link
-**Source:** asked 2026-08-30, with a screenshot — "link ports should be close
-to the devices not in the middle of the link; center label is good though."
-**Acceptance:** a link's two port labels are drawn near their own device ends;
-the centre label stays where it is.
-
 ### LT-051 — Drag a link label along its link
 **Source:** asked 2026-08-30 — "add the link labels anywhere and drag it
 along the links but it shouldn't leave the links area."
@@ -200,13 +209,6 @@ number or text flat no box or boarders just text attached to the link."
 **Acceptance:** double-clicking a spot on a link opens a caret there;
 the committed text renders flat — no box, no border — attached to the link at
 that spot, and moves with the link.
-
-### LT-055 — **bug** Two parallel links both labelled Gi1/0/11
-**Source:** reported 2026-08-30, with a screenshot — two lanes between
-Cisco-Rack1-3850 and 9300-LAB, both wearing Gi1/0/11; "I don't see 1/0/12."
-**Acceptance:** parallel links between the same pair carry their own port
-labels; whichever half (crawl merge or label rendering) collapses them is
-found with a failing test first.
 
 ### LT-056 — **bug** The installer's app is blocked on the second machine — resolved 2026-08-30
 Reported with a screenshot ("Windows cannot access the specified device,
