@@ -1558,3 +1558,14 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
   pointer-events: auto; cursor: ns-resize; z-index: 6;
 }
 .cv-edge-curve:active { cursor: grabbing; }
+
+/* --- LT-073: what a broken panel looks like, instead of an empty window. --- */
+.cv-boundary {
+  margin: 12px; padding: 12px 14px;
+  border: 1px solid var(--down); border-radius: var(--radius);
+  background: var(--panel); color: var(--text);
+}
+.cv-boundary-detail {
+  font-family: var(--mono); font-size: 11px; color: var(--text-dim);
+  white-space: pre-wrap; margin: 8px 0; max-height: 140px; overflow: auto;
+}

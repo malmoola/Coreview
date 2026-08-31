@@ -2925,6 +2925,41 @@ await dismissRecovery();
   });
 }
 
+// ---- one broken panel does not take the window (LT-073) --------------------
+// A backup event arrived in a shape the panel did not expect, the render
+// threw, React unmounted everything, and the operator got an empty dark
+// window. The boundary is what makes that impossible.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    // Force the monitoring panel to throw on its next render, the way a bad
+    // payload did — nodeStatus is called for every row.
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({
+      nodeStatus: () => { throw new Error("simulated render fault (LT-073)"); },
+    });
+    void st;
+  });
+  await page.waitForTimeout(600);
+  check("the window is still there", (await page.locator(".cv-app").count()) === 1);
+  check("the boundary says what broke",
+    (await page.locator(".cv-boundary").count()) >= 1,
+    `${await page.locator(".cv-boundary").count()} boundaries`);
+  // The palette does not ask for node status, so it is untouched by the
+  // fault — which is the point of per-region boundaries.
+  check("regions that did not fault keep working",
+    (await page.locator(".cv-palette-item").count()) > 0);
+  // Put the real status resolver back and recover.
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".cv-project-open").first().click();
+  await page.waitForSelector(".react-flow__node");
+  await page.waitForTimeout(600);
+  await dismissRecovery();
+  check("reopening comes back clean",
+    (await page.locator(".cv-boundary").count()) === 0 &&
+      (await page.locator(".react-flow__node").count()) > 0);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

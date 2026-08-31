@@ -6,6 +6,7 @@ import { Inspector } from './components/inspector/Inspector';
 import { Palette } from './components/Palette';
 import { ProjectScreen } from './components/ProjectScreen';
 import { StatusPanel } from './components/StatusPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { TopBar } from './components/TopBar';
 import { ipc, isDesktop } from './lib/ipc';
 import { useStore } from './state/store';
@@ -59,7 +60,7 @@ export default function App() {
   return (
     <ReactFlowProvider>
       <div className={`cv-app cv-workspace ${highContrast ? 'is-contrast' : ''} ${ground === 'light' ? 'is-light' : ''}`}>
-        <TopBar onExit={() => undefined} />
+        <ErrorBoundary what="The toolbar"><TopBar onExit={() => undefined} /></ErrorBoundary>
         {/* The narrow layouts show the palette or the inspector, not both,
             and which one depends on whether there is something to inspect. */}
         <div
@@ -76,9 +77,9 @@ export default function App() {
               two children in a three-track grid, and the canvas slides into
               the collapsed track — which is how the inspector ended up
               occupying the middle of the window. */}
-          <Palette />
-          <Canvas />
-          <Inspector />
+          <ErrorBoundary what="The shape palette"><Palette /></ErrorBoundary>
+          <ErrorBoundary what="The diagram"><Canvas /></ErrorBoundary>
+          <ErrorBoundary what="The inspector"><Inspector /></ErrorBoundary>
 
           {/* Slim rails, so the way back is always visible. A panel that
               hides with no handle left behind reads as something broken. */}
@@ -103,7 +104,7 @@ export default function App() {
             {inspectorOpen ? '›' : '‹'}
           </button>
         </div>
-        <StatusPanel />
+        <ErrorBoundary what="The monitoring panel"><StatusPanel /></ErrorBoundary>
       </div>
     </ReactFlowProvider>
   );

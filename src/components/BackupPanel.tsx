@@ -370,7 +370,10 @@ export function BackupPanel({
         <div className="cv-backup-results">
           {saved.map((s) => (
             <p key={s.path} className="cv-help">
-              <span className="cv-reached">Saved</span> {s.name} — {s.bytes.toLocaleString()} bytes
+              {/* Defensive after LT-073: a payload that arrives without a
+                  byte count must read as unknown, never throw. */}
+              <span className="cv-reached">Saved</span> {s.name ?? 'device'} —{' '}
+              {typeof s.bytes === 'number' ? `${s.bytes.toLocaleString()} bytes` : 'size unknown'}
               {s.unchanged && ' (unchanged since the last capture)'}
             </p>
           ))}

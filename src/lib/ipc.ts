@@ -508,7 +508,13 @@ export const ipc = {
   async onBackupEvent(handler: (e: BackupEvent) => void): Promise<() => void> {
     if (!isDesktop) return () => {};
     const { listen } = await import('@tauri-apps/api/event');
-    return listen('coreview://backup', (e) => handler(e.payload as BackupEvent));
+    // LT-073: the backend tags its enum adjacently; flatten before anyone
+    // reads it, or every payload field is undefined.
+    const { normaliseBackupEvent } = await import('./backupEvent');
+    return listen('coreview://backup', (e) => {
+      const event = normaliseBackupEvent(e.payload);
+      if (event) handler(event);
+    });
   },
 
   /** The credential vault. Every call here takes secrets in; only
