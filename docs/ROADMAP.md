@@ -167,6 +167,14 @@ edited by double-click, removed by committing nothing (so a stray
 double-click leaves no debris). Stored per-link (`texts`), undoable, saved.
 Same export caveat as LT-051.
 
+### LT-059 — **bug** The bundled Cisco shapes did not appear in the installed app — 2026-08-31
+As suspected: Tauri places resources whose source lies outside `src-tauri/`
+under a `_up_/` prefix in the resource directory, so
+`resolve("stencils", Resource)` looked where nothing was. The map form of
+`bundle.resources` pins the target path, and the proof is a locally built
+.deb: 217 stencil SVGs at `usr/lib/Coreview/stencils/`, zero `_up_` paths.
+Confirmed on the operator's machine once the next installer is on it.
+
 ### LT-061 — A device's check targets its address by itself — 2026-08-31
 The primary check follows the primary address: a device that gains an
 address gets a check aimed at it, changing the address moves the check, and
@@ -319,15 +327,6 @@ Windows machine. Nothing to change in Coreview; kept because the symptom and
 its reading (Windows application control refusing a binary whose internal CA
 the machine does not trust) will recur on any locked-down host — that is
 LT-011's public-CA half.
-
-### LT-059 — **bug** The bundled Cisco shapes do not appear in the installed app
-**Source:** reported 2026-08-31 with a screenshot — "I still don't see the
-imported cisco shapes."
-**Suspected cause:** Tauri places resources whose source lies outside
-`src-tauri/` under a `_up_/` prefix in the resource directory, so
-`resolve("stencils", Resource)` looks where nothing is. Fix with the map
-form of `bundle.resources` and prove it by building a bundle and looking
-inside it.
 
 ### LT-006 — Lucidchart `.lcsl` import
 **Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.
