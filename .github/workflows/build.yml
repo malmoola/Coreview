@@ -153,7 +153,7 @@ jobs:
       - name: Build bundles
         run: npm run tauri build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.paths }}
@@ -208,7 +208,7 @@ jobs:
       - name: Build bundles
         run: npm run tauri build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coreview-windows-offline
           path: |
@@ -232,7 +232,7 @@ jobs:
     needs: bundle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: coreview-linux
           path: dist-artifacts

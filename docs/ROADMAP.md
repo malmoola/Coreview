@@ -358,6 +358,17 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-025 — Two roadmap files — 2026-08-31
+The MVP-era root `ROADMAP.md` is now a one-paragraph pointer to
+`docs/ROADMAP.md`, which is authoritative.
+
+### LT-033 — Stale debug scripts in `e2e/` — 2026-08-31
+`e2e/dbg.mjs` and `e2e/dbg2.mjs` deleted.
+
+### LT-063 — Bump the CI artifact actions off Node 20 — 2026-08-31
+`actions/upload-artifact` to v7 and `download-artifact` to v8, clearing the
+Node-20-deprecation warning on every run.
+
 ### LT-070 — **bug** Shape conversion failed when LibreOffice was already busy — 2026-08-31
 The overnight smoke caught it: `a_real_emf_becomes_a_palette_icon` failed
 intermittently because `cargo test` runs the soffice-backed tests in
@@ -660,27 +671,10 @@ internal COREVIEW-FGT-Root-CA cannot and never will.
 
 *Raised but deliberately deferred. Not dropped.*
 
-### LT-063 — Bump the CI artifact actions off Node 20
-GitHub's runners warn on every run: actions/upload-artifact@v4 and
-download-artifact@v4 target deprecated Node 20 and are forced onto Node 24.
-Harmless today; the cure is bumping to their current majors (v7/v8 as of
-2026-08-31), deferred deliberately past a final-testing night because a
-major-version jump of CI actions is churn, not urgency.
-
 ### LT-024 — Connection points on imported shapes
 A Visio master carries named ports; an imported EMF is a picture. Reading ports
 would let a link land on "Gi0/1" rather than on the right-hand side. Deferred:
 the conversion path produces pictures, so there is nothing to read yet.
-
-### LT-025 — Two roadmap files
-`ROADMAP.md` at the repo root (64 lines, MVP-era) and `docs/ROADMAP.md` (310
-lines) both existed and had drifted apart. `docs/ROADMAP.md` is now this file
-and is authoritative; the root one should be deleted or made a pointer.
-
-### LT-033 — Stale debug scripts in `e2e/`
-`e2e/dbg.mjs` and `e2e/dbg2.mjs` are one-off debugging leftovers that were
-committed and never removed. Harmless, but they are the first thing a newcomer
-opens. Delete them when next in that directory.
 
 ### LT-026 — Canvas performance above ~400 devices
 Measured 2026-08-30: 400 devices open in ~2s, drag at ~15fps, pan at ~8fps;
