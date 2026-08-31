@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PAPERS, describePage, fitOnSheet, paperById, sheetSize, sheetsFor } from './paper';
+import { PAPERS, describePage, fitOnSheet, paperById, sheetSize, sheetsFor, tileRects } from './paper';
 
 const a4 = paperById('a4');
 
@@ -90,5 +90,35 @@ describe('describePage', () => {
   it('reads the way someone would say it', () => {
     expect(describePage(a4, 'landscape')).toBe('A4 landscape');
     expect(describePage(paperById('fit'), 'portrait')).toBe('sized to the diagram');
+  });
+});
+
+describe('tileRects (LT-028)', () => {
+  it('a diagram that fits is one sheet', () => {
+    const t = tileRects({ x: 0, y: 0, width: 500, height: 400 }, { w: 800, h: 600 }, 36);
+    expect(t).toHaveLength(1);
+    expect(t[0]).toMatchObject({ row: 0, col: 0 });
+  });
+
+  it('splits a wide diagram into a row of full-size tiles', () => {
+    // usable width = 800 - 72 = 728; 1600 wide -> 3 columns.
+    const t = tileRects({ x: 0, y: 0, width: 1600, height: 400 }, { w: 800, h: 600 }, 36);
+    expect(t).toHaveLength(3);
+    expect(t.map((s) => s.col)).toEqual([0, 1, 2]);
+    expect(t[1]!.x).toBeCloseTo(728, 0);
+    expect(t[0]!.w).toBeCloseTo(728, 0);
+  });
+
+  it('tiles a grid row-major', () => {
+    const t = tileRects({ x: 10, y: 20, width: 1600, height: 1200 }, { w: 800, h: 600 }, 36);
+    // 3 across (1600/728) x 3 down (1200/528) = 9
+    expect(t).toHaveLength(9);
+    expect(t[0]).toMatchObject({ row: 0, col: 0, x: 10, y: 20 });
+  });
+
+  it('the diagram-sized paper is a single tile of the whole content', () => {
+    const t = tileRects({ x: 5, y: 5, width: 900, height: 700 }, { w: 0, h: 0 });
+    expect(t).toHaveLength(1);
+    expect(t[0]).toMatchObject({ w: 900, h: 700 });
   });
 });

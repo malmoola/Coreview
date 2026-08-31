@@ -99,6 +99,37 @@ export function sheetsFor(
   return { across, down, total: across * down };
 }
 
+/** The diagram-space rectangle each sheet covers, at full size (LT-028).
+ *  Row-major from the top-left. The paper's printable area (sheet minus
+ *  margins) sets the tile size, so a tile prints at 1:1. */
+export function tileRects(
+  content: { x: number; y: number; width: number; height: number },
+  sheet: { w: number; h: number },
+  margin = 36,
+): { x: number; y: number; w: number; h: number; row: number; col: number }[] {
+  if (sheet.w === 0 || sheet.h === 0) {
+    return [{ x: content.x, y: content.y, w: content.width, h: content.height, row: 0, col: 0 }];
+  }
+  const usableW = Math.max(1, sheet.w - margin * 2);
+  const usableH = Math.max(1, sheet.h - margin * 2);
+  const across = Math.max(1, Math.ceil(content.width / usableW));
+  const down = Math.max(1, Math.ceil(content.height / usableH));
+  const tiles: { x: number; y: number; w: number; h: number; row: number; col: number }[] = [];
+  for (let row = 0; row < down; row += 1) {
+    for (let col = 0; col < across; col += 1) {
+      tiles.push({
+        x: content.x + col * usableW,
+        y: content.y + row * usableH,
+        w: usableW,
+        h: usableH,
+        row,
+        col,
+      });
+    }
+  }
+  return tiles;
+}
+
 /** "A4 landscape", or "the diagram's own size". */
 export function describePage(paper: PaperSize, orientation: Orientation): string {
   if (paper.width === 0) return 'sized to the diagram';

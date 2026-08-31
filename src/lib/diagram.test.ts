@@ -388,3 +388,31 @@ describe('rendering exactly the on-screen page', () => {
     expect(svg).not.toContain('cv-guide');
   });
 });
+
+describe('multi-sheet tiling clips each sheet (LT-028)', () => {
+  const base = {
+    meta: { id: 'p', name: 'Net', customer: '', site: '', ticket: '', engineer: '', createdAt: 0, updatedAt: 0, archived: false },
+    nodes: [
+      { id: 'left', type: 'device', position: { x: 0, y: 0 }, width: 76, height: 76, data: { label: 'LEFT', deviceType: 'router', tags: [], addresses: [], locked: false, maintenance: false, showDetails: true } },
+      { id: 'right', type: 'device', position: { x: 1400, y: 0 }, width: 76, height: 76, data: { label: 'RIGHT', deviceType: 'router', tags: [], addresses: [], locked: false, maintenance: false, showDetails: true } },
+    ],
+    edges: [],
+    nodeStatus: () => 'healthy' as const,
+    linkStatus: () => 'healthy' as const,
+    includeTitleBlock: false,
+    now: new Date(0),
+  };
+
+  it('a tile carries a clip-path and both sheets render', () => {
+    const left = renderDiagramSvg({ ...base, page: { width: 800, height: 600 }, tile: { x: -20, y: -20, w: 728, h: 528 } } as never);
+    const right = renderDiagramSvg({ ...base, page: { width: 800, height: 600 }, tile: { x: 708, y: -20, w: 728, h: 528 } } as never);
+    expect(left).toContain('clip-path=');
+    expect(right).toContain('clip-path=');
+    // Both are valid single-sheet SVGs placed on the page.
+    expect(left).toContain('<svg');
+    expect(right).toContain('<svg');
+    // The two tiles use different clip ids (different origins).
+    const idOf = (svg) => /clipPath id="([^"]+)"/.exec(svg)[1];
+    expect(idOf(left)).not.toBe(idOf(right));
+  });
+});

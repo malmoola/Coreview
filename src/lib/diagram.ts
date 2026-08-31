@@ -87,6 +87,10 @@ export interface DiagramInput {
   /** Render exactly this rect — the on-screen page — rather than shrink-wrap
    *  the content. What you see on the sheet is what the file holds. */
   sheetRect?: { x: number; y: number; w: number; h: number };
+  /** One sheet of a multi-sheet export (LT-028): the diagram-space rectangle
+   *  this sheet shows, at full size. The drawing is clipped to it so a device
+   *  straddling two sheets is not drawn whole on both. */
+  tile?: { x: number; y: number; w: number; h: number };
   /** Injected so the output is deterministic in tests. */
   now?: Date;
 }
@@ -477,7 +481,12 @@ export function renderDiagramSvg(input: DiagramInput): string {
   // the page is what the file holds — otherwise shrink-wrapped to the model,
   // so the export never depends on what is scrolled into view.
   let minX: number, minY: number, contentW: number, contentH: number;
-  if (input.sheetRect) {
+  if (input.tile) {
+    minX = input.tile.x + PAD;
+    minY = input.tile.y + PAD;
+    contentW = input.tile.w;
+    contentH = input.tile.h;
+  } else if (input.sheetRect) {
     minX = input.sheetRect.x + PAD;
     minY = input.sheetRect.y + PAD;
     contentW = input.sheetRect.w;
@@ -526,10 +535,15 @@ export function renderDiagramSvg(input: DiagramInput): string {
       .map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph', sheet))
       .join('');
 
+  const clipId = input.tile ? `cv-tile-${Math.round(minX)}-${Math.round(minY)}` : null;
+  const clipDef = clipId
+    ? `<clipPath id="${clipId}"><rect x="0" y="${headerH}" width="${contentW}" height="${contentH}"/></clipPath>`
+    : '';
+  const clipAttr = clipId ? ` clip-path="url(#${clipId})"` : '';
   const drawing =
-    `  <defs>${markerDefs(sheet)}</defs>\n` +
+    `  <defs>${markerDefs(sheet)}${clipDef}</defs>\n` +
     `  ${header}\n` +
-    `  <g transform="translate(${PAD - minX}, ${headerH + PAD - minY})">${body}</g>`;
+    `  <g${clipAttr} transform="translate(${PAD - minX}, ${headerH + PAD - minY})">${body}</g>`;
 
   // Placed on a sheet when one was asked for. The drawing keeps its own
   // coordinates and is scaled and centred as a whole, so nothing inside has

@@ -7,7 +7,7 @@ import { buildMarkdownReport, saveExport, slug, svgToPng } from '../lib/exports'
 import { renderDiagramSvg } from '../lib/diagram';
 import { isVisible, layersOf } from '../lib/layers';
 import { effectivePage } from '../lib/pageRect';
-import { PAPERS, describePage, paperById, sheetSize, sheetsFor } from '../lib/paper';
+import { PAPERS, describePage, paperById, sheetSize, sheetsFor, tileRects } from '../lib/paper';
 import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
 import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
@@ -147,6 +147,66 @@ export function TopBar({ onExit }: { onExit: () => void }) {
 
   const exportSvg = () => {
     void runExport(`${slug(meta.name)}-diagram.svg`, diagramSvg, 'image/svg+xml');
+  };
+
+  // LT-028: how many sheets the diagram spans at full size on the chosen paper.
+  const contentBounds = () => {
+    if (store.doc.canvas.page ?? true) {
+      const p = effectivePage(store.doc.canvas.pageRect, shown.nodes);
+      return { x: p.x, y: p.y, width: p.w, height: p.h };
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of shown.nodes) {
+      minX = Math.min(minX, n.position.x); minY = Math.min(minY, n.position.y);
+      maxX = Math.max(maxX, n.position.x + (n.width ?? 176));
+      maxY = Math.max(maxY, n.position.y + (n.height ?? 96));
+    }
+    if (!shown.nodes.length) return { x: 0, y: 0, width: 800, height: 600 };
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  };
+  const sheetTiles = () => tileRects(contentBounds(), sheet, 36);
+
+  /** One SVG per sheet, each a full-size slice of the diagram (LT-028). Needs
+   *  an export folder so the files land somewhere without one dialog per
+   *  sheet; when none is set, the single-sheet SVG is written instead. */
+  const exportSheets = async () => {
+    const tiles = sheetTiles();
+    if (tiles.length <= 1 || !store.settings.exportFolder) {
+      exportSvg();
+      if (tiles.length > 1) {
+        store.setStatusMessage('Set an export folder to write one file per sheet.');
+      }
+      return;
+    }
+    setBusy('sheets');
+    try {
+      let last: string | null = null;
+      for (const t of tiles) {
+        const svg = renderDiagramSvg({
+          meta,
+          nodes: shown.nodes,
+          edges: shown.edges,
+          nodeStatus: (id) => store.nodeStatus(id),
+          linkStatus: (id) => store.linkStatus(id),
+          includeTitleBlock: true,
+          nodeStyle: store.doc.canvas.nodeStyle ?? 'glyph',
+          ground: settings.ground,
+          page: { width: sheet.w, height: sheet.h },
+          tile: { x: t.x, y: t.y, w: t.w, h: t.h },
+        });
+        last = await saveExport(
+          `${slug(meta.name)}-sheet-r${t.row + 1}c${t.col + 1}.svg`,
+          svg,
+          'image/svg+xml',
+          store.settings.exportFolder,
+        );
+      }
+      store.setStatusMessage(last ? `Saved ${tiles.length} sheets to ${store.settings.exportFolder}` : null);
+    } catch (err) {
+      store.setStatusMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
   };
 
   const exportPng = async () => {
@@ -390,6 +450,9 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             </button>
             <button type="button" onClick={exportSvg}>
               Diagram as SVG
+            </button>
+            <button type="button" onClick={() => void exportSheets()} disabled={busy === 'sheets'}>
+              {sheetTiles().length > 1 ? `SVG sheets (${sheetTiles().length})` : 'SVG sheets'}
             </button>
             <div className="cv-dropdown-field" onClick={(e) => e.stopPropagation()}>
               <label>
