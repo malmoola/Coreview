@@ -328,6 +328,20 @@ its reading (Windows application control refusing a binary whose internal CA
 the machine does not trust) will recur on any locked-down host — that is
 LT-011's public-CA half.
 
+---
+
+## Next
+
+*Accepted, not started.*
+
+### LT-068 — Full manual control of link routing
+**Source:** asked 2026-08-31 — "full control of the links on the diagram like
+move them, reroute them, just like how any diagram tool would let you custom
+the links and route them the way you would want."
+**Acceptance:** a link can be reshaped by hand — drag a midpoint to bend it,
+add and move waypoints, the custom route kept (saved, undoable) until reset.
+Auto-routing stays the default; a hand-routed link keeps its shape.
+
 ### LT-006 — Lucidchart `.lcsl` import
 **Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.
 **Blocked on:** the file. `Affinity-Native.lcsl` is no longer on this machine
@@ -370,6 +384,33 @@ internal COREVIEW-FGT-Root-CA cannot and never will.
 the same day: `libvisio-tools` is installed (vss2xhtml and friends on PATH),
 and LibreOffice itself reads Visio through the same libvisio. Folded into
 LT-045's converter work — the .vss route lands there.
+
+---
+
+## Done
+
+### LT-064 — **bug** Links lost their little jumps at crossings — 2026-08-31
+React Flow's smoothstep splits one straight segment at its border offsets
+into collinear runs, and a crossing near one of those joints was dropped for
+sitting at a run's end. The runs of a straight line are coalesced now, in
+both the crossing finder and the arc renderer, so a crossing anywhere along a
+straight link hops again. Not a regression from the recent edge work — a
+longstanding weakness the crawled diagram exposed; the browser-captured paths
+are the test.
+
+### LT-065 — **bug** The edit corners are far from the shape on older nodes — 2026-08-31
+`migrateDocument` squares a pre-LT-053 168x92 device box on open — centre
+kept, shapes and already-square glyphs left alone, idempotent, dirtying the
+document only when it changed something. Runs on open and recovery-restore.
+
+### LT-066 — The bundled shapes fold into one palette section — 2026-08-31
+The built-in library sits behind a single collapsed "Shape library" header
+with its count; the nine categories nest inside it, and search opens through.
+
+### LT-067 — Hovering a link shows its physical ports — 2026-08-31
+The link hover leads with the ports: `Ports: A Gi1/0/1 ↔ B Gi0/1` for a
+plain link, and `Port-channel: … (Gi1/0/11, Gi1/0/12)` listing the members
+for a LAG, from the discovery note.
 
 ### LT-013 — Crawl a network and draw it — 2026-08-29
 Shipped: CDP and LLDP over SSH and telnet, FortiOS command set, backup
