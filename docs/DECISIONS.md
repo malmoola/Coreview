@@ -212,3 +212,14 @@ manual step in front of the thing the pipeline was built to provide.
 **Cost accepted:** ~2 MB of installer, and the third-party-artwork line moves
 from "not in the binary" to "in the binary, for this operator's own use" —
 his call to make, and made explicitly.
+
+### D-023 — Scope the operator ruled out — 2026-08-31
+**Decision:** these are not built, now or in future: LT-006 (Lucidchart .lcsl
+import), LT-011's public-CA half (SmartScreen-clearing signing), down-device
+alerting, RTT-trend / SNMP metrics on the hover card, availability / SLA
+summaries, scheduled re-crawl, and auto-layout.
+**Why (the operator's):** "they are not wanted and we will not do them now or
+in the future." The enhancement backlog memory was pruned to match; LT-006 and
+LT-011 keep their IDs under a Declined section rather than being deleted.
+**Still wanted from the same conversation:** LT-069, LT-028, LT-027, the
+config-backup diff viewer, and the LT-063/025/033 housekeeping.

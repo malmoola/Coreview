@@ -342,42 +342,11 @@ the line. Distinct interaction from the free-waypoint model in LT-068.
 **Acceptance:** an elbow link's segments drag orthogonally; press-and-hold
 resets. Follows LT-068.
 
-### LT-006 — Lucidchart `.lcsl` import
-**Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.
-**Blocked on:** the file. `Affinity-Native.lcsl` is no longer on this machine
-(2026-08-30) and the converter cannot be verified without it — re-provide it
-and this unblocks. The scan already recognises `.lcsl` by name (LT-003).
-**Acceptance:**
-- 35 shapes with real vector in `properties.Stencil.Shapes[]`: convert `Points`
-  (normalised 0..1) and `Lines` (`p1`/`p2` indices, `n1`/`n2` cubic control
-  *offsets*) into SVG paths in `viewBox "0 0 1 1"` — `C` where the offsets are
-  present, `L` where they are not, closing when the chain returns to its start.
-  Map `prop` values for FillColor/StrokeColor/LineWidth to `currentColor` or the
-  shape's own colours.
-- 24 `ImageFillProps` shapes and 3 `UserImage2Block` shapes reference remote
-  Lucid assets. "Do not fabricate a placeholder that looks like a real icon."
-  Skip them, write `stencils/lucid/unresolved.json` with name and url, and
-  print "24 of 65 shapes reference remote Lucid assets and were skipped."
-- The one `Group` ("Master.79") is expanded per Object or skipped entirely —
-  "do NOT flatten it into a single unreadable blob".
-- The 5 bare unit rectangles are skipped.
-
 ### LT-010 — Verify against Catalyst 9000 / IOS-XE 17
 **Source:** asked 2026-08-29.
 **Blocked on:** access to a Catalyst 9000. The CDP and LLDP parsers are written
 against a C2960CX, a FortiSwitch and a FortiGate only. Operator has a 9300 he
 will power on to test against (2026-08-30).
-
-### LT-011 — Signed Windows installers on machines that do not trust the
-internal CA
-**Source:** asked 2026-08-29.
-**Half of this is done and verified 2026-08-30:** the two GitHub secrets are
-configured and every Windows bundle is being signed — run #98's annotation
-reads "Signing as … CN=COREVIEW-APP Code Signing", thumbprint 7996CE1E…
-Machines that trust the internal CA see a valid signature today.
-**Still blocked on:** the other half — machines *outside* that trust, and
-SmartScreen. Only an OV/EV certificate from a public CA clears those; the
-internal COREVIEW-FGT-Root-CA cannot and never will.
 
 ### LT-012 — Legacy binary `.vss` stencils
 **Source:** raised 2026-08-30; deferred by the operator, then unblocked by him
@@ -644,6 +613,46 @@ visually.
 
 ### LT-023 — Work tracking in the repository — 2026-08-30
 This file, `docs/DECISIONS.md`, `docs/OPEN-QUESTIONS.md` and `CLAUDE.md`.
+
+---
+
+## Declined
+
+*Explicitly ruled out by the operator. Kept with their IDs (never deleted),
+never to be built.*
+
+### LT-006 — Lucidchart `.lcsl` import
+**Source:** asked 2026-08-30. File `Affinity-Native.lcsl`, 65 shapes.
+**Blocked on:** the file. `Affinity-Native.lcsl` is no longer on this machine
+(2026-08-30) and the converter cannot be verified without it — re-provide it
+and this unblocks. The scan already recognises `.lcsl` by name (LT-003).
+**Acceptance:**
+- 35 shapes with real vector in `properties.Stencil.Shapes[]`: convert `Points`
+  (normalised 0..1) and `Lines` (`p1`/`p2` indices, `n1`/`n2` cubic control
+  *offsets*) into SVG paths in `viewBox "0 0 1 1"` — `C` where the offsets are
+  present, `L` where they are not, closing when the chain returns to its start.
+  Map `prop` values for FillColor/StrokeColor/LineWidth to `currentColor` or the
+  shape's own colours.
+- 24 `ImageFillProps` shapes and 3 `UserImage2Block` shapes reference remote
+  Lucid assets. "Do not fabricate a placeholder that looks like a real icon."
+  Skip them, write `stencils/lucid/unresolved.json` with name and url, and
+  print "24 of 65 shapes reference remote Lucid assets and were skipped."
+- The one `Group` ("Master.79") is expanded per Object or skipped entirely —
+  "do NOT flatten it into a single unreadable blob".
+- The 5 bare unit rectangles are skipped.
+**Declined 2026-08-31:** the operator will not do this now or in future.
+
+### LT-011 — Signed Windows installers on machines that do not trust the
+internal CA
+**Source:** asked 2026-08-29.
+**Half of this is done and verified 2026-08-30:** the two GitHub secrets are
+configured and every Windows bundle is being signed — run #98's annotation
+reads "Signing as … CN=COREVIEW-APP Code Signing", thumbprint 7996CE1E…
+Machines that trust the internal CA see a valid signature today.
+**Still blocked on:** the other half — machines *outside* that trust, and
+SmartScreen. Only an OV/EV certificate from a public CA clears those; the
+internal COREVIEW-FGT-Root-CA cannot and never will.
+**Declined 2026-08-31:** the operator will not do this now or in future. The internal-CA signing that already works is enough.
 
 ---
 
