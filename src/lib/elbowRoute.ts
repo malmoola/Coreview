@@ -11,17 +11,52 @@ export interface Pt {
   y: number;
 }
 
-/** The corner points of an orthogonal path `d` (an "M x,y L ... " polyline),
- *  duplicates and near-duplicates collapsed. */
+/** The real corners of an orthogonal path.
+ *
+ *  Command-aware, because counting every number pair was the LT-071 bug: a
+ *  smoothstep rounds each corner with a `Q`, whose control point *is* the
+ *  corner and whose endpoint lies on the next straight run — read naively,
+ *  one corner became three vertices and the link sprouted a chain of grips.
+ *  So: `M`/`L` give a vertex, `Q` gives its control point and its endpoint is
+ *  dropped, and consecutive collinear points collapse into the straight run
+ *  they belong to. A smoothstep between two devices comes back as the three
+ *  or four corners a person would point at. */
 export function pathVertices(d: string): Pt[] {
-  const nums = d.match(/-?\d*\.?\d+(?:e-?\d+)?/g)?.map(Number) ?? [];
-  const pts: Pt[] = [];
-  for (let i = 0; i + 1 < nums.length; i += 2) {
-    const p = { x: nums[i]!, y: nums[i + 1]! };
-    const last = pts[pts.length - 1];
-    if (!last || Math.hypot(last.x - p.x, last.y - p.y) > 0.5) pts.push(p);
+  const tokens = d.match(/[MLQCAmlqca][^MLQCAmlqca]*/g) ?? [];
+  const raw: Pt[] = [];
+  for (const token of tokens) {
+    const kind = token[0]!.toUpperCase();
+    const n = (token.slice(1).match(/-?\d*\.?\d+(?:e-?\d+)?/g) ?? []).map(Number);
+    if ((kind === 'M' || kind === 'L') && n.length >= 2) {
+      raw.push({ x: n[0]!, y: n[1]! });
+    } else if (kind === 'Q' && n.length >= 4) {
+      // The control point is the corner the curve is rounding.
+      raw.push({ x: n[0]!, y: n[1]! });
+    } else if (kind === 'C' && n.length >= 6) {
+      raw.push({ x: n[4]!, y: n[5]! });
+    } else if (n.length >= 2) {
+      raw.push({ x: n[n.length - 2]!, y: n[n.length - 1]! });
+    }
   }
-  return pts;
+
+  // Drop repeats, then collapse points that sit on the run they join.
+  const out: Pt[] = [];
+  for (const p of raw) {
+    const last = out[out.length - 1];
+    if (last && Math.hypot(last.x - p.x, last.y - p.y) < 1) continue;
+    if (out.length >= 2) {
+      const a = out[out.length - 2]!;
+      const b = last!;
+      const cross = (b.x - a.x) * (p.y - b.y) - (b.y - a.y) * (p.x - b.x);
+      const forward = (b.x - a.x) * (p.x - b.x) + (b.y - a.y) * (p.y - b.y) > 0;
+      if (Math.abs(cross) < 1 && forward) {
+        out[out.length - 1] = p; // b was mid-run, not a corner
+        continue;
+      }
+    }
+    out.push(p);
+  }
+  return out;
 }
 
 /** Whether a segment between two points is horizontal (true) or vertical. */
@@ -79,13 +114,14 @@ export function dragSegment(vertices: Pt[], i: number, pointer: Pt): Pt[] {
 
 /** The midpoints of the interior segments — where a segment grip sits. Each
  *  carries the vertex index of the segment's start, for `dragSegment`. */
-export function segmentGrips(vertices: Pt[]): { at: Pt; index: number }[] {
+export function segmentGrips(vertices: Pt[], minLength = 30): { at: Pt; index: number }[] {
   const grips: { at: Pt; index: number }[] = [];
   for (let i = 0; i < vertices.length - 1; i += 1) {
     const a = vertices[i]!;
     const b = vertices[i + 1]!;
-    // Skip a zero-length run.
-    if (Math.hypot(a.x - b.x, a.y - b.y) < 1) continue;
+    // A run too short to aim at gets no grip — that is what turned a link
+    // into a chain of dots (LT-071).
+    if (Math.hypot(a.x - b.x, a.y - b.y) < minLength) continue;
     grips.push({ at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, index: i });
   }
   return grips;

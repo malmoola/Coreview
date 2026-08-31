@@ -169,6 +169,9 @@ export interface LinkData extends Record<string, unknown> {
   sourcePortLabel: string;
   targetPortLabel: string;
   label: string;
+  /** How much a bezier link bows (LT-072). React Flow's default is 0.25;
+   *  unset means automatic. Dragging the curve handle sets it. */
+  curvature?: number;
   /** Hand-placed routing waypoints in flow coordinates (LT-068). When set,
    *  the link runs through them instead of auto-routing; empty or unset is
    *  the automatic route. */

@@ -31,3 +31,28 @@ describe('elbowRoute (LT-069)', () => {
     expect(wp.some((p) => p.y === -30)).toBe(true);
   });
 });
+
+describe('a smoothstep link gets a handful of grips, not dozens (LT-071)', () => {
+  // Verbatim from the browser: React Flow rounds each corner with a Q, and
+  // splits straight runs at its border offsets.
+  const SMOOTHSTEP =
+    'M186.5 138L206.5 138L 329.5,138Q 341.5,138 341.5,150L 341.5,326Q 341.5,338 353.5,338L476.5 338L496.5 338';
+
+  it('reads only the real corners', () => {
+    const v = pathVertices(SMOOTHSTEP);
+    expect(v.length).toBeLessThanOrEqual(4);
+    expect(v[0]).toEqual({ x: 186.5, y: 138 });
+    expect(v[v.length - 1]).toEqual({ x: 496.5, y: 338 });
+  });
+
+  it('offers at most a few grips', () => {
+    const grips = segmentGrips(pathVertices(SMOOTHSTEP));
+    expect(grips.length).toBeGreaterThan(0);
+    expect(grips.length).toBeLessThanOrEqual(3);
+  });
+
+  it('skips runs too short to grab', () => {
+    const v = [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 200 }];
+    expect(segmentGrips(v)).toHaveLength(1);
+  });
+});

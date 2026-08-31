@@ -154,6 +154,7 @@ function pathFor(
   type: LinkData['pathType'],
   p: Parameters<typeof getBezierPath>[0],
   lane = 0,
+  curvature?: number,
 ) {
   switch (type) {
     case 'straight':
@@ -168,7 +169,8 @@ function pathFor(
     case 'smoothstep':
       return getSmoothStepPath({ ...p, borderRadius: 12, stepPosition: laneStep(lane) });
     default:
-      return getBezierPath(p);
+      // LT-072: how far the curve bows, when the operator has set it.
+      return getBezierPath(curvature === undefined ? p : { ...p, curvature });
   }
 }
 
@@ -176,6 +178,9 @@ function LiveEdgeInner(props: EdgeProps) {
   const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected } =
     props;
   const data = (props.data ?? {}) as LinkData;
+  // Live while the curve handle is dragged (LT-072); the store learns the
+  // final value on release.
+  const [curveDrag, setCurveDrag] = useState<number | null>(null);
 
   const doc = useStore((s) => s.doc);
   const runtime = useStore((s) => s.runtime);
@@ -194,8 +199,8 @@ function LiveEdgeInner(props: EdgeProps) {
     }
     return pathFor(data.pathType ?? 'smoothstep', {
       sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
-    }, data.lane ?? 0);
-  }, [data.pathType, data.lane, wps, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+    }, data.lane ?? 0, curveDrag ?? data.curvature);
+  }, [data.pathType, data.lane, data.curvature, curveDrag, wps, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
 
   const ground = useStore((s) => s.settings.ground);
   // A leader points a note at what it is about. It is an annotation, not a
@@ -319,7 +324,41 @@ function LiveEdgeInner(props: EdgeProps) {
   // LT-069: a step link's segment grip. Dragging slides the run orthogonally
   // (dragSegment keeps every corner at 90°); a press-and-hold that never moves
   // resets the whole line to automatic.
-  const isElbow = (data.pathType ?? 'smoothstep') === 'step' || (data.pathType ?? 'smoothstep') === 'smoothstep';
+  const pathKind = data.pathType ?? 'smoothstep';
+  const isElbow = pathKind === 'step' || pathKind === 'smoothstep';
+  const isBezier = pathKind === 'bezier';
+  // LT-072: dragging the curve handle away from the straight line between the
+  // ends bows the curve; React Flow's curvature is that bow as a fraction of
+  // the span, so the pointer's perpendicular distance maps straight onto it.
+  const dragCurve = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const chord = Math.hypot(targetX - sourceX, targetY - sourceY) || 1;
+    const midX = (sourceX + targetX) / 2;
+    const midY = (sourceY + targetY) / 2;
+    const ux = (targetX - sourceX) / chord;
+    const uy = (targetY - sourceY) / chord;
+    let latest: number | null = null;
+    const move = (ev: PointerEvent) => {
+      const f = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY });
+      // Distance from the chord, perpendicular.
+      const perp = Math.abs((f.x - midX) * -uy + (f.y - midY) * ux);
+      latest = Math.min(3, Math.max(0, (perp / chord) * 2.4));
+      setCurveDrag(latest);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setCurveDrag(null);
+      if (latest !== null) {
+        const store = useStore.getState();
+        store.commit();
+        store.updateEdgeData(id, { curvature: Math.round(latest * 100) / 100 });
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const dragElbow = (vertices: { x: number; y: number }[], index: number) =>
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
@@ -649,7 +688,21 @@ function LiveEdgeInner(props: EdgeProps) {
               onPointerDown={dragElbow(pathVertices(livePath), g.index)}
             />
           ))}
-        {selected && !isElbow &&
+        {selected && isBezier && (
+          <div
+            className="cv-edge-curve nodrag nopan"
+            title="Drag to change how far the link curves"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            onPointerDown={dragCurve}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              const store = useStore.getState();
+              store.commit();
+              store.updateEdgeData(id, { curvature: undefined });
+            }}
+          />
+        )}
+        {selected && !isElbow && !isBezier &&
           (wpDrag?.points ?? wps).map((w, i) => (
             <div
               key={`wp-${i}`}
@@ -664,7 +717,7 @@ function LiveEdgeInner(props: EdgeProps) {
               }}
             />
           ))}
-        {selected && !isElbow &&
+        {selected && !isElbow && !isBezier &&
           segmentMidpoints({ x: sourceX, y: sourceY }, wpDrag?.points ?? wps, { x: targetX, y: targetY }).map((m, i) => (
             <div
               key={`mid-${i}`}

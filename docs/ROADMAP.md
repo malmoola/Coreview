@@ -328,12 +328,6 @@ its reading (Windows application control refusing a binary whose internal CA
 the machine does not trust) will recur on any locked-down host — that is
 LT-011's public-CA half.
 
----
-
-## Next
-
-*Accepted, not started.*
-
 ### LT-010 — Verify against Catalyst 9000 / IOS-XE 17
 **Source:** asked 2026-08-29.
 **Blocked on:** access to a Catalyst 9000. The CDP and LLDP parsers are written
@@ -360,6 +354,25 @@ The MVP-era root `ROADMAP.md` is now a one-paragraph pointer to
 ### LT-063 — Bump the CI artifact actions off Node 20 — 2026-08-31
 `actions/upload-artifact` to v7 and `download-artifact` to v8, clearing the
 Node-20-deprecation warning on every run.
+
+### LT-071 — **bug** Elbow grips multiplied into dozens along a link — 2026-08-31
+`pathVertices` counted every number pair in the path, so a smoothstep's
+rounded corners — each a `Q` whose control point *is* the corner and whose
+endpoint lies on the next run — read as three vertices apiece, and every one
+sprouted a grip. The parser is command-aware now (M/L give a vertex, Q gives
+its control point, the endpoint is dropped) and collapses points that sit on
+the run they join; runs too short to aim at get no grip at all. The real
+browser path that produced the mess is the test: it now yields three grips,
+one per straight run, which is what Lucidchart shows.
+
+### LT-072 — A bezier link's curve can be adjusted — 2026-08-31
+A selected curved link offers one ring handle at the middle of the curve;
+dragging it away from the straight line between the ends bows the curve
+(React Flow's curvature is exactly that bow as a fraction of the span, so the
+pointer's perpendicular distance maps onto it directly), double-click hands
+it back to automatic. Stored on the link, undoable, saved. A bezier shows
+only this handle — no elbow grips, no waypoint dots — so the three routing
+modes never crowd each other.
 
 ### LT-027 — Colour by VLAN — 2026-08-31
 Colour-devices-by joins health, role, subnet and tag with VLAN. The MAC-table

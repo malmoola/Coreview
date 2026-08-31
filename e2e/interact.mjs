@@ -2870,6 +2870,61 @@ await dismissRecovery();
   });
 }
 
+// ---- a handful of handles, and a bezier curve control (LT-071 / LT-072) ----
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const mk = (id, x, y) => ({ id, type: "device", position: { x, y }, width: 76, height: 76,
+      data: { label: id, deviceType: "router", tags: [], addresses: [], locked: false, maintenance: false, showDetails: true } });
+    const link = (id, s2, t2, kind) => ({ id, source: s2, target: t2, sourceHandle: "r", targetHandle: "l",
+      type: "live", data: { sourcePortLabel: "", targetPortLabel: "", label: "", pathType: kind,
+        direction: "none", width: 2, color: "#7c8fa3", enabled: true, maintenance: false,
+        healthRule: { type: "manual", manualStatus: "healthy" } } });
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: [...st.doc.nodes, mk("ha", 2200, 2200), mk("hb", 2700, 2450), mk("hc", 2200, 2800), mk("hd", 2700, 3000)],
+      edges: [...st.doc.edges, link("h-step", "ha", "hb", "smoothstep"), link("h-bez", "hc", "hd", "bezier")] } });
+  });
+  await page.waitForTimeout(300);
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 40, y: 40 } });
+  await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+
+  // LT-071: a smoothstep link shows a handful of grips, not a chain.
+  await page.locator('.react-flow__edge[data-id="h-step"]').click();
+  await page.waitForTimeout(300);
+  const grips = await page.locator(".cv-edge-grip").count();
+  check("a smoothstep link shows only a few grips", grips >= 1 && grips <= 4, `${grips} grips`);
+
+  // LT-072: a bezier link offers a curve handle, and dragging bows the curve.
+  await page.locator('.react-flow__edge[data-id="h-bez"]').click();
+  await page.waitForTimeout(300);
+  const curve = page.locator(".cv-edge-curve");
+  check("a bezier link offers one curve handle", (await curve.count()) === 1);
+  check("and no elbow grips or waypoint dots on it",
+    (await page.locator(".cv-edge-grip").count()) === 0 &&
+      (await page.locator(".cv-edge-addpoint").count()) === 0);
+  if (await curve.count()) {
+    const cb = await curve.boundingBox();
+    await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cb.x + cb.width / 2, cb.y - 120, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    const c = await page.evaluate(() =>
+      window.__cvStore.getState().doc.edges.find((e) => e.id === "h-bez").data.curvature);
+    check("dragging it stores a curvature on the link", typeof c === "number" && c > 0, `${c}`);
+  } else {
+    check("dragging it stores a curvature on the link", false, "no handle");
+  }
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: st.doc.nodes.filter((n) => !["ha","hb","hc","hd"].includes(n.id)),
+      edges: st.doc.edges.filter((e) => !e.id.startsWith("h-")) } });
+  });
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);
