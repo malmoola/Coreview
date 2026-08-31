@@ -1948,8 +1948,9 @@ await dismissRecovery();
 
 await dismissRecovery();
 // ---------------------------------------------------------------- desk
-// A white viewport is a flat field with objects floating in it and no edge
-// anywhere. The page has to be a real object against a neutral desk.
+// LT-046, superseding LT-034's light chrome: the white ground touches the
+// canvas only. Panels, top bar and bottom panel keep the dark chrome in both
+// grounds; the diagram becomes a white page on a warm light-brown desk.
 {
   const toggle = page.locator("button", { hasText: /background$/ }).first();
   if ((await toggle.innerText()) === "White background") {
@@ -1959,32 +1960,28 @@ await dismissRecovery();
   const read = (sel, prop) =>
     page.locator(sel).first().evaluate((el, p) => getComputedStyle(el)[p], prop);
 
-  check("the desk is the neutral grey it is meant to be",
-    (await read(".react-flow__pane", "backgroundColor")) === "rgb(228, 228, 228)",
+  check("the desk is the warm light brown that was asked for",
+    (await read(".react-flow__pane", "backgroundColor")) === "rgb(233, 226, 211)",
     await read(".react-flow__pane", "backgroundColor"));
   check("the page is white and has an edge",
     (await read(".cv-page", "backgroundColor")) === "rgb(255, 255, 255)" &&
-      (await read(".cv-page", "borderTopColor")) === "rgb(207, 207, 207)",
+      (await read(".cv-page", "borderTopColor")) === "rgb(208, 199, 179)",
     `${await read(".cv-page", "backgroundColor")} / ${await read(".cv-page", "borderTopColor")}`);
   check("the grid is inside the page, not on the desk",
     (await page.locator(".cv-page .cv-page-grid").count()) === 1 &&
       (await page.locator(".react-flow__background").count()) === 0);
 
-  // Chrome must read as chrome: a shade below the page, never above it.
-  const lum = (css) => {
-    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(css ?? "");
-    return m ? (0.299 * +m[1] + 0.587 * +m[2] + 0.114 * +m[3]) / 255 : null;
-  };
-  const chrome = lum(await read(".cv-topbar", "backgroundColor"));
-  const paper = lum(await read(".cv-page", "backgroundColor"));
-  check("chrome is darker than the page, never lighter", chrome < paper,
-    `chrome ${chrome?.toFixed(3)} vs page ${paper?.toFixed(3)}`);
-  check("the palette and the inspector are chrome too",
-    (await read(".cv-palette", "backgroundColor")) === (await read(".cv-topbar", "backgroundColor")) &&
-      (await read(".cv-inspector", "backgroundColor")) === (await read(".cv-topbar", "backgroundColor")));
-  check("an inspector field sits on the page colour, so it reads as somewhere to write",
-    (await read(".cv-inspector .cv-input", "backgroundColor")) === "rgb(255, 255, 255)",
-    await read(".cv-inspector .cv-input", "backgroundColor"));
+  // The chrome does not follow the ground: dark panels around a light canvas.
+  const darkChrome = "rgb(18, 26, 36)";
+  check("the top bar stays dark chrome on the white ground",
+    (await read(".cv-topbar", "backgroundColor")) === darkChrome,
+    await read(".cv-topbar", "backgroundColor"));
+  check("the palette and the inspector stay dark chrome too",
+    (await read(".cv-palette", "backgroundColor")) === darkChrome &&
+      (await read(".cv-inspector", "backgroundColor")) === darkChrome);
+  check("node labels on the light canvas are dark ink",
+    (await read(".cv-glyph-label", "color")) === "rgb(26, 26, 26)",
+    await read(".cv-glyph-label", "color"));
 
   // The dark toggle overrides the same tokens rather than adding a second set.
   await toggle.click();
@@ -1993,6 +1990,8 @@ await dismissRecovery();
     (await read(".react-flow__pane", "backgroundColor")) === "rgb(10, 14, 19)" &&
       (await page.locator(".cv-page").count()) === 1,
     await read(".react-flow__pane", "backgroundColor"));
+  check("and the chrome never moved at all",
+    (await read(".cv-topbar", "backgroundColor")) === darkChrome);
 }
 
 await dismissRecovery();

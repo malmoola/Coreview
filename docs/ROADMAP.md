@@ -133,6 +133,19 @@ and `.vssx` from the operator's My Shapes folder to verify per-master
 splitting and naming before this is called Done.** Masters are currently
 named "<file> 1..N"; real master names, if wanted, are a follow-up.
 
+### LT-046 — Chrome stays dark; only the diagram area follows the ground — 2026-08-31
+Supersedes LT-034's light chrome, at the operator's word. The `.is-light`
+block now carries nothing but the drawing surface — white page, warm
+light-brown desk (#E9E2D3), its grid, inks and a `--canvas-accent` — and the
+chrome tokens are simply never remapped, so the panels stay the approved
+dark in both grounds. Canvas elements were moved off the chrome tokens onto
+the ground set (`--ink`, `--page`, `--desk`, `--canvas-accent`): node cards,
+labels, edge chips, connection dots, selection rings, the text halo. Print
+forces the canvas set to paper values, which the harness caught. The desk
+harness block asserts the new contract, both-ground screenshots are in
+docs/checkpoints/2026-08-31-canvas-{light,dark}.png, and the dark ground is
+bit-for-bit untouched.
+
 ### LT-050 — Port labels sit at the ends of a link — 2026-08-30
 Chips now ride the drawn path a fixed distance from each end — beside their
 own device — instead of a third of the way along the straight chord, which
@@ -186,16 +199,6 @@ Selected text no longer wears the box selection rectangle, and a text node
 offers no connection handles — a label is not something a cable plugs into
 (the follow-up ask in the same message). Border was already transparent;
 resize handles remain, as allowed.
-
-### LT-046 — Chrome stays dark; only the diagram area follows the ground
-**Source:** asked 2026-08-30 — "white theme is still not so good… make the
-side panels remain as the dark color don't change when we switch to white
-background, same with both top and bottom panels, so only the diagram area
-turn white and light brown."
-**Acceptance:** the side, top and bottom panels keep the dark chrome in both
-grounds; switching to the white ground changes only the canvas — white page
-on a light-brown desk. Supersedes LT-034's light chrome, which is retired
-with its harness checks.
 
 ### LT-051 — Drag a link label along its link
 **Source:** asked 2026-08-30 — "add the link labels anywhere and drag it

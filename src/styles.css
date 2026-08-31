@@ -25,6 +25,10 @@
   --text-dim: #8fa2b5;
   --text-faint: #7d90a4;
   --accent: #4ea8f0;
+  /* What selection paints on the canvas. Split from --accent by LT-046:
+     chrome no longer follows the ground, the canvas still does, and one
+     token cannot serve both when only one of them flips. */
+  --canvas-accent: #4ea8f0;
 
   --healthy: #2fbf6b;
   --warning: #e8a33d;
@@ -58,64 +62,25 @@
   --radius: 6px;
 }
 
-/* The white ground.
+/* The white ground — the canvas only.
  *
- * Not an inversion, and not a white viewport either. Visio and Lucidchart
- * paint a neutral desk and float a real page on it; that contrast is what
- * makes white look white. Painting the whole viewport white is what made the
- * first attempt read as one flat sheet with nothing on it.
- *
- * Hue-neutral on purpose. The greys here have no blue in them: a blue-tinted
- * off-white next to a true white page makes the page look yellow. */
+ * LT-046, superseding LT-034's light chrome: the operator looked at the
+ * light interface and asked for the panels back in dark — "make the side
+ * panels remain as the dark color… so only the diagram area turn white and
+ * light brown." So this block carries nothing but the drawing surface: a
+ * white page on a warm light-brown desk, dark chrome all around it, which
+ * is also how a drawing reads on a drafting table. Chrome tokens are not
+ * remapped here at all — that is the feature, not an omission. */
 .is-light {
-  /* The named palette. Everything below is expressed in these. */
-  /* Four surfaces a glance can tell apart: page (the only pure white), chrome
-     a clear step below it, desk a clear step below that. The first cut used
-     #FAFAFA chrome on an #EDEDED desk beside a white page and the three read
-     as one flat sheet. */
-  --desk: #e4e4e4;
+  --desk: #e9e2d3;
   --page: #ffffff;
-  --page-border: #cfcfcf;
+  --page-border: #d0c7b3;
   --grid-minor: #eaeaea;
   --grid-major: #dcdcdc;
-  --chrome: #f1f1f1;
-  --chrome-edge: #d6d6d6;
   --ink: #1a1a1a;
   --ink-muted: #6b6b6b;
+  --canvas-accent: #0b5fce;
 
-  /* The rest of the interface, in terms of those. Chrome is a shade below the
-     page so panels read as chrome and never as drawing surface. */
-  --bg: var(--desk);
-  --bg-raised: var(--page);
-  --panel: var(--chrome);
-  --panel-2: #e7e7e7;
-  --line: var(--chrome-edge);
-  --line-strong: #b8b8b8;
-  --text: var(--ink);
-  --text-dim: #4d4d4d;
-  --text-faint: var(--ink-muted);
-  --accent: #0b5fce;
-
-  --healthy: #0a8a3f;
-  --warning: #b45c00;
-  --down: #c81e1e;
-  --unknown: #5a5a5a;
-  --disabled: #949494;
-  --maintenance: #5323b8;
-
-  --hover: #e2e2e2;
-  --danger-line: #d99b95;
-  --danger-hover: #fbeceb;
-  /* Text on a status-coloured disc. The discs stay saturated on both grounds,
-     so what reads on them is white here. */
-  --on-status: #ffffff;
-  --shadow: rgba(0, 0, 0, 0.14);
-  --shadow-deep: rgba(0, 0, 0, 0.2);
-  --scrim: rgba(237, 237, 237, 0.8);
-  --code-bg: rgba(26, 26, 26, 0.07);
-  --notice-bg: #fdf3d6;
-  --notice-line: #c9a03d;
-  --notice-text: #4d3b06;
   --label-bg: rgba(255, 255, 255, 0.96);
   --zone-fill: rgba(11, 95, 206, 0.045);
   --zone-line: rgba(11, 95, 206, 0.4);
@@ -123,7 +88,9 @@
   --guide: #a21caf;
   --callout-bg: #fdf6e0;
   --callout-line: #cfa53c;
-  --welcome-glow: #f3f3f3;
+  /* The page's own shadow on the light desk; chrome casts none (LT-034). */
+  --shadow: rgba(0, 0, 0, 0.14);
+  --shadow-deep: rgba(0, 0, 0, 0.2);
 }
 
 .is-contrast {
@@ -416,11 +383,12 @@ textarea.cv-input { resize: vertical; }
 
 .cv-node {
   position: relative; width: 100%; height: 100%;
-  background: var(--panel); border: 1.5px solid var(--unknown);
+  color: var(--ink);
+  background: var(--page); border: 1.5px solid var(--unknown);
   border-radius: var(--radius); padding: 8px 10px;
   display: flex; align-items: center;
 }
-.cv-node.is-selected { box-shadow: 0 0 0 1px var(--accent); }
+.cv-node.is-selected { box-shadow: 0 0 0 1px var(--canvas-accent); }
 .cv-node-shape { background: transparent; }
 .cv-node[data-shape='circle'] { border-radius: 50%; justify-content: center; text-align: center; }
 .cv-node[data-shape='rounded'] { border-radius: 16px; }
@@ -443,7 +411,7 @@ textarea.cv-input { resize: vertical; }
 .cv-node-image { width: 30px; height: 30px; object-fit: contain; }
 .cv-node-text { min-width: 0; }
 .cv-node-label { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cv-node-detail { font-size: 10px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+.cv-node-detail { font-size: 10px; color: var(--ink-muted); margin-top: 2px; line-height: 1.4; }
 .cv-node-status-line { font-weight: 600; }
 .cv-node-maint { color: var(--maintenance); }
 
@@ -467,13 +435,13 @@ textarea.cv-input { resize: vertical; }
    keeps its edge-drag hit area and loses its paint. The corner handles stay:
    they say "resizable" without redrawing the bounds. */
 .react-flow__resize-control.line.cv-resize-line { border-color: transparent; }
-.cv-resize-handle { background: var(--accent); border: none; width: 7px; height: 7px; border-radius: 1px; }
+.cv-resize-handle { background: var(--canvas-accent); border: none; width: 7px; height: 7px; border-radius: 1px; }
 
 .cv-note {
   width: 100%; height: 100%; border: 1.5px solid; border-radius: var(--radius);
   padding: 9px 11px; overflow: auto; line-height: 1.5;
 }
-.cv-note.is-selected { box-shadow: 0 0 0 1px var(--accent); }
+.cv-note.is-selected { box-shadow: 0 0 0 1px var(--canvas-accent); }
 .cv-note-title { font-weight: 700; margin-bottom: 6px; letter-spacing: 0.02em; }
 .cv-note-body h3, .cv-note-body h4 { margin: 8px 0 3px; font-size: 1em; }
 .cv-note-body p, .cv-note-body li { margin: 2px 0; }
@@ -486,11 +454,11 @@ textarea.cv-input { resize: vertical; }
      aim at was the one place hovering the link did nothing. Nothing on a label
      is clickable, so it loses nothing by standing aside. */
   position: absolute; pointer-events: none;
-  background: var(--bg-raised); border: 1px solid var(--line-strong);
-  border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--text);
+  background: var(--label-bg); border: 1px solid var(--page-border);
+  border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--ink);
   font-family: var(--mono); white-space: nowrap;
 }
-.cv-edge-port { color: var(--text-dim); background: var(--label-bg, rgba(10, 14, 19, 0.92)); }
+.cv-edge-port { color: var(--ink-muted); background: var(--label-bg, rgba(10, 14, 19, 0.92)); }
 .cv-edge-center { font-family: var(--sans); display: inline-flex; gap: 5px; align-items: center; }
 .cv-edge-glyph { font-weight: 700; }
 
@@ -653,6 +621,15 @@ textarea.cv-input { resize: vertical; }
      colours set from script follow because printing switches the ground
      first, and this covers a plain Ctrl+P as well. */
   body, .cv-app {
+    /* LT-046 split the canvas ink from the chrome text; paper needs the
+       canvas set too, or a dark-ground print keeps light-grey labels. */
+    --desk: #ffffff;
+    --page: #ffffff;
+    --page-border: #c9c9c9;
+    --ink: #0d1722;
+    --ink-muted: #3d4e63;
+    --canvas-accent: #0b5fce;
+    --label-bg: #ffffff;
     --bg: #ffffff;
     --bg-raised: #ffffff;
     --panel: #ffffff;
@@ -949,7 +926,7 @@ textarea.cv-input { resize: vertical; }
    node has no box to outline. */
 .cv-glyph-node.is-selected .cv-glyph-art::after {
   content: ''; position: absolute; inset: -6px;
-  border: 1.5px solid var(--accent); border-radius: 50%;
+  border: 1.5px solid var(--canvas-accent); border-radius: 50%;
 }
 
 .cv-glyph-badge {
@@ -957,7 +934,7 @@ textarea.cv-input { resize: vertical; }
   width: 15px; height: 15px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 9px; font-weight: 700; color: var(--on-status);
-  border: 2px solid var(--bg);
+  border: 2px solid var(--desk);
 }
 .cv-glyph-lock { position: absolute; top: -6px; left: -8px; font-size: 9px; }
 
@@ -973,8 +950,8 @@ textarea.cv-input { resize: vertical; }
   pointer-events: none;
 }
 .cv-glyph-label, .cv-glyph-text .cv-inline-edit { pointer-events: auto; }
-.cv-glyph-label { font-weight: 600; font-size: 12px; color: var(--text); }
-.cv-glyph-addr { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
+.cv-glyph-label { font-weight: 600; font-size: 12px; color: var(--ink); }
+.cv-glyph-addr { font-family: var(--mono); font-size: 10px; color: var(--ink-muted); }
 .cv-glyph-status { font-size: 10px; font-weight: 600; }
 
 /* Typing on the diagram itself. Sized and coloured to match the text it
@@ -1051,8 +1028,8 @@ textarea.cv-input { resize: vertical; }
    the node because the layout stacks the symbol above the text. */
 .cv-glyph-node .react-flow__handle {
   width: 7px; height: 7px;
-  background: var(--panel-2);
-  border: 1.5px solid var(--line-strong);
+  background: var(--page);
+  border: 1.5px solid var(--page-border);
   /* Out of the way until wanted: four dots around every device is clutter on
      a diagram of any size.
      
@@ -1091,9 +1068,9 @@ textarea.cv-input { resize: vertical; }
 .cv-glyph-status,
 .cv-node-maint {
   text-shadow:
-    0 0 3px var(--bg), 0 0 3px var(--bg),
-    1px 0 2px var(--bg), -1px 0 2px var(--bg),
-    0 1px 2px var(--bg), 0 -1px 2px var(--bg);
+    0 0 3px var(--desk), 0 0 3px var(--desk),
+    1px 0 2px var(--desk), -1px 0 2px var(--desk),
+    0 1px 2px var(--desk), 0 -1px 2px var(--desk);
 }
 
 /* ------------------------------------------------------------------- find */

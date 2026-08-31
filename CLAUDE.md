@@ -74,7 +74,7 @@ npx vitest run
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 npm run dev            # then, in another terminal:
-node e2e/interact.mjs  # 164 interaction checks
+node e2e/interact.mjs  # ~230 interaction checks
 node e2e/change.mjs    # the change report, against a stubbed backend
 node e2e/library.mjs   # the icon library, against a stubbed backend
 ```
@@ -85,8 +85,11 @@ They are the only thing that catches a feature that compiles and does nothing.
 
 ## Colour
 
-Two grounds, dark and light, each with its own palette — not one derived from
-the other (D-007). Canvas colours are in `src/theme.ts`; chrome colours are CSS
-variables in `src/styles.css`. A neutral desk and a white page are accepted and
-not yet built (D-016, LT-001); until then the light ground's `--bg` is the
-blue-tinted `#f4f7fa` that is being complained about.
+The chrome is dark, always — the ground toggle moves only the canvas (LT-046,
+superseding LT-034's light chrome): white page on a warm light-brown desk, or
+the dark desk. Canvas colours are in `src/theme.ts` per ground; chrome colours
+are CSS variables in `src/styles.css`, where colour lives in exactly three
+blocks (`:root`, `.is-light` — canvas tokens only — and `@media print`).
+Canvas elements read the ground tokens (`--ink`, `--page`, `--desk`,
+`--canvas-accent`); chrome elements read the chrome ones. Do not point one at
+the other's set — only one of them flips.
