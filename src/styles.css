@@ -1540,3 +1540,12 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
 }
 .cv-edge-addpoint:hover { opacity: 1; }
 .cv-edge-waypoint:active, .cv-edge-addpoint:active { cursor: grabbing; }
+
+/* --- LT-069: a pill grip on each segment of a step link. Drag to slide the
+   segment orthogonally; press and hold to reset the line. --- */
+.cv-edge-grip {
+  position: absolute; width: 16px; height: 8px; border-radius: 5px;
+  background: var(--canvas-accent); border: 1.5px solid var(--page);
+  pointer-events: auto; cursor: move; z-index: 6;
+}
+.cv-edge-grip:active { cursor: grabbing; }

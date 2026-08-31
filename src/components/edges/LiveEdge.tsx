@@ -17,6 +17,7 @@ import { STATUS_COLOR_DARK, readableOn, statusColors } from '../../theme';
 import { capPath, capsFor, dashFor } from '../../lib/linkStyle';
 import { jumpsFor, withJumps } from '../../lib/lineJumps';
 import { segmentMidpoints, waypointRoute } from '../../lib/waypointRoute';
+import { dragSegment, pathVertices, segmentGrips } from '../../lib/elbowRoute';
 import {
   MAX_EDGES_FOR_JUMPS,
   allPaths,
@@ -290,6 +291,8 @@ function LiveEdgeInner(props: EdgeProps) {
   // drag runs on window listeners so a handle re-rendering mid-drag does not
   // drop it, and stops propagation so React Flow starts no selection.
   const [wpDrag, setWpDrag] = useState<{ points: { x: number; y: number }[] } | null>(null);
+  const wpDragRef = useRef<{ points: { x: number; y: number }[] } | null>(null);
+  wpDragRef.current = wpDrag;
   const dragWaypoint = (startPoints: { x: number; y: number }[], index: number) =>
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
@@ -308,6 +311,48 @@ function LiveEdgeInner(props: EdgeProps) {
         const store = useStore.getState();
         store.commit();
         store.updateEdgeData(id, { waypoints: points });
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    };
+
+  // LT-069: a step link's segment grip. Dragging slides the run orthogonally
+  // (dragSegment keeps every corner at 90°); a press-and-hold that never moves
+  // resets the whole line to automatic.
+  const isElbow = (data.pathType ?? 'smoothstep') === 'step' || (data.pathType ?? 'smoothstep') === 'smoothstep';
+  const dragElbow = (vertices: { x: number; y: number }[], index: number) =>
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let moved = false;
+      const hold = window.setTimeout(() => {
+        if (moved) return;
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        const store = useStore.getState();
+        store.commit();
+        store.updateEdgeData(id, { waypoints: [] }); // press-and-hold resets
+      }, 550);
+      const move = (ev: PointerEvent) => {
+        if (!moved && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 3) return;
+        moved = true;
+        window.clearTimeout(hold);
+        const f = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY });
+        setWpDrag({ points: dragSegment(vertices, index, f) });
+      };
+      const up = () => {
+        window.clearTimeout(hold);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        const final = wpDragRef.current;
+        setWpDrag(null);
+        if (moved && final) {
+          const store = useStore.getState();
+          store.commit();
+          store.updateEdgeData(id, { waypoints: final.points });
+        }
       };
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
@@ -591,7 +636,20 @@ function LiveEdgeInner(props: EdgeProps) {
           );
         })}
 
-        {selected &&
+        {/* LT-069: a step link edits by segment grips that slide orthogonally;
+            LT-068: a straight or curved link edits by free vertex/midpoint
+            handles. One or the other, never both. */}
+        {selected && isElbow &&
+          segmentGrips(pathVertices(livePath)).map((g) => (
+            <div
+              key={`grip-${g.index}`}
+              className="cv-edge-grip nodrag nopan"
+              title="Drag to move this segment · press and hold to reset"
+              style={{ transform: `translate(-50%, -50%) translate(${g.at.x}px, ${g.at.y}px)` }}
+              onPointerDown={dragElbow(pathVertices(livePath), g.index)}
+            />
+          ))}
+        {selected && !isElbow &&
           (wpDrag?.points ?? wps).map((w, i) => (
             <div
               key={`wp-${i}`}
@@ -606,7 +664,7 @@ function LiveEdgeInner(props: EdgeProps) {
               }}
             />
           ))}
-        {selected &&
+        {selected && !isElbow &&
           segmentMidpoints({ x: sourceX, y: sourceY }, wpDrag?.points ?? wps, { x: targetX, y: targetY }).map((m, i) => (
             <div
               key={`mid-${i}`}

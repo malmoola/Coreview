@@ -2820,6 +2820,56 @@ await dismissRecovery();
   });
 }
 
+// ---- elbow links: drag a segment, press-and-hold resets (LT-069) -----------
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    const mk = (id, x, y) => ({ id, type: "device", position: { x, y }, width: 76, height: 76,
+      data: { label: id, deviceType: "router", tags: [], addresses: [], locked: false, maintenance: false, showDetails: true } });
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: [...st.doc.nodes, mk("ea", 1500, 1500), mk("eb", 1950, 1720)],
+      edges: [...st.doc.edges, { id: "el-e", source: "ea", target: "eb", sourceHandle: "r", targetHandle: "l",
+        type: "live", data: { sourcePortLabel: "", targetPortLabel: "", label: "", pathType: "step",
+          direction: "none", width: 2, color: "#7c8fa3", enabled: true, maintenance: false,
+          healthRule: { type: "manual", manualStatus: "healthy" } } }] } });
+  });
+  await page.waitForTimeout(300);
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 40, y: 40 } });
+  await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(500);
+  const edge = () => page.evaluate(() => window.__cvStore.getState().doc.edges.find((e) => e.id === "el-e"));
+  await page.locator('.react-flow__edge[data-id="el-e"]').click();
+  await page.waitForTimeout(300);
+  const grip = page.locator(".cv-edge-grip").first();
+  check("a selected step link shows segment grips", (await grip.count()) >= 1);
+  const gb = await grip.boundingBox();
+  await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(gb.x + 70, gb.y + gb.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const wp = (await edge()).data.waypoints;
+  check("dragging a grip reshapes the elbow", Array.isArray(wp) && wp.length >= 1, JSON.stringify(wp));
+  // Press and hold a grip to reset.
+  await page.waitForTimeout(300);
+  const grip2 = page.locator(".cv-edge-grip").first();
+  const gb2 = await grip2.boundingBox();
+  await page.mouse.move(gb2.x + gb2.width / 2, gb2.y + gb2.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(750); // hold past the reset threshold, no movement
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  check("press-and-hold resets the line to auto",
+    ((await edge()).data.waypoints ?? []).length === 0, JSON.stringify((await edge()).data.waypoints));
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc,
+      nodes: st.doc.nodes.filter((n) => !n.id.startsWith("ea") && !n.id.startsWith("eb")),
+      edges: st.doc.edges.filter((e) => e.id !== "el-e") } });
+  });
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

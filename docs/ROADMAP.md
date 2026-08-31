@@ -334,14 +334,6 @@ LT-011's public-CA half.
 
 *Accepted, not started.*
 
-### LT-069 — Elbow links: drag a segment, press-and-hold to reset
-**Source:** shown 2026-08-31 (Lucidchart reference). For a step/elbow link,
-the handles are pill-shaped segment grips that slide a whole segment
-sideways keeping every corner at 90°, and press-and-hold on a grip resets
-the line. Distinct interaction from the free-waypoint model in LT-068.
-**Acceptance:** an elbow link's segments drag orthogonally; press-and-hold
-resets. Follows LT-068.
-
 ### LT-010 — Verify against Catalyst 9000 / IOS-XE 17
 **Source:** asked 2026-08-29.
 **Blocked on:** access to a Catalyst 9000. The CDP and LLDP parsers are written
@@ -368,6 +360,14 @@ The MVP-era root `ROADMAP.md` is now a one-paragraph pointer to
 ### LT-063 — Bump the CI artifact actions off Node 20 — 2026-08-31
 `actions/upload-artifact` to v7 and `download-artifact` to v8, clearing the
 Node-20-deprecation warning on every run.
+
+### LT-069 — Elbow links: drag a segment, press-and-hold to reset — 2026-08-31
+A step or smoothstep link now edits the Lucidchart elbow way: a selected one
+shows a pill grip on each straight run, dragging a grip slides that run
+orthogonally with every corner kept at 90° (`dragSegment`, tested), and a
+press-and-hold on a grip that never moves resets the whole line to
+automatic. Straight and curved links keep the free vertex/midpoint handles
+from LT-068 — one interaction or the other, chosen by the link's path type.
 
 ### LT-070 — **bug** Shape conversion failed when LibreOffice was already busy — 2026-08-31
 The overnight smoke caught it: `a_real_emf_becomes_a_palette_icon` failed
