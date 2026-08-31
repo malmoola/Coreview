@@ -517,7 +517,7 @@ impl Device {
 /// server that advertises nothing gets keyboard-interactive, which every
 /// Cisco and Fortinet in the lab answers.
 fn password_first(advertised: &russh::MethodSet) -> bool {
-    advertised.iter().any(|m| *m == russh::MethodKind::Password)
+    advertised.contains(&russh::MethodKind::Password)
 }
 
 /// Ask, then answer: a `none` query learns the advertised methods, then
