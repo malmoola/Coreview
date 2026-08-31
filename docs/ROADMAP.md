@@ -361,6 +361,15 @@ The MVP-era root `ROADMAP.md` is now a one-paragraph pointer to
 `actions/upload-artifact` to v7 and `download-artifact` to v8, clearing the
 Node-20-deprecation warning on every run.
 
+### LT-028 — Multi-sheet export — 2026-08-31
+The SVG export can now write one file per sheet at full size, not just the
+whole diagram shrunk onto one. `tileRects` splits the content by the chosen
+paper's printable area (tested); the renderer clips each sheet to its tile so
+a device straddling a seam is not drawn whole on both; the export menu's
+"SVG sheets (N)" writes `<name>-sheet-r{row}c{col}.svg` into the export
+folder. Needs an export folder set; without one it falls back to the single
+SVG and says why.
+
 ### LT-069 — Elbow links: drag a segment, press-and-hold to reset — 2026-08-31
 A step or smoothstep link now edits the Lucidchart elbow way: a selected one
 shows a pill grip on each straight run, dragging a grip slides that run
@@ -686,7 +695,3 @@ until someone actually has a diagram that large.
 Colour by subnet, tag and role shipped. VLAN needs a source of VLAN membership
 per device, which the crawl does not collect yet.
 
-### LT-028 — Multi-sheet export
-`sheetsFor` is written and tested and the page menu reports how many sheets a
-diagram would need, but the SVG export writes one sheet. Printing tiles
-naturally; an SVG per tile does not.
