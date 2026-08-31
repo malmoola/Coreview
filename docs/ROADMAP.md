@@ -114,6 +114,25 @@ runner or laptop — sees the bytes the tests were written against.
 **Acceptance:** a test that fails without the pin; Windows CI green.
 
 
+### LT-045 — The icon library reads Visio files where they live
+**Source:** asked 2026-08-30 — "Can I import VSS and VSSX? or point the
+application to My Shapes directory and let it see my VSS and VSSX?"
+**Acceptance:** pointing the icon library at a folder that holds `.vss`,
+`.vssx`, `.vsd` or `.vsdx` (a Windows "My Shapes" folder) shows their shapes
+in the palette next to the SVGs, converted at scan time the way EMF already
+is; a stencil's masters each become their own icon, named from the master.
+Files the converter cannot open are reported by name.
+**Built 2026-08-30, verified as far as the files on hand allow:** the scan
+routes all four extensions through libvisio (vss2xhtml / vsd2xhtml), splits
+the output into one standalone SVG per master or page, crops, sanitises and
+names them; a real `.vsdx` from libvisio's test suite converts end-to-end
+into a named palette icon (fixture committed, test gated on the tools). The
+`.vss`/`.vssx` stencil path is the same code through vss2xhtml but there is
+no stencil on this machine to run it against — **awaiting one real `.vss`
+and `.vssx` from the operator's My Shapes folder to verify per-master
+splitting and naming before this is called Done.** Masters are currently
+named "<file> 1..N"; real master names, if wanted, are a follow-up.
+
 ---
 
 ## Next
@@ -146,33 +165,33 @@ and this unblocks. The scan already recognises `.lcsl` by name (LT-003).
 answers "Number of channel-groups in use: 0", so there is no populated table to
 write a parser against.
 **Would unblock it:** two ports bonded on the test switch, then the parser is a
-morning's work against real output.
+morning's work against real output. Operator said 2026-08-30 he will source a
+Cisco switch with port-channels configured.
 **Note:** inferring a bundle from consecutive port numbers was tried and
 reverted — see D-014.
 
 ### LT-010 — Verify against Catalyst 9000 / IOS-XE 17
 **Source:** asked 2026-08-29.
 **Blocked on:** access to a Catalyst 9000. The CDP and LLDP parsers are written
-against a C2960CX, a FortiSwitch and a FortiGate only.
+against a C2960CX, a FortiSwitch and a FortiGate only. Operator has a 9300 he
+will power on to test against (2026-08-30).
 
 ### LT-011 — Signed Windows installers on machines that do not trust the
 internal CA
 **Source:** asked 2026-08-29.
-**Blocked on:** two GitHub secrets (`WINDOWS_CERTIFICATE`,
-`WINDOWS_CERTIFICATE_PASSWORD`) being added, and separately on an OV/EV
-certificate from a public CA if SmartScreen is to be cleared — the internal
-COREVIEW-FGT-Root-CA cannot do that and never will.
+**Half of this is done and verified 2026-08-30:** the two GitHub secrets are
+configured and every Windows bundle is being signed — run #98's annotation
+reads "Signing as … CN=COREVIEW-APP Code Signing", thumbprint 7996CE1E…
+Machines that trust the internal CA see a valid signature today.
+**Still blocked on:** the other half — machines *outside* that trust, and
+SmartScreen. Only an OV/EV certificate from a public CA clears those; the
+internal COREVIEW-FGT-Root-CA cannot and never will.
 
 ### LT-012 — Legacy binary `.vss` stencils
-**Source:** raised 2026-08-30; deferred by the operator the same day ("Skip the
-.vss for now").
-**Blocked on:** a converter. `.vss` from Visio 2003–2010 is a compound binary
-file, not a zip. `libvisio-tools` can read it; installing a system package is
-the operator's call.
-
----
-
-## Done
+**Source:** raised 2026-08-30; deferred by the operator, then unblocked by him
+the same day: `libvisio-tools` is installed (vss2xhtml and friends on PATH),
+and LibreOffice itself reads Visio through the same libvisio. Folded into
+LT-045's converter work — the .vss route lands there.
 
 ### LT-013 — Crawl a network and draw it — 2026-08-29
 Shipped: CDP and LLDP over SSH and telnet, FortiOS command set, backup

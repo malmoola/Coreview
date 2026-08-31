@@ -87,6 +87,8 @@ struct Found {
     svgs: Vec<PathBuf>,
     /// EMF and WMF — convertible here, through LibreOffice.
     convertible: Vec<PathBuf>,
+    /// Visio files — stencils and drawings, read through libvisio.
+    visio: Vec<PathBuf>,
     /// Lucidchart stencils, named so the report can be specific.
     lucid: Vec<PathBuf>,
     /// Everything else this cannot read directly (a .pptx, a zip).
@@ -119,6 +121,10 @@ fn collect(dir: &Path, depth: usize, found: &mut Found) -> Result<(), String> {
             // LT-003: an EMF is a shape, not a refusal. Converted below.
             Some(ext) if ext.eq_ignore_ascii_case("emf") || ext.eq_ignore_ascii_case("wmf") => {
                 found.convertible.push(path)
+            }
+            // LT-012/LT-045: Visio stencils and drawings, old and new.
+            Some(ext) if crate::shapeconv::visio_tool_for(ext).is_some() => {
+                found.visio.push(path)
             }
             Some(ext) if ext.eq_ignore_ascii_case("lcsl") => found.lucid.push(path),
             // A library's own paperwork — the name and category index, a
@@ -379,6 +385,56 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
             category,
             svg: sanitise(&raw),
         });
+    }
+
+    // LT-012/LT-045: a Visio file — a My Shapes folder full of .vss and
+    // .vssx, or a loose .vsd — converts through libvisio. A stencil's
+    // masters each become their own icon; a drawing's pages likewise.
+    if !found.visio.is_empty() {
+        if !crate::shapeconv::libvisio_available() {
+            skipped.push(format!(
+                "{} Visio file(s) need libvisio-tools to convert — install it and reload",
+                found.visio.len()
+            ));
+        } else {
+            found.visio.sort();
+            'files: for src in &found.visio {
+                let file_name =
+                    src.file_name().and_then(|f| f.to_str()).unwrap_or("?").to_string();
+                let svgs = match crate::shapeconv::convert_visio(src) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        skipped.push(format!("{file_name}: {e}"));
+                        continue;
+                    }
+                };
+                let many = svgs.len() > 1;
+                let base = stem(src);
+                let category = folder_category(&root, src);
+                for (n, svg) in svgs.iter().enumerate() {
+                    if icons.len() >= MAX_ICONS {
+                        skipped.push(format!("stopped at {MAX_ICONS} icons"));
+                        break 'files;
+                    }
+                    let Some(tidied) = crate::shapeconv::tidy_converted(svg) else {
+                        // An empty master — stencils often carry one.
+                        continue;
+                    };
+                    let id = if many { format!("{base}-{}", n + 1) } else { base.clone() };
+                    let name = if many {
+                        format!("{} {}", display_name("", &base), n + 1)
+                    } else {
+                        display_name("", &base)
+                    };
+                    icons.push(IconEntry {
+                        id,
+                        name,
+                        category: category.clone(),
+                        svg: sanitise(&tidied),
+                    });
+                }
+            }
+        }
     }
 
     // LT-003: EMF and WMF convert here rather than being refused with a
@@ -747,6 +803,49 @@ mod folder_tests {
         let n: Vec<f64> = vb.split(' ').filter_map(|v| v.parse().ok()).collect();
         assert!(n[2] < 21000.0 * 0.9, "not cropped: viewBox {vb}");
         assert!(icon.svg.contains("<path") || icon.svg.contains("<image"), "nothing drawn");
+    }
+
+    /// LT-012/LT-045: a Visio drawing in the library folder becomes icons at
+    /// scan time. Real file from libvisio's test suite; skips where the
+    /// tools are missing (CI). A .vss stencil follows the identical path
+    /// through vss2xhtml — verified separately against an operator stencil.
+    #[test]
+    fn a_visio_file_in_the_folder_becomes_icons() {
+        if !crate::shapeconv::libvisio_available() {
+            eprintln!("skipping: libvisio-tools not installed here");
+            return;
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fixture =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/blue-box.vsdx");
+        std::fs::copy(&fixture, dir.path().join("blue-box.vsdx")).expect("copy");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert!(!lib.icons.is_empty(), "skipped: {:?}", lib.skipped);
+        assert_eq!(lib.icons[0].name, "Blue Box");
+        assert!(lib.icons[0].svg.contains("viewBox"));
+        assert!(!lib.icons[0].svg.contains("svg:"));
+    }
+
+    /// A Visio file that cannot be read is reported by name (or by the
+    /// missing tool), never folded into "N file(s) cannot be read".
+    #[test]
+    fn a_broken_visio_file_is_reported_by_name() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write(&dir.path().join("corrupt.vss"), "not a stencil");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert!(lib.icons.is_empty());
+        assert!(
+            !lib.skipped.iter().any(|s| s.contains("cannot read directly")),
+            "fell into the generic refusal: {:?}",
+            lib.skipped
+        );
+        assert!(
+            lib.skipped
+                .iter()
+                .any(|s| s.contains("corrupt.vss") || s.contains("libvisio-tools")),
+            "skipped: {:?}",
+            lib.skipped
+        );
     }
 
     /// LT-003: the naming chain — index entry, else de-slugified filename,

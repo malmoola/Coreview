@@ -356,6 +356,72 @@ pub fn strip_cruft(svg: &str) -> String {
     s
 }
 
+/// Which libvisio CLI reads a Visio file of this extension: stencils through
+/// vss2xhtml, drawings through vsd2xhtml. `None` when it is not a Visio file.
+pub fn visio_tool_for(ext: &str) -> Option<&'static str> {
+    if ext.eq_ignore_ascii_case("vss") || ext.eq_ignore_ascii_case("vssx") {
+        Some("vss2xhtml")
+    } else if ext.eq_ignore_ascii_case("vsd") || ext.eq_ignore_ascii_case("vsdx") {
+        Some("vsd2xhtml")
+    } else {
+        None
+    }
+}
+
+/// Whether the libvisio CLIs are installed.
+pub fn libvisio_available() -> bool {
+    std::process::Command::new("vss2xhtml")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
+}
+
+/// Split a `vss2xhtml`/`vsd2xhtml` document into standalone SVGs — one per
+/// stencil master (or drawing page). The tools write every element with an
+/// `svg:` prefix and no default namespace; browsers want the opposite, so
+/// the prefix comes off and the namespace becomes the default. Attributes
+/// arrive unprefixed already.
+pub fn split_visio_xhtml(xhtml: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while let Some(rel) = xhtml[i..].find("<svg:svg") {
+        let start = i + rel;
+        let Some(endrel) = xhtml[start..].find("</svg:svg>") else { break };
+        let end = start + endrel + "</svg:svg>".len();
+        let block = &xhtml[start..end];
+        out.push(
+            block
+                .replace("<svg:", "<")
+                .replace("</svg:", "</")
+                .replace("xmlns:svg=", "xmlns="),
+        );
+        i = end;
+    }
+    out
+}
+
+/// Run the right libvisio CLI on one Visio file and return one standalone
+/// SVG per master or page. The tools write XHTML to stdout.
+pub fn convert_visio(path: &Path) -> Result<Vec<String>, String> {
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let tool = visio_tool_for(ext).ok_or_else(|| format!("not a Visio file: {ext}"))?;
+    let out = std::process::Command::new(tool)
+        .arg(path)
+        .output()
+        .map_err(|e| format!("{tool} failed to start: {e}"))?;
+    if !out.status.success() {
+        return Err(format!("{tool}: {}", String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    let xhtml = String::from_utf8_lossy(&out.stdout);
+    let svgs = split_visio_xhtml(&xhtml);
+    if svgs.is_empty() {
+        return Err(format!("{tool} produced no drawings"));
+    }
+    Ok(svgs)
+}
+
 /// Whether `soffice` is runnable here.
 pub fn soffice_available() -> bool {
     std::process::Command::new("soffice")
@@ -452,6 +518,53 @@ mod tests {
         assert!(out.contains("y=\"14398\""), "{out}");
         assert!(out.contains("height=\"903\""), "{out}");
         assert!(out.contains("matrix(1 0 0 -1 0 29699)"), "{out}");
+    }
+
+    #[test]
+    fn visio_xhtml_splits_into_standalone_svgs() {
+        // The shape of vss2xhtml/vsd2xhtml output, reduced: svg:-prefixed
+        // elements, unprefixed attributes, one svg:svg per master or page.
+        let xhtml = r#"<html xmlns:svg="http://www.w3.org/2000/svg"><body>
+<svg:svg version="1.1" xmlns:svg="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg:g><svg:path d="M0 0 L10 10"/></svg:g>
+</svg:svg>
+<svg:svg version="1.1" xmlns:svg="http://www.w3.org/2000/svg" viewBox="0 0 50 50">
+<svg:rect x="1" y="1" width="10" height="10"/>
+</svg:svg>
+</body></html>"#;
+        let svgs = split_visio_xhtml(xhtml);
+        assert_eq!(svgs.len(), 2, "one SVG per master");
+        assert!(svgs[0].starts_with("<svg "), "prefix must come off: {}", &svgs[0][..40]);
+        assert!(svgs[0].contains(r#"xmlns="http://www.w3.org/2000/svg""#), "{}", svgs[0]);
+        assert!(svgs[0].contains(r#"<path d="M0 0 L10 10"/>"#), "{}", svgs[0]);
+        assert!(!svgs[0].contains("svg:"), "no prefixes may remain: {}", svgs[0]);
+        assert!(svgs[1].contains("<rect"), "{}", svgs[1]);
+    }
+
+    #[test]
+    fn the_right_tool_reads_each_visio_extension() {
+        assert_eq!(visio_tool_for("vss"), Some("vss2xhtml"));
+        assert_eq!(visio_tool_for("VSSX"), Some("vss2xhtml"));
+        assert_eq!(visio_tool_for("vsd"), Some("vsd2xhtml"));
+        assert_eq!(visio_tool_for("vsdx"), Some("vsd2xhtml"));
+        assert_eq!(visio_tool_for("svg"), None);
+    }
+
+    /// Against a real drawing from libvisio's own test suite (MPL, committed
+    /// as a fixture). Skips where libvisio-tools is not installed — the CI
+    /// runners — the way the soffice-gated test does.
+    #[test]
+    fn a_real_visio_drawing_converts() {
+        if !libvisio_available() {
+            eprintln!("skipping: libvisio-tools not installed here");
+            return;
+        }
+        let fixture =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/blue-box.vsdx");
+        let svgs = convert_visio(&fixture).expect("convert");
+        assert!(!svgs.is_empty());
+        assert!(svgs[0].contains("<svg "), "{}", &svgs[0][..60.min(svgs[0].len())]);
+        assert!(!svgs[0].contains("svg:"));
     }
 
     #[test]
