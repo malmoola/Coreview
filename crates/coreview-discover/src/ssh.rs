@@ -209,6 +209,15 @@ impl client::Handler for Verifier {
 /// it or to not manage the device.
 fn network_device_algorithms() -> Preferred {
     let mut kex: Vec<kex::Name> = Preferred::DEFAULT.kex.to_vec();
+    // NIST ECDH: not in russh's defaults, but a hardened IOS-XE box is often
+    // locked to exactly `ecdh-sha2-nistp521 ecdh-sha2-nistp384` — the lab
+    // 9300 refused every default offer with "No common Kex algorithm"
+    // (LT-054). Biggest curve first, all below the modern curves.
+    kex.extend([
+        kex::ECDH_SHA2_NISTP521,
+        kex::ECDH_SHA2_NISTP384,
+        kex::ECDH_SHA2_NISTP256,
+    ]);
     kex.extend([kex::DH_G14_SHA1, kex::DH_GEX_SHA1]);
 
     let mut cipher: Vec<cipher::Name> = Preferred::DEFAULT.cipher.to_vec();
@@ -630,6 +639,25 @@ mod tests {
         let modern = ciphers.iter().position(|c| *c == "aes256-ctr").unwrap();
         let legacy = ciphers.iter().position(|c| *c == "aes256-cbc").unwrap();
         assert!(modern < legacy, "CBC must sit below CTR and GCM");
+    }
+
+    /// LT-054: the lab 9300 is locked to `ip ssh server algorithm kex
+    /// ecdh-sha2-nistp521 ecdh-sha2-nistp384` and refused every client offer
+    /// — "No common Kex algorithm". IOS-XE hardening guides recommend
+    /// exactly that pair, so this is what a locked-down enterprise switch
+    /// looks like, not an oddity.
+    #[test]
+    fn nist_ecdh_kex_is_offered_for_hardened_ios_xe() {
+        let p = network_device_algorithms();
+        let kex: Vec<&str> = p.kex.iter().map(|k| k.as_ref()).collect();
+        for want in ["ecdh-sha2-nistp521", "ecdh-sha2-nistp384", "ecdh-sha2-nistp256"] {
+            assert!(kex.contains(&want), "{want} missing: {kex:?}");
+        }
+        // Preference order: modern curves first, NIST ECDH next, SHA-1 last.
+        let curve = kex.iter().position(|k| *k == "curve25519-sha256").unwrap();
+        let nist = kex.iter().position(|k| *k == "ecdh-sha2-nistp521").unwrap();
+        let sha1 = kex.iter().position(|k| *k == "diffie-hellman-group14-sha1").unwrap();
+        assert!(curve < nist && nist < sha1, "order wrong: {kex:?}");
     }
 
     #[test]

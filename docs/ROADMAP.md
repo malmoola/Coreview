@@ -133,6 +133,18 @@ and `.vssx` from the operator's My Shapes folder to verify per-master
 splitting and naming before this is called Done.** Masters are currently
 named "<file> 1..N"; real master names, if wanted, are a follow-up.
 
+### LT-054 — **bug** The Catalyst 9300 refuses our SSH: no common kex — 2026-08-30
+First live contact with the 9300 (LT-010) and the crawler could not even
+shake hands: the box is locked to `ip ssh server algorithm kex
+ecdh-sha2-nistp521 ecdh-sha2-nistp384` — the pair the IOS-XE hardening
+guides recommend — and russh's defaults do not offer NIST ECDH at all. The
+offer list now carries nistp521/384/256, biggest curve first, below the
+modern curves and above the SHA-1 tail; the failing test reproduces the
+box's exact offer. Keyboard-interactive auth (`authentication keyboard`, the
+other half of that config) was already implemented as a fallback. Needs the
+operator to rerun the crawl against 192.168.14.20 from a build with this in
+it before LT-010 can be called tested.
+
 ### LT-047 — Zoom without walls — 2026-08-30
 The wheel now runs 0.01x–100x — no real diagram meets either end. Fits keep
 the old 2x ceiling on purpose: fitting two close devices with no ceiling
@@ -188,19 +200,6 @@ number or text flat no box or boarders just text attached to the link."
 **Acceptance:** double-clicking a spot on a link opens a caret there;
 the committed text renders flat — no box, no border — attached to the link at
 that spot, and moves with the link.
-
-### LT-054 — **bug** The Catalyst 9300 refuses our SSH: no common kex
-**Source:** reported 2026-08-30, first live contact with the 9300 (LT-010):
-"ssh error talking to 192.168.14.20: No common Kex algorithm — ours:
-[mlkem768x25519, curve25519, DH groups…], theirs: [ecdh-sha2-nistp521,
-ecdh-sha2-nistp384, kex-strict-s-v00]."
-**The box's own config (operator paste):** `ip ssh server algorithm kex
-ecdh-sha2-nistp521 ecdh-sha2-nistp384`, macs hmac-sha2-512/256, encryption
-aes256-gcm/ctr, hostkey rsa-sha2-512/256, and `authentication keyboard` —
-keyboard-interactive, not plain password.
-**Acceptance:** the crawler negotiates kex with an IOS-XE box locked to NIST
-ECDH curves and authenticates keyboard-interactive; the 9300 at
-192.168.14.20 crawls.
 
 ### LT-055 — **bug** Two parallel links both labelled Gi1/0/11
 **Source:** reported 2026-08-30, with a screenshot — two lanes between
