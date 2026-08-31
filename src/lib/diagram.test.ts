@@ -412,7 +412,7 @@ describe('multi-sheet tiling clips each sheet (LT-028)', () => {
     expect(left).toContain('<svg');
     expect(right).toContain('<svg');
     // The two tiles use different clip ids (different origins).
-    const idOf = (svg) => /clipPath id="([^"]+)"/.exec(svg)[1];
+    const idOf = (svg: string) => /clipPath id="([^"]+)"/.exec(svg)![1];
     expect(idOf(left)).not.toBe(idOf(right));
   });
 });

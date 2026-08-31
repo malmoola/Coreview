@@ -17,7 +17,7 @@ import type { DeviceNodeData } from '../types/domain';
 import { GROUP_WHEEL_DARK, GROUP_WHEEL_LIGHT, type Ground } from '../theme';
 import { subnetOf } from './subnetGroups';
 
-export type ColourBy = 'health' | 'role' | 'subnet' | 'tag';
+export type ColourBy = 'health' | 'role' | 'subnet' | 'tag' | 'vlan';
 
 
 /** What a device is being grouped by, or null when it has no answer.
@@ -36,6 +36,11 @@ export function keyForData(d: DeviceNodeData, by: ColourBy): string | null {
         d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';
       return address ? subnetOf(address) : null;
     }
+    case 'vlan':
+      // The access VLAN a switch learned this device on. A device with none
+      // — a switch that trunks many, or one found over a discovery protocol
+      // — is left uncoloured rather than lumped into one shade.
+      return d.vlan ? `VLAN ${d.vlan}` : null;
     case 'tag': {
       // The first tag the crawler did not write. Those say how a device was
       // found, not what it is or where, and would colour the whole diagram

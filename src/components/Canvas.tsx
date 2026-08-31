@@ -395,7 +395,7 @@ export function Canvas() {
           );
         },
       },
-      ...(['health', 'role', 'subnet', 'tag'] as const)
+      ...(['health', 'role', 'subnet', 'tag', 'vlan'] as const)
         .filter((by) => by !== (doc.canvas.colourBy ?? 'health'))
         .map((by) => ({
           label:
@@ -403,6 +403,8 @@ export function Canvas() {
               ? 'Colour devices by health'
               : by === 'role'
                 ? 'Colour devices by what they are'
+                : by === 'vlan'
+                ? 'Colour devices by VLAN'
                 : `Colour devices by ${by}`,
           onSelect: () => store.setCanvas({ colourBy: by }),
         })),

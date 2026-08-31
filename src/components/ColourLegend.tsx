@@ -15,6 +15,7 @@ const WHAT: Record<ColourBy, string> = {
   role: 'What it is',
   subnet: 'Subnet',
   tag: 'Tag',
+  vlan: 'VLAN',
 };
 
 export function ColourLegend() {

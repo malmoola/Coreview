@@ -162,6 +162,8 @@ export type AttachedDevice = {
   hostname: string | null;
   /** What it is, when a device that could actually tell said so. */
   class: DeviceClassName | null;
+  /** The VLAN the switch learned it on, when the MAC table said so (LT-027). */
+  vlan?: string | null;
   /** Distinct addresses sharing that port. One means something is plugged in;
    *  many means the port leads to another switch. Zero means the count says
    *  nothing — a firewall interface carries a whole network. */

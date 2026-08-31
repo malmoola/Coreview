@@ -361,6 +361,16 @@ The MVP-era root `ROADMAP.md` is now a one-paragraph pointer to
 `actions/upload-artifact` to v7 and `download-artifact` to v8, clearing the
 Node-20-deprecation warning on every run.
 
+### LT-027 — Colour by VLAN — 2026-08-31
+Colour-devices-by joins health, role, subnet and tag with VLAN. The MAC-table
+parser already read the VLAN column; that now threads onto each attached
+device (`AttachedDevice.vlan`), into the node the topology builds
+(`data.vlan`), and into the tinting key. A device the switch learned on an
+access port colours by that VLAN; a switch that trunks many, or a device found
+over a discovery protocol, has no single VLAN and is left uncoloured rather
+than lumped into one shade. Confirmed against the lab 9300's live MAC table
+(a flat VLAN-1 network, so everything colours as one group — correctly).
+
 ### LT-028 — Multi-sheet export — 2026-08-31
 The SVG export can now write one file per sheet at full size, not just the
 whole diagram shrunk onto one. `tileRects` splits the content by the chosen
@@ -691,7 +701,4 @@ Measured 2026-08-30: 400 devices open in ~2s, drag at ~15fps, pan at ~8fps;
 `onlyRenderVisibleElements` was tried and rejected (D-010). Not worth doing
 until someone actually has a diagram that large.
 
-### LT-027 — Colour by VLAN
-Colour by subnet, tag and role shipped. VLAN needs a source of VLAN membership
-per device, which the crawl does not collect yet.
 

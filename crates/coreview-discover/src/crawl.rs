@@ -163,6 +163,10 @@ pub struct AttachedDevice {
     /// How many distinct addresses share this port. One means something is
     /// plugged into it; many means it leads to another switch.
     pub port_population: usize,
+    /// The VLAN the switch learned this device on, when the MAC table said so
+    /// (LT-027). Unambiguous for an access port; empty on a device that
+    /// announced itself over a discovery protocol instead.
+    pub vlan: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -865,6 +869,7 @@ async fn visit(
             port: entry.port.clone(),
             hostname: None,
             class: None,
+            vlan: entry.vlan.clone(),
         });
     }
 
@@ -1055,6 +1060,7 @@ fn merge_endpoints(attached: &mut Vec<AttachedDevice>, endpoints: &[crate::forti
             // A FortiGate interface carries a whole network, so this is not a
             // port count and must not be read as one.
             port_population: 0,
+            vlan: None,
         });
     }
 }
@@ -1350,6 +1356,7 @@ mod endpoint_merge_tests {
             hostname: None,
             class: None,
             port_population: 1,
+            vlan: None,
         }
     }
 

@@ -440,7 +440,8 @@ export function buildTopology(
         maintenance: false,
         showDetails: true,
         ...(a.vendor ? { vendor: a.vendor } : {}),
-        notes: `Learned on ${host} ${a.port}, MAC ${a.mac}`,
+        ...(a.vlan ? { vlan: a.vlan } : {}),
+        notes: `Learned on ${host} ${a.port}, MAC ${a.mac}${a.vlan ? `, VLAN ${a.vlan}` : ''}`,
       } as DeviceNodeData,
     } as TopoNode);
 

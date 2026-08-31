@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { colourForKey, keyFor, legendFor } from './tinting';
+import { colourForKey, keyFor, keyForData, legendFor } from './tinting';
 import type { TopoNode } from '../state/store';
 
 const device = (id: string, over: Record<string, unknown> = {}): TopoNode =>
@@ -95,5 +95,20 @@ describe('legendFor', () => {
 
   it('has nothing to show when colouring by health', () => {
     expect(legendFor(nodes, 'health', 'dark')).toEqual([]);
+  });
+});
+
+describe('colour by VLAN (LT-027)', () => {
+  const dev = (over: Record<string, unknown>) => ({
+    label: 'x', deviceType: 'generic', tags: [], addresses: [],
+    locked: false, maintenance: false, showDetails: true, ...over,
+  }) as never;
+
+  it('groups a device by the VLAN it was learned on', () => {
+    expect(keyForData(dev({ vlan: '20' }), 'vlan')).toBe('VLAN 20');
+  });
+
+  it('a device with no VLAN is left uncoloured', () => {
+    expect(keyForData(dev({}), 'vlan')).toBeNull();
   });
 });

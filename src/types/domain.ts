@@ -91,6 +91,9 @@ export interface DeviceNodeData extends Record<string, unknown> {
   rack?: string;
   notes?: string;
   tags: string[];
+  /** The VLAN this device sits in, when discovery learned it (LT-027).
+   *  Used by colour-by-VLAN; a switch that trunks many has none. */
+  vlan?: string;
   addresses: NodeAddress[];
   locked: boolean;
   /** Suppresses status reporting for a planned outage. */
