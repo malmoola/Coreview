@@ -344,6 +344,18 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-074 — Transition times as a DTG — 2026-08-31
+**Source:** asked 2026-08-31 — "I need time stamp of when the device
+disconnects and when its live back again in DTG… I need logs showing in DTG."
+"Down 7s" says how long, not which 7 seconds. Every status change now carries
+a date-time group — `311430:07Z AUG 26` — in three places: the event timeline
+(which showed a bare clock time, no date, no zone), a newest-first transition
+log under Recent status on the device itself, and a `dtg` column in the
+exported events CSV beside the ISO stamp. Zulu by default, because the zone
+letter is part of what makes a DTG worth keeping; seconds included, because a
+ping goes down and comes back inside a minute. Double-clicking a timeline row
+copies the line with its DTG.
+
 ### LT-073 — **bug** Backing up three devices blanked the whole window — 2026-08-31
 **Source:** reported 2026-08-31 with a screenshot — three devices selected,
 backup pressed, and the app became an empty dark window.
