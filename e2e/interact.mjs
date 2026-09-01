@@ -2995,6 +2995,38 @@ await dismissRecovery();
   await page.evaluate(() => window.__cvStore.setState({ events: [] }));
 }
 
+// ---- the hand keeps hold when space is released mid-drag (LT-075) ---------
+{
+  await dismissRecovery();
+  const vp = () => page.locator(".react-flow__viewport").evaluate((el) => {
+    const m = new DOMMatrix(getComputedStyle(el).transform);
+    return { x: m.e, y: m.f };
+  });
+  const before = await vp();
+  await page.keyboard.down("Space");
+  await page.waitForTimeout(150);
+  check("holding space puts a hand over the canvas",
+    (await page.locator(".cv-pan-sheet").count()) === 1);
+  await page.mouse.move(400, 300);
+  await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(400 + i * 20, 300);
+  // Let go of space half way, the way a person does once the drag is moving.
+  await page.keyboard.up("Space");
+  await page.waitForTimeout(80);
+  for (let i = 6; i <= 10; i++) await page.mouse.move(400 + i * 20, 300);
+  await page.mouse.up();
+  await page.waitForTimeout(250);
+  const after = await vp();
+  check("the diagram follows the whole drag, not just the part with space held",
+    Math.abs(after.x - before.x - 200) < 2, `moved ${(after.x - before.x).toFixed(0)} of 200`);
+  check("and the hand lets go once the button does",
+    (await page.locator(".cv-pan-sheet").count()) === 0);
+  // Put the view back for the blocks after this one.
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 30, y: 30 } });
+  await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(400);
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

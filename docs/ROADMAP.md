@@ -344,6 +344,20 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-075 — **bug** The space-bar hand let go of the diagram mid-drag — 2026-09-01
+**Source:** reported 2026-09-01 — "holding the space bar and drag, the hand
+doesn't really hold the screen where I try to move from-to, it just takes the
+direction that I move the mouse to."
+Measured rather than guessed: a plain press-drag-release tracked the cursor
+exactly 1:1, at any zoom, starting on a device, and out-and-back returned to
+zero — so the arithmetic was never wrong. What broke was releasing the space
+bar *during* the drag, which everyone does once the hand has hold: the key-up
+tore the pan sheet away mid-gesture and the diagram stopped following the
+cursor after only part of the movement. A drag now runs until the button
+comes up and the key is irrelevant once it has started; the deferred release
+is honoured on pointer-up and on pointer-cancel, and a window blur still
+clears everything.
+
 ### LT-074 — Transition times as a DTG — 2026-08-31
 **Source:** asked 2026-08-31 — "I need time stamp of when the device
 disconnects and when its live back again in DTG… I need logs showing in DTG."

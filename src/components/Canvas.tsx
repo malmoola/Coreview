@@ -107,6 +107,8 @@ export function Canvas() {
   const [guides, setGuides] = useState<Guide[]>([]);
   /** Space held: the pointer becomes a hand and drags the diagram. */
   const [panning, setPanning] = useState(false);
+  /** Space was let go mid-drag: the hand stays until the button comes up. */
+  const releaseAfterDrag = useRef(false);
   /** Alt held: the guides stand down and the drag is free-hand. Sometimes a
    *  device has to sit deliberately two pixels off, and a snap that cannot be
    *  refused is a snap that gets fought. A ref, not state — it is read inside
@@ -511,12 +513,23 @@ export function Canvas() {
     };
     const up = (e: KeyboardEvent) => {
       if (e.key === 'Alt') altDown.current = false;
-      if (e.code === 'Space') setPanning(false);
+      if (e.code !== 'Space') return;
+      // A drag already under way keeps going until the *button* is released
+      // (LT-075). Space starts the hand; letting go of it half way through a
+      // drag is what everyone does, and tearing the hand away there left the
+      // diagram sliding to a stop under the cursor instead of following it.
+      if (panFrom.current) {
+        releaseAfterDrag.current = true;
+        return;
+      }
+      setPanning(false);
     };
     // Releasing space while the window is not focused would otherwise leave
     // the canvas stuck in panning.
     const blur = () => {
       altDown.current = false;
+      panFrom.current = null;
+      releaseAfterDrag.current = false;
       setPanning(false);
     };
     window.addEventListener('keydown', down);
@@ -968,6 +981,17 @@ export function Canvas() {
           onPointerUp={(e) => {
             panFrom.current = null;
             e.currentTarget.releasePointerCapture(e.pointerId);
+            if (releaseAfterDrag.current) {
+              releaseAfterDrag.current = false;
+              setPanning(false);
+            }
+          }}
+          onPointerCancel={() => {
+            panFrom.current = null;
+            if (releaseAfterDrag.current) {
+              releaseAfterDrag.current = false;
+              setPanning(false);
+            }
           }}
         />
       )}
