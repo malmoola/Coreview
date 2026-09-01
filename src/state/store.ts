@@ -6,6 +6,7 @@ import { ipc, isDesktop, type ProbeResultDto, type IconLibEntry } from '../lib/i
 import { uid } from '../lib/id';
 import { newProbe } from '../lib/probes';
 import { migrateDocument } from '../lib/migrate';
+import type { TimeFormat } from '../lib/timeFormat';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
@@ -69,6 +70,10 @@ export interface ProjectDocument {
 
 export interface AppSettings {
   reduceMotion: boolean;
+  /** How timestamps are written (LT-076). A machine preference, not part of
+   *  the document: two people reading the same diagram may want different
+   *  clocks. */
+  timeFormat: TimeFormat;
   highContrast: boolean;
   /** The overview box, bottom-right. A view preference for this machine, like
    *  which panels are open — not part of any project. */
@@ -254,6 +259,17 @@ function viewPref(key: string, fallback = true): boolean {
   }
 }
 
+/** The remembered clock, defaulting to the DTG this was built around. */
+function readTimeFormat(): TimeFormat {
+  try {
+    const v = localStorage.getItem('coreview.view.timeFormat');
+    const allowed: TimeFormat[] = ['dtg-zulu', 'dtg-local', 'local-24', 'local-12'];
+    return allowed.includes(v as TimeFormat) ? (v as TimeFormat) : 'dtg-zulu';
+  } catch {
+    return 'dtg-zulu';
+  }
+}
+
 function rememberView(key: string, open: boolean): void {
   try {
     localStorage.setItem(`coreview.view.${key}`, open ? '1' : '0');
@@ -402,6 +418,7 @@ export const useStore = create<Store>((set, get) => ({
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
     highContrast: false,
     minimap: viewPref('minimap'),
+    timeFormat: readTimeFormat(),
     paper: 'fit',
     orientation: 'landscape',
     ground: 'dark',
@@ -1243,6 +1260,13 @@ export const useStore = create<Store>((set, get) => ({
 
   setSettings(patch) {
     if (patch.minimap !== undefined) rememberView('minimap', patch.minimap);
+    if (patch.timeFormat !== undefined) {
+      try {
+        localStorage.setItem('coreview.view.timeFormat', patch.timeFormat);
+      } catch {
+        /* private mode — the choice lasts this session */
+      }
+    }
     set((s) => ({ settings: { ...s.settings, ...patch } }));
   },
 

@@ -344,6 +344,23 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-076 — Choose how times are written, and use the machine's zone — 2026-09-01
+DTG is what an operator reads at a glance; it is not what everyone reads. A
+"Times" picker in the top bar now writes every timestamp one of four ways —
+DTG in Zulu, DTG in the machine's own zone (marked `L`, never pretending to
+be Zulu), a plain 24-hour clock, or a 12-hour clock with AM/PM — applied to
+the event timeline and the transition log alike, remembered for the machine
+rather than stored in the document, because two people reading the same
+diagram may want different clocks. The zone is named out loud: the picker's
+tooltip and a line under the transition log say "CDT (UTC−05:00)" or "Zulu
+(UTC)", so nobody has to guess which one they are reading.
+**Found while testing:** the harness grabbed devices at a fixed `+30px` from
+their corner, which was inside a node until LT-053 made devices 76 units
+square — at a zoomed-out fit that is under 30px on screen, so the grab landed
+on the pane and rubber-banded instead of dragging. It had been passing by a
+hair; a fraction of a percent of zoom change exposed it. Every drag now takes
+its target by the centre.
+
 ### LT-075 — **bug** The space-bar hand let go of the diagram mid-drag — 2026-09-01
 **Source:** reported 2026-09-01 — "holding the space bar and drag, the hand
 doesn't really hold the screen where I try to move from-to, it just takes the

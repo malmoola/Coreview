@@ -8,6 +8,7 @@ import { renderDiagramSvg } from '../lib/diagram';
 import { isVisible, layersOf } from '../lib/layers';
 import { effectivePage } from '../lib/pageRect';
 import { PAPERS, describePage, paperById, sheetSize, sheetsFor, tileRects } from '../lib/paper';
+import { TIME_FORMATS, isLocalFormat, zoneLabel, type TimeFormat } from '../lib/timeFormat';
 import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
 import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
@@ -546,6 +547,29 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             onChange={(e) => store.setSettings({ reduceMotion: e.target.checked })}
           />
           Reduce motion
+        </label>
+
+        {/* LT-076: how every timestamp is written. DTG is what an operator
+            reads at a glance; a plain clock is what everyone else does. The
+            zone is named in the tooltip so nobody has to guess. */}
+        <label
+          className="cv-check cv-check-inline"
+          title={`Times shown in ${
+            isLocalFormat(settings.timeFormat) ? zoneLabel() : 'Zulu (UTC)'
+          }`}
+        >
+          Times
+          <select
+            className="cv-input cv-input-inline"
+            value={settings.timeFormat}
+            onChange={(e) => store.setSettings({ timeFormat: e.target.value as TimeFormat })}
+          >
+            {TIME_FORMATS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         <button type="button" className="cv-btn" onClick={() => setAbout(true)}>

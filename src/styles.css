@@ -1582,3 +1582,11 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
   border-top: 1px solid var(--line);
 }
 .cv-history-dtg { color: var(--text-dim); font-size: 10px; white-space: nowrap; }
+
+/* --- LT-076: the clock picker in the top bar, and the zone note under the
+   transition log. --- */
+.cv-input-inline {
+  height: 22px; padding: 0 4px; font-size: 11px; margin-left: 6px;
+  max-width: 132px;
+}
+.cv-history-zone { margin: 6px 0 0; font-size: 10px; }

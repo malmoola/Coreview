@@ -9,7 +9,7 @@ import { BackupPanel } from './BackupPanel';
 import { CsvImportPanel } from './CsvImportPanel';
 import { STATUS_COLOR } from './edges/LiveEdge';
 import { linkStatus } from '../health/evaluate';
-import { dtg } from '../lib/dtg';
+import { formatTime } from '../lib/timeFormat';
 import type { DeviceNodeData, HealthStatus, LinkData, ProbeRuntime } from '../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../types/domain';
 
@@ -68,6 +68,7 @@ export function StatusPanel() {
   const doc = useStore((s) => s.doc);
   const runtime = useStore((s) => s.runtime);
   const events = useStore((s) => s.events);
+  const timeFormat = useStore((s) => s.settings.timeFormat);
   const session = useStore((s) => s.session);
   const statusMessage = useStore((s) => s.statusMessage);
   const nodeStatusOf = useStore((s) => s.nodeStatus);
@@ -374,7 +375,7 @@ export function StatusPanel() {
                   key={e.id}
                   onDoubleClick={() =>
                     void navigator.clipboard.writeText(
-                      `${dtg(e.timestampMs, { seconds: true })} ${e.objectType} ${e.objectName} ${
+                      `${formatTime(e.timestampMs, timeFormat)} ${e.objectType} ${e.objectName} ${
                         e.previousStatus
                       } → ${e.currentStatus} ${e.target ?? ''} ${e.message}`,
                     )
@@ -384,7 +385,7 @@ export function StatusPanel() {
                   {/* LT-074: a DTG, not a bare clock time — a log line has to
                       say which day and which zone to be worth keeping. */}
                   <td className="cv-mono" title={new Date(e.timestampMs).toISOString()}>
-                    {dtg(e.timestampMs, { seconds: true })}
+                    {formatTime(e.timestampMs, timeFormat)}
                   </td>
                   <td>{e.objectType}</td>
                   <td>{e.objectName}</td>

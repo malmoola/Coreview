@@ -308,9 +308,9 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   const node = page.locator(".react-flow__node").first();
   const before = await boxOf(".react-flow__node");
   const b = await node.boundingBox();
-  await page.mouse.move(b.x + 30, b.y + b.height / 2);
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
   await page.mouse.down();
-  await page.mouse.move(b.x + 30 + 140, b.y + b.height / 2 + 90, { steps: 12 });
+  await page.mouse.move(b.x + b.width / 2 + 140, b.y + b.height / 2 + 90, { steps: 12 });
   await page.mouse.up();
   await page.waitForTimeout(300);
   const after = await boxOf(".react-flow__node");
@@ -336,7 +336,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     const ref = ".react-flow__node:has(.cv-note)";
     const before = await gapBetween(".react-flow__node", ref);
     const b = await page.locator(".react-flow__node").first().boundingBox();
-    await page.mouse.move(b.x + 30, b.y + b.height / 2);
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
     await page.mouse.down();
     await page.mouse.move(b.x + 200, b.y + 150, { steps: 10 });
     await page.mouse.up();
@@ -388,7 +388,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     const note = ".react-flow__node:has(.cv-note)";
     const before = await gapBetween(note, ".react-flow__node");
     const b = await page.locator(note).first().boundingBox();
-    await page.mouse.move(b.x + 30, b.y + 20);
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
     await page.mouse.down();
     await page.mouse.move(b.x + 200, b.y + 160, { steps: 10 });
     await page.mouse.up();
@@ -2022,12 +2022,15 @@ await dismissRecovery();
   const b = await dev.boundingBox();
   const sheetBox = await page.locator(".cv-page").first().boundingBox();
   const target = Math.min(sheetBox.x + sheetBox.width + 80, 1560);
-  await page.mouse.move(b.x + 30, b.y + 20);
+  // The node's own centre, not a fixed offset: a device is 76 units square
+  // since LT-053, which at a zoomed-out fit is under 30px on screen — a grab
+  // at +30 lands on the pane and rubber-bands instead of dragging.
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
   await page.mouse.down();
-  await page.mouse.move(target, b.y + 20, { steps: 16 });
+  await page.mouse.move(target, b.y + b.height / 2, { steps: 16 });
   await page.mouse.up();
   await page.waitForTimeout(700);
-  const draggedTo = target - (b.x + 30);
+  const draggedTo = target - (b.x + b.width / 2);
   const grown = await pageRect();
   check("the page grows when a device is dragged past its edge",
     grown.w > before.w, `${before.w} -> ${grown.w}`);
@@ -3025,6 +3028,54 @@ await dismissRecovery();
   await page.locator(".react-flow__pane").click({ button: "right", position: { x: 30, y: 30 } });
   await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
   await page.waitForTimeout(400);
+}
+
+// ---- the clock can be changed, and says which zone (LT-076) ---------------
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    const at = Date.UTC(2026, 7, 31, 14, 30, 7);
+    window.__cvStore.setState({ events: [{
+      id: "tf1", projectId: "e2e-project", sessionId: "s1", timestampMs: at,
+      objectType: "node", objectId: "n1", objectName: "Core switch",
+      eventType: "transition", previousStatus: "healthy", currentStatus: "down",
+      probeType: "icmp", target: "192.0.2.10", rttMs: null, message: "no reply",
+    }] });
+  });
+  await page.locator(".cv-tabs button", { hasText: "Event timeline" }).click();
+  await page.waitForTimeout(400);
+  const timeCell = () => page.locator(".cv-panel table tbody tr td").first().innerText();
+
+  await page.evaluate(() => window.__cvStore.getState().setSettings({ timeFormat: "dtg-zulu" }));
+  await page.waitForTimeout(300);
+  check("a Zulu DTG reads as one", (await timeCell()).trim() === "311430:07Z AUG 26",
+    await timeCell());
+
+  await page.evaluate(() => window.__cvStore.getState().setSettings({ timeFormat: "local-24" }));
+  await page.waitForTimeout(300);
+  const t24 = (await timeCell()).trim();
+  check("a 24-hour clock reads as a date and time", /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(t24), t24);
+
+  await page.evaluate(() => window.__cvStore.getState().setSettings({ timeFormat: "local-12" }));
+  await page.waitForTimeout(300);
+  const t12 = (await timeCell()).trim();
+  check("a 12-hour clock says AM or PM", /(AM|PM)$/.test(t12), t12);
+
+  check("the picker is in the top bar and follows the setting",
+    (await page.locator(".cv-topbar select").filter({ hasText: "12-hour clock" }).count()) === 1);
+
+  // The choice survives a reload — it is a machine preference.
+  await page.reload({ waitUntil: "networkidle" });
+  await page.locator(".cv-project-open").first().click();
+  await page.waitForSelector(".react-flow__node");
+  await page.waitForTimeout(500);
+  await dismissRecovery();
+  const kept = await page.evaluate(() => window.__cvStore.getState().settings.timeFormat);
+  check("and is remembered next time", kept === "local-12", kept);
+  await page.evaluate(() => {
+    window.__cvStore.getState().setSettings({ timeFormat: "dtg-zulu" });
+    window.__cvStore.setState({ events: [] });
+  });
 }
 
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
