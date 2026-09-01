@@ -21,6 +21,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
 tokio-util = "0.7"
 uuid = { version = "1", features = ["v4"] }
+svg2pdf = "0.13.0"
 
 [features]
 default = ["custom-protocol"]

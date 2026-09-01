@@ -325,6 +325,12 @@ export const ipc = {
   },
 
   /** Index a user-chosen folder of SVGs. Desktop only. */
+  /** The diagram as a PDF (LT-077). Vector, at the chosen paper size. */
+  async diagramPdf(svg: string): Promise<Uint8Array> {
+    if (!isDesktop) throw new BackendUnavailable('Exporting a PDF');
+    return Uint8Array.from(await invoke<number[]>('diagram_pdf', { svg }));
+  },
+
   /** The shapes that ship inside the installer (D-022). */
   listBundledIcons(): Promise<IconLibrary> {
     if (!isDesktop) return Promise.resolve({ dir: '', icons: [], skipped: [] });

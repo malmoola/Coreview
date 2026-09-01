@@ -340,9 +340,32 @@ the same day: `libvisio-tools` is installed (vss2xhtml and friends on PATH),
 and LibreOffice itself reads Visio through the same libvisio. Folded into
 LT-045's converter work — the .vss route lands there.
 
+### LT-078 — Export to Visio
+**Source:** asked 2026-09-01 — colleagues without Coreview still need to open
+the drawing, and Visio is what they have. (draw.io was offered and declined:
+"export to visio only".)
+**Acceptance:** a `.vsdx` that Visio opens without repair, with each device a
+shape carrying its name and each link a connector between the right two
+shapes, laid out where they are on the Coreview page.
+
 ---
 
 ## Done
+
+### LT-077 — Export the diagram as a PDF — 2026-09-01
+"Diagram as PDF" writes a real vector PDF at the chosen paper size, from the
+same SVG the screen and the SVG export are drawn from — one renderer, three
+outputs. Converted in Rust (`svg2pdf`), so there is no headless browser in
+the loop and no bitmap on a page: 0 image objects, text as glyph outlines,
+lines a plotter can take.
+**Caught before it shipped, by a test written to doubt it:** the first
+version produced a 1.5 KB PDF of boxes and lines with *no device names on it
+at all*. usvg's default family is "Times New Roman"; where that is not
+installed — any stock Linux, plenty of locked-down Windows — every label was
+silently dropped, and the file still looked like a valid PDF. The generic
+families are now bound to a font the machine actually has, preferring the
+app's own stack, and the same diagram comes out at 23 KB with 186 glyph
+paths. A test requires that a page of pure text is never empty.
 
 ### LT-076 — Choose how times are written, and use the machine's zone — 2026-09-01
 DTG is what an operator reads at a glance; it is not what everyone reads. A

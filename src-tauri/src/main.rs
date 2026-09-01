@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod icons;
+mod pdf;
 mod shapeconv;
 mod commands;
 mod discovery;
@@ -107,6 +108,7 @@ fn main() {
             commands::app_info,
             commands::list_icon_library,
             commands::list_bundled_icons,
+            commands::diagram_pdf,
             commands::save_export,
             commands::read_import,
             commands::get_settings,

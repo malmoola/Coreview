@@ -210,6 +210,20 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     }
   };
 
+  /** LT-077: the same drawing the screen and the SVG export use, as a
+   *  vector PDF — the format a change record or an approval wants. */
+  const exportPdf = async () => {
+    setBusy('pdf');
+    try {
+      const bytes = await ipc.diagramPdf(diagramSvg());
+      await runExport(`${slug(meta.name)}-diagram.pdf`, () => bytes, 'application/pdf');
+    } catch (err) {
+      store.setStatusMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const exportPng = async () => {
     setBusy('png');
     try {
@@ -451,6 +465,9 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             </button>
             <button type="button" onClick={exportSvg}>
               Diagram as SVG
+            </button>
+            <button type="button" onClick={() => void exportPdf()} disabled={busy === 'pdf'}>
+              Diagram as PDF
             </button>
             <button type="button" onClick={() => void exportSheets()} disabled={busy === 'sheets'}>
               {sheetTiles().length > 1 ? `SVG sheets (${sheetTiles().length})` : 'SVG sheets'}

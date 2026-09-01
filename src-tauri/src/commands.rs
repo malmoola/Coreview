@@ -261,6 +261,14 @@ pub fn list_icon_library(dir: String) -> CmdResult<crate::icons::IconLibrary> {
     crate::icons::scan(&dir)
 }
 
+/// The diagram as a PDF (LT-077). The frontend renders the drawing to SVG —
+/// one function, the same one the screen and the SVG export use — and this
+/// turns it into a vector PDF the operator can attach to a change record.
+#[tauri::command]
+pub fn diagram_pdf(svg: String) -> CmdResult<Vec<u8>> {
+    crate::pdf::svg_to_pdf(&svg)
+}
+
 /// The shapes that ship inside the installer (D-022): the converted vendor
 /// stencils bundled as a Tauri resource, indexed with the same scan as a
 /// user's own folder. In dev the resource dir is the repo's `stencils/`
