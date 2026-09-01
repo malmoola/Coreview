@@ -2960,6 +2960,41 @@ await dismissRecovery();
       (await page.locator(".react-flow__node").count()) > 0);
 }
 
+// ---- transition times as a DTG (LT-074) ------------------------------------
+// "Down 7s" does not say which 7 seconds. Every status change carries a
+// date-time group now — in the timeline, and under Recent status.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    // 2026-08-31T14:30:07Z and 14:30:21Z — a device going down and coming back.
+    const down = Date.UTC(2026, 7, 31, 14, 30, 7);
+    const up = Date.UTC(2026, 7, 31, 14, 30, 21);
+    const row = (id, at, from, to, msg) => ({
+      id, projectId: "e2e-project", sessionId: "s1", timestampMs: at,
+      objectType: "node", objectId: "n1", objectName: "Core switch",
+      eventType: "transition", previousStatus: from, currentStatus: to,
+      probeType: "icmp", target: "192.0.2.10", rttMs: to === "down" ? null : 3,
+      message: msg,
+    });
+    window.__cvStore.setState({ events: [
+      row("e2", up, "down", "healthy", "reply from 192.0.2.10"),
+      row("e1", down, "healthy", "down", "no reply"),
+    ] });
+  });
+  await page.waitForTimeout(300);
+  await page.locator(".cv-tabs button", { hasText: "Event timeline" }).click();
+  await page.waitForTimeout(400);
+  const body = await page.locator(".cv-panel table").innerText();
+  check("the timeline stamps each change with a DTG",
+    body.includes("311430:07Z AUG 26") && body.includes("311430:21Z AUG 26"),
+    body.split("\n").slice(1, 3).join(" | "));
+  check("and still says what changed",
+    /Healthy/.test(body) && /Down/.test(body));
+  await page.locator(".cv-tabs button", { hasText: "Monitored objects" }).click();
+  await page.waitForTimeout(300);
+  await page.evaluate(() => window.__cvStore.setState({ events: [] }));
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

@@ -9,6 +9,7 @@ import { BackupPanel } from './BackupPanel';
 import { CsvImportPanel } from './CsvImportPanel';
 import { STATUS_COLOR } from './edges/LiveEdge';
 import { linkStatus } from '../health/evaluate';
+import { dtg } from '../lib/dtg';
 import type { DeviceNodeData, HealthStatus, LinkData, ProbeRuntime } from '../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../types/domain';
 
@@ -373,14 +374,18 @@ export function StatusPanel() {
                   key={e.id}
                   onDoubleClick={() =>
                     void navigator.clipboard.writeText(
-                      `${new Date(e.timestampMs).toISOString()} ${e.objectType} ${e.objectName} ${
+                      `${dtg(e.timestampMs, { seconds: true })} ${e.objectType} ${e.objectName} ${
                         e.previousStatus
                       } → ${e.currentStatus} ${e.target ?? ''} ${e.message}`,
                     )
                   }
                   title="Double-click to copy this event"
                 >
-                  <td className="cv-mono">{new Date(e.timestampMs).toLocaleTimeString()}</td>
+                  {/* LT-074: a DTG, not a bare clock time — a log line has to
+                      say which day and which zone to be worth keeping. */}
+                  <td className="cv-mono" title={new Date(e.timestampMs).toISOString()}>
+                    {dtg(e.timestampMs, { seconds: true })}
+                  </td>
                   <td>{e.objectType}</td>
                   <td>{e.objectName}</td>
                   <td>

@@ -1,3 +1,4 @@
+import { dtg } from './dtg';
 import type { EventRow, HealthStatus, LinkHealthRuleType, ProbeKind } from '../types/domain';
 
 /** RFC4180-ish quoting. A leading =,+,-,@ is prefixed with ' so spreadsheet
@@ -15,6 +16,9 @@ export function toCsv(rows: unknown[][]): string {
 export function eventsToCsv(events: EventRow[]): string {
   const header = [
     'timestamp',
+    // LT-074: alongside the ISO stamp, the DTG an operator actually pastes
+    // into a change record or an incident log.
+    'dtg',
     'object_type',
     'object_name',
     'previous_status',
@@ -26,6 +30,7 @@ export function eventsToCsv(events: EventRow[]): string {
   ];
   const rows = events.map((e) => [
     new Date(e.timestampMs).toISOString(),
+    dtg(e.timestampMs, { seconds: true }),
     e.objectType,
     e.objectName,
     e.previousStatus ?? '',

@@ -4,6 +4,7 @@ import { DEFAULTS } from '../../theme';
 import { useStore } from '../../state/store';
 import { uid } from '../../lib/id';
 import { newProbe } from '../../lib/probes';
+import { dtg, spanOf } from '../../lib/dtg';
 import { DEVICE_LABEL } from '../icons';
 import { STATUS_COLOR } from '../edges/LiveEdge';
 import { describeRule, linkStatus } from '../../health/evaluate';
@@ -429,6 +430,27 @@ function StatusStrip({ nodeId }: { nodeId: string }) {
           ))
         )}
       </div>
+
+      {/* LT-074: when it went, and when it came back — a date-time group per
+          change, because "Down 7s" does not tell anyone which 7 seconds. The
+          bars say how long; this says when. */}
+      {spans.length > 1 && (
+        <ul className="cv-history-log">
+          {spans
+            .slice()
+            .reverse()
+            .slice(0, 12)
+            .map((s) => (
+              <li key={`${s.fromMs}-${s.status}`}>
+                <span className="cv-mono cv-history-dtg" title={new Date(s.fromMs).toISOString()}>
+                  {dtg(s.fromMs, { seconds: true })}
+                </span>
+                <span style={{ color: STATUS_COLOR[s.status] }}>{STATUS_LABEL[s.status]}</span>
+                <span className="cv-field-hint">{spanOf(s.fromMs, s.toMs)}</span>
+              </li>
+            ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -1569,3 +1569,16 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
   font-family: var(--mono); font-size: 11px; color: var(--text-dim);
   white-space: pre-wrap; margin: 8px 0; max-height: 140px; overflow: auto;
 }
+
+/* --- LT-074: the transition log under Recent status — when each state
+   started, as a date-time group, newest first. --- */
+.cv-history-log {
+  list-style: none; margin: 6px 0 0; padding: 0;
+  font-size: 11px; max-height: 148px; overflow: auto;
+}
+.cv-history-log li {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 8px;
+  align-items: baseline; padding: 2px 0;
+  border-top: 1px solid var(--line);
+}
+.cv-history-dtg { color: var(--text-dim); font-size: 10px; white-space: nowrap; }
