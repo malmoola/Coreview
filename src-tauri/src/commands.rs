@@ -269,6 +269,13 @@ pub fn diagram_pdf(svg: String) -> CmdResult<Vec<u8>> {
     crate::pdf::svg_to_pdf(&svg)
 }
 
+/// The diagram as a Visio drawing (LT-078). Shapes and connectors, not a
+/// picture: a colleague without Coreview can open it and move things.
+#[tauri::command]
+pub fn diagram_vsdx(drawing: crate::visio::VisioDrawing) -> CmdResult<Vec<u8>> {
+    crate::visio::to_vsdx(&drawing)
+}
+
 /// The shapes that ship inside the installer (D-022): the converted vendor
 /// stencils bundled as a Tauri resource, indexed with the same scan as a
 /// user's own folder. In dev the resource dir is the repo's `stencils/`

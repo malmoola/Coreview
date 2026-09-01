@@ -4,6 +4,7 @@
 mod icons;
 mod pdf;
 mod shapeconv;
+mod visio;
 mod commands;
 mod discovery;
 mod vault_commands;
@@ -109,6 +110,7 @@ fn main() {
             commands::list_icon_library,
             commands::list_bundled_icons,
             commands::diagram_pdf,
+            commands::diagram_vsdx,
             commands::save_export,
             commands::read_import,
             commands::get_settings,

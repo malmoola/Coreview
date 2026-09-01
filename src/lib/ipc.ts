@@ -331,6 +331,19 @@ export const ipc = {
     return Uint8Array.from(await invoke<number[]>('diagram_pdf', { svg }));
   },
 
+  /** The diagram as a Visio drawing (LT-078): shapes and connectors a
+   *  colleague can edit, not a picture. */
+  async diagramVsdx(drawing: {
+    title: string;
+    width: number;
+    height: number;
+    shapes: { id: string; name: string; x: number; y: number; width: number; height: number }[];
+    links: { from: string; to: string; label: string }[];
+  }): Promise<Uint8Array> {
+    if (!isDesktop) throw new BackendUnavailable('Exporting to Visio');
+    return Uint8Array.from(await invoke<number[]>('diagram_vsdx', { drawing }));
+  },
+
   /** The shapes that ship inside the installer (D-022). */
   listBundledIcons(): Promise<IconLibrary> {
     if (!isDesktop) return Promise.resolve({ dir: '', icons: [], skipped: [] });

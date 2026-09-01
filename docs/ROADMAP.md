@@ -340,17 +340,27 @@ the same day: `libvisio-tools` is installed (vss2xhtml and friends on PATH),
 and LibreOffice itself reads Visio through the same libvisio. Folded into
 LT-045's converter work — the .vss route lands there.
 
-### LT-078 — Export to Visio
-**Source:** asked 2026-09-01 — colleagues without Coreview still need to open
-the drawing, and Visio is what they have. (draw.io was offered and declined:
-"export to visio only".)
-**Acceptance:** a `.vsdx` that Visio opens without repair, with each device a
-shape carrying its name and each link a connector between the right two
-shapes, laid out where they are on the Coreview page.
-
----
 
 ## Done
+
+### LT-078 — Export to Visio — 2026-09-01
+"Diagram for Visio" writes a real `.vsdx` — an OPC package of seven XML parts
+— with each device a named rectangle at its place on the page and each link a
+connector glued to both ends carrying its port label. Shapes and connectors,
+not a picture: a colleague without Coreview can open it and move things
+about. Pixels become inches and the origin flips to the bottom left, in one
+place, so nothing downstream has to remember which way up a Visio page is.
+draw.io was offered and declined — "export to visio only".
+**Verified with an independent reader, not just by assertion:** libvisio (the
+engine LibreOffice uses to open Visio files) parses the package and recovers
+both device names and the port label. That check earned its keep straight
+away — the first version drew the boxes and *no link at all*, because a 1-D
+shape's geometry is measured from its own origin and mine was written in page
+coordinates. The connector is now a proper 1-D shape: pinned at the midpoint,
+rotated onto the bearing, running (0,0)→(Width,0).
+**Not claimed:** Visio itself has not opened it — there is no Visio on this
+machine. The package is structurally valid, well-formed throughout, and reads
+correctly in the one independent Visio reader available here.
 
 ### LT-077 — Export the diagram as a PDF — 2026-09-01
 "Diagram as PDF" writes a real vector PDF at the chosen paper size, from the

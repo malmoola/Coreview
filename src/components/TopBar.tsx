@@ -224,6 +224,48 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     }
   };
 
+  /** LT-078: the drawing as Visio shapes and connectors — what a colleague
+   *  who does not have Coreview can actually open and edit. */
+  const exportVisio = async () => {
+    setBusy('vsdx');
+    try {
+      const sheet = (store.doc.canvas.page ?? true)
+        ? effectivePage(store.doc.canvas.pageRect, shown.nodes)
+        : null;
+      const originX = sheet ? sheet.x : 0;
+      const originY = sheet ? sheet.y : 0;
+      const devices = shown.nodes.filter((n) => n.type === 'device');
+      const drawing = {
+        title: meta.name,
+        width: sheet ? sheet.w : 1584,
+        height: sheet ? sheet.h : 1224,
+        shapes: devices.map((n) => ({
+          id: n.id,
+          name: String((n.data as DeviceNodeData).label ?? ''),
+          x: n.position.x - originX,
+          y: n.position.y - originY,
+          width: n.width ?? 76,
+          height: n.height ?? 76,
+        })),
+        links: shown.edges.map((e) => {
+          const d = (e.data ?? {}) as LinkData;
+          const ports = [d.sourcePortLabel, d.targetPortLabel].filter(Boolean).join(' \u2194 ');
+          return { from: e.source, to: e.target, label: d.label || ports };
+        }),
+      };
+      const bytes = await ipc.diagramVsdx(drawing);
+      await runExport(
+        `${slug(meta.name)}-diagram.vsdx`,
+        () => bytes,
+        'application/vnd.ms-visio.drawing',
+      );
+    } catch (err) {
+      store.setStatusMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const exportPng = async () => {
     setBusy('png');
     try {
@@ -468,6 +510,9 @@ export function TopBar({ onExit }: { onExit: () => void }) {
             </button>
             <button type="button" onClick={() => void exportPdf()} disabled={busy === 'pdf'}>
               Diagram as PDF
+            </button>
+            <button type="button" onClick={() => void exportVisio()} disabled={busy === 'vsdx'}>
+              Diagram for Visio
             </button>
             <button type="button" onClick={() => void exportSheets()} disabled={busy === 'sheets'}>
               {sheetTiles().length > 1 ? `SVG sheets (${sheetTiles().length})` : 'SVG sheets'}
