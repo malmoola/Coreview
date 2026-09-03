@@ -7,6 +7,7 @@ import { uid } from '../lib/id';
 import { newProbe } from '../lib/probes';
 import { migrateDocument } from '../lib/migrate';
 import type { TimeFormat } from '../lib/timeFormat';
+import { linkStyleDefaults, type LinkStyleDefaults } from '../lib/linkDefaults';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
@@ -43,6 +44,9 @@ export interface ProjectDocument {
     gridEnabled: boolean;
     snapEnabled: boolean;
     minimap: boolean;
+    /** What a link looks like unless it has been given a look of its own
+     *  (LT-079). On the document, so the choice travels with the diagram. */
+    linkStyle?: Partial<LinkStyleDefaults>;
     /** Little hops where one link crosses another. On by default: two lines
      *  meeting at a point look exactly like two lines joined at a point. */
     lineJumps?: boolean;
@@ -883,7 +887,16 @@ export const useStore = create<Store>((set, get) => ({
 
   addEdge(edge) {
     get().commit();
-    set((s) => ({ doc: { ...s.doc, edges: [...s.doc.edges, edge] }, dirty: true }));
+    // LT-079: a new link is born with the look the operator chose, so a
+    // diagram drawn after that choice needs no tidying up afterwards. What
+    // the caller set explicitly still wins — a crawl that marks a link red
+    // means it.
+    const style = linkStyleDefaults(get().doc.canvas.linkStyle);
+    const withStyle = {
+      ...edge,
+      data: { ...style, ...(edge.data ?? {}) },
+    } as typeof edge;
+    set((s) => ({ doc: { ...s.doc, edges: [...s.doc.edges, withStyle] }, dirty: true }));
   },
 
   updateNodeData(id, patch) {

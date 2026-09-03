@@ -3078,6 +3078,77 @@ await dismissRecovery();
   });
 }
 
+// ---- a link's default style, and the way back to it (LT-079) --------------
+{
+  await dismissRecovery();
+  const edge = (id) => page.evaluate((eid) =>
+    window.__cvStore.getState().doc.edges.find((e) => e.id === eid)?.data, id);
+
+  // A link between two fixture devices, so a fit puts it in open canvas.
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    st.setCanvas({ linkStyle: { color: "#ff00ff", pathType: "bezier", direction: "forward", width: 5, lineStyle: "dashed" } });
+    st.addEdge({ id: "d-new", source: "n1", target: "n3", sourceHandle: "b", targetHandle: "t",
+      type: "live", data: { sourcePortLabel: "Gi1/0/5", targetPortLabel: "Gi0/1", label: "Uplink",
+        maintenance: true, enabled: true, healthRule: { type: "both-endpoints" } } });
+  });
+  await page.waitForTimeout(300);
+  const born = await edge("d-new");
+  check("a new link is born with the chosen look",
+    born.color === "#ff00ff" && born.width === 5 && born.pathType === "bezier",
+    JSON.stringify({ c: born.color, w: born.width, p: born.pathType }));
+  check("and what the caller set explicitly still wins",
+    born.sourcePortLabel === "Gi1/0/5" && born.label === "Uplink");
+
+  // Bend it and make it louder still, then set a plain default.
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    st.updateEdgeData("d-new", { color: "#00ffcc", width: 7, pathType: "straight",
+      direction: "reverse", waypoints: [{ x: 120, y: 120 }] });
+    st.setCanvas({ linkStyle: { color: "#7c8fa3", pathType: "smoothstep", direction: "none", width: 2, lineStyle: "solid" } });
+  });
+  await page.waitForTimeout(250);
+
+  // Reset it from its own menu.
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 30, y: 30 } });
+  await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
+  await page.waitForTimeout(450);
+  // A point genuinely on the line: the bbox centre of a diagonal or bent
+  // path is off it, and a right-click there opens the canvas menu instead.
+  const onPath = await page.locator('.react-flow__edge[data-id="d-new"] path').last().evaluate((el) => {
+    const p = el;
+    const len = p.getTotalLength();
+    const pt = p.getPointAtLength(len / 2);
+    const m = p.getScreenCTM();
+    return { x: pt.x * m.a + pt.y * m.c + m.e, y: pt.x * m.b + pt.y * m.d + m.f };
+  });
+  await page.mouse.click(onPath.x, onPath.y, { button: "right" });
+  await page.waitForTimeout(300);
+  const hasItems =
+    (await page.locator(".cv-menu button", { hasText: "Reset to default style" }).count()) === 1 &&
+    (await page.locator(".cv-menu button", { hasText: "Save this style as the default" }).count()) === 1;
+  check("a link's menu offers both the reset and the save", hasItems);
+  if (hasItems) {
+    await page.locator(".cv-menu button", { hasText: "Reset to default style" }).click();
+    await page.waitForTimeout(350);
+  }
+  const after = await edge("d-new");
+  check("resetting puts the look back to the default",
+    after.color === "#7c8fa3" && after.width === 2 && after.pathType === "smoothstep" &&
+      after.direction === "none" && (after.waypoints ?? []).length === 0,
+    JSON.stringify({ c: after.color, w: after.width, p: after.pathType, wp: after.waypoints }));
+  check("and leaves the ports, label and maintenance alone",
+    after.sourcePortLabel === "Gi1/0/5" && after.label === "Uplink" && after.maintenance === true,
+    JSON.stringify({ sp: after.sourcePortLabel, l: after.label, m: after.maintenance }));
+
+  await page.evaluate(() => {
+    const st = window.__cvStore.getState();
+    window.__cvStore.setState({ doc: { ...st.doc,
+      canvas: { ...st.doc.canvas, linkStyle: undefined },
+      edges: st.doc.edges.filter((e) => e.id !== "d-new") } });
+  });
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

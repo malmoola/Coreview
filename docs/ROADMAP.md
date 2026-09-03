@@ -343,6 +343,18 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-079 — A link's default style, and a way back to it — 2026-09-02
+A link's menu gains two entries: **Save this style as the default** takes the
+link's look — colour, path type, flow direction, width, line style — and makes
+it what the document draws links with; **Reset to default style** puts a link
+back to exactly that. New links are born with it too, so a diagram drawn after
+the choice needs no tidying afterwards, while anything the caller sets
+explicitly (a crawl marking a link red, a discovered port label) still wins.
+Only the *look* travels: ports, label, health rule, maintenance and enabled
+are facts about the network, not style, and a reset leaves them untouched — a
+test pins that. A hand-drawn route does go, because that is part of the look.
+The choice lives on the document, so it travels with the diagram.
+
 ### LT-078 — Export to Visio — 2026-09-01
 "Diagram for Visio" writes a real `.vsdx` — an OPC package of seven XML parts
 — with each device a named rectangle at its place on the page and each link a

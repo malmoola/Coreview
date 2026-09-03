@@ -29,6 +29,7 @@ import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
 import { alignmentFor, spacingHint, type Box, type Guide } from '../lib/alignment';
 import { isEditable, isVisible, layersOf } from '../lib/layers';
+import { resetToDefault, styleOf } from '../lib/linkDefaults';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
@@ -328,6 +329,23 @@ export function Canvas() {
       ...(data?.waypoints?.length
         ? [{ label: 'Reset routing', onSelect: () => store.updateEdgeData(edgeId, { waypoints: [] }) }]
         : []),
+      // LT-079: back to the look the operator chose — colour, path, flow,
+      // width, line style — leaving the ports, label and health rule alone.
+      {
+        label: 'Reset to default style',
+        onSelect: () => {
+          store.commit();
+          store.updateEdgeData(edgeId, resetToDefault(doc.canvas.linkStyle));
+        },
+      },
+      {
+        label: 'Save this style as the default',
+        onSelect: () => {
+          if (!data) return;
+          store.setCanvas({ linkStyle: styleOf(data) });
+          store.setStatusMessage('New links will look like this one.');
+        },
+      },
       {
         label: data?.maintenance ? 'Clear maintenance' : 'Set maintenance',
         onSelect: () => store.updateEdgeData(edgeId, { maintenance: !data?.maintenance }),
