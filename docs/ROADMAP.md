@@ -342,37 +342,6 @@ and LibreOffice itself reads Visio through the same libvisio. Folded into
 LT-045's converter work — the .vss route lands there.
 
 
-### LT-080 — `.vss` stencils do not import on Windows
-**Source:** asked 2026-09-04 — "can we find a way to import vss", with the
-app's own report pasted from a Windows machine pointed at My Shapes:
-"83 Visio file(s) need libvisio-tools to convert — install it and reload".
-**Why it fails:** the `.vss`/`.vssx` route runs libvisio's `vss2xhtml`, which
-is packaged on Linux and has no Windows package. LibreOffice is not a way out:
-its Visio filter is the same libvisio but calls `parse()`, and a stencil has
-no drawing page — converting this operator's real Tripp Lite `.vss` through
-`soffice` gives one empty page, while `vss2xhtml` on the same file gives 18
-masters. Checked 2026-09-04, both ways, on the operator's own file.
-**Acceptance:** on a stock Windows machine with nothing extra installed,
-pointing the icon library at a My Shapes folder of `.vss` files puts their
-masters in the palette. Verified against the operator's own stencil.
-**Built 2026-09-04, not yet run on real Windows hardware:** `vss2xhtml`,
-`vsd2xhtml` and the 11 DLLs they need (~40 MB, unmodified builds from the
-MSYS2 `mingw64` repo — provenance and licences in
-`vendor/libvisio-win64/NOTICE.md`) are committed and installed as a bundled
-resource on Windows only (`src-tauri/tauri.windows.conf.json`, merged
-additively into `bundle.resources` — confirmed by reading `json-patch`'s own
-merge code rather than assuming, and by extracting a real Linux `.deb` build
-afterward and finding the Windows files absent from it and the 217 stencil
-SVGs still present). `shapeconv::set_tool_dir`, resolved once at startup from
-the Tauri resource directory, points `vss2xhtml`/`vsd2xhtml` at the bundled
-copy when one exists and falls back to `PATH` otherwise — covered by unit
-tests for the resolution logic itself. What is **not** verified: Tauri
-cannot cross-compile a Windows bundle from Linux, so the actual Windows
-install, the resource actually landing next to the exe, and the operator's
-own `.vss` actually converting there are unverified — needs a run on the
-operator's Windows machine (or the CI `bundle (windows-latest)` job, which at
-least proves the build succeeds) before this is Done.
-
 ## Done
 
 ### LT-083 — **bug** A stencil's masters are blank tiles — 2026-09-04
@@ -906,6 +875,30 @@ internal COREVIEW-FGT-Root-CA cannot and never will.
 ## Icebox
 
 *Raised but deliberately deferred. Not dropped.*
+
+### LT-080 — `.vss` stencils do not import on Windows
+**Source:** asked 2026-09-04 — "can we find a way to import vss", with the
+app's own report pasted from a Windows machine pointed at My Shapes:
+"83 Visio file(s) need libvisio-tools to convert — install it and reload".
+**Why it fails:** the `.vss`/`.vssx` route runs libvisio's `vss2xhtml`, which
+is packaged on Linux and has no Windows package. LibreOffice is not a way out:
+its Visio filter is the same libvisio but calls `parse()`, and a stencil has
+no drawing page — converting this operator's real Tripp Lite `.vss` through
+`soffice` gives one empty page, while `vss2xhtml` on the same file gives 18
+masters. Checked 2026-09-04, both ways, on the operator's own file.
+**Tried and reverted, 2026-09-04 (D-024):** bundled the MSYS2 `mingw64` build
+of `vss2xhtml`/`vsd2xhtml` and its DLLs (~40 MB) into the Windows installer
+as a resource, resolved at startup with a `PATH` fallback. It built and
+passed CI on a real `windows-latest` runner. The operator rejected it on
+size: "made the installer up to 38MB I don't like that lets revert it and
+remove whatever app or tool to covert the files i'm happy with what we have."
+His stated workflow going forward: hand a stencil file over directly and
+have it converted and committed the way `tripp-lite-racks.vss` was, rather
+than have his own Windows install read a My Shapes folder natively.
+**Deferred, not declined:** if a materially smaller way to read `.vss` on
+Windows turns up — a native Rust reader for the legacy compound-binary
+format, say, rather than shipping libvisio's own binary — this is still
+wanted. Don't re-propose the ~40 MB DLL bundle; that trade is already made.
 
 ### LT-024 — Connection points on imported shapes
 A Visio master carries named ports; an imported EMF is a picture. Reading ports

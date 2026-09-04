@@ -369,48 +369,9 @@ pub fn visio_tool_for(ext: &str) -> Option<&'static str> {
     }
 }
 
-/// LT-080: `libvisio-tools` is a Linux package with no Windows equivalent —
-/// on Windows the CLIs are carried in `vendor/libvisio-win64` and installed
-/// as a bundled resource (`src-tauri/tauri.windows.conf.json`) instead of
-/// asking every operator to build libvisio themselves. `main.rs`'s `setup`
-/// resolves that resource directory once, through the only place in this
-/// crate with an `AppHandle`, and hands it here — which is why this is a
-/// `set` rather than a parameter every caller in this module would
-/// otherwise have to thread through. Every test, dev run and Linux build
-/// leaves it unset, so `tool_command` falls straight through to `PATH`
-/// exactly as it always did.
-static TOOL_DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
-
-/// Called once, from `main.rs`'s `setup`.
-pub fn set_tool_dir(dir: Option<PathBuf>) {
-    let _ = TOOL_DIR.set(dir);
-}
-
-/// The command to run for a libvisio CLI by name: the bundled copy if one
-/// was set and the file is actually there, otherwise the bare name, which
-/// `Command` resolves against `PATH` the way it always has.
-fn tool_command(name: &str) -> PathBuf {
-    resolve_tool(name, TOOL_DIR.get().and_then(|d| d.as_deref()))
-}
-
-/// The resolution `tool_command` does, as a pure function of an explicit
-/// directory rather than the process-wide `TOOL_DIR` — a `OnceLock` can only
-/// be set once per process, which makes it untestable directly in a test
-/// binary that runs many tests together. This is what is actually under
-/// test; `tool_command` is a one-line wrapper around it.
-fn resolve_tool(name: &str, dir: Option<&Path>) -> PathBuf {
-    if let Some(dir) = dir {
-        let candidate = dir.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
-        if candidate.is_file() {
-            return candidate;
-        }
-    }
-    PathBuf::from(name)
-}
-
 /// Whether the libvisio CLIs are installed.
 pub fn libvisio_available() -> bool {
-    std::process::Command::new(tool_command("vss2xhtml"))
+    std::process::Command::new("vss2xhtml")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -447,7 +408,7 @@ pub fn split_visio_xhtml(xhtml: &str) -> Vec<String> {
 pub fn convert_visio(path: &Path) -> Result<Vec<String>, String> {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let tool = visio_tool_for(ext).ok_or_else(|| format!("not a Visio file: {ext}"))?;
-    let out = std::process::Command::new(tool_command(tool))
+    let out = std::process::Command::new(tool)
         .arg(path)
         .output()
         .map_err(|e| format!("{tool} failed to start: {e}"))?;
@@ -780,39 +741,6 @@ pub fn tidy_converted(svg: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// LT-080: on Windows, `vss2xhtml` is not on `PATH` — it has to resolve
-    /// to the bundled copy `main.rs` points at, and it has to do that
-    /// without breaking every other test's plain `vss2xhtml` (which is what
-    /// `libvisio_available`'s tests rely on here on Linux, where it *is* on
-    /// `PATH`). `resolve_tool` is the resolution logic pulled out into a
-    /// pure function precisely so this can be tested without touching the
-    /// real `TOOL_DIR`, which — being a `OnceLock` — can only be set once
-    /// for the lifetime of the test binary.
-    #[test]
-    fn the_bundled_tool_wins_when_it_is_actually_there() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let exe_name = format!("vss2xhtml{}", std::env::consts::EXE_SUFFIX);
-        std::fs::write(dir.path().join(&exe_name), "not really an executable").unwrap();
-
-        let resolved = resolve_tool("vss2xhtml", Some(dir.path()));
-        assert_eq!(resolved, dir.path().join(&exe_name));
-    }
-
-    #[test]
-    fn a_missing_bundle_falls_back_to_path() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        // Nothing written into `dir`: the bundle directory exists but this
-        // particular tool isn't in it.
-        let resolved = resolve_tool("vss2xhtml", Some(dir.path()));
-        assert_eq!(resolved, std::path::PathBuf::from("vss2xhtml"));
-    }
-
-    #[test]
-    fn no_bundle_at_all_falls_back_to_path() {
-        let resolved = resolve_tool("vss2xhtml", None);
-        assert_eq!(resolved, std::path::PathBuf::from("vss2xhtml"));
-    }
 
     const LO_STYLE_SVG: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "svg11.dtd">

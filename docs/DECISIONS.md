@@ -223,3 +223,25 @@ in the future." The enhancement backlog memory was pruned to match; LT-006 and
 LT-011 keep their IDs under a Declined section rather than being deleted.
 **Still wanted from the same conversation:** LT-069, LT-028, LT-027, the
 config-backup diff viewer, and the LT-063/025/033 housekeeping.
+
+### D-024 — Do not bundle a Visio converter into the Windows installer — 2026-09-04
+**Decision:** Windows `.vss`/`.vssx` import does not carry its own copy of
+`vss2xhtml`/`vsd2xhtml`. The route stays what it already was: those tools
+converted on a machine that has libvisio (this repo's own conversion runs
+happen on Linux), with the result committed as ordinary SVG stencils
+(`stencils/`, `src-tauri/fixtures/`) the way `tripp-lite-racks.vss` was.
+**Rejected:** LT-080's first answer — shipping the MSYS2 `mingw64` build of
+libvisio and its DLL closure (~40 MB: `libicudt78.dll` alone is 33 MB) as a
+Windows-only bundled resource, resolved at startup with a `PATH` fallback.
+It built and passed CI on a real `windows-latest` runner, so the approach
+worked; it was reverted anyway.
+**Why (the operator's):** "made the installer up to 38MB I don't like that
+lets revert it and remove whatever app or tool to covert the files i'm happy
+with what we have" — followed by: he will hand over a stencil file directly
+and expects it converted and made to work the way `tripp-lite-racks.vss`
+was, not point his own installed app at a folder of `.vss` files.
+**Consequence:** LT-080 as originally asked — "point the app at My Shapes
+and let it read `.vss` directly on Windows" — will not be built this way.
+If it is asked for again, a ~40 MB DLL bundle is the known, already-tried,
+already-rejected answer; look for a materially smaller one before proposing
+the same trade again.
