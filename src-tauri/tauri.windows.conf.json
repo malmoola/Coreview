@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "../vendor/libvisio-win64/": "libvisio-win64/"
+    }
+  }
+}

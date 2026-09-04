@@ -28,8 +28,9 @@ bar rather than a piece of work, and does not count against that.*
 - Where a bug cannot be fixed, it says why in plain words rather than being
   quietly closed.
 
-**Known bugs, open:** none — as of 2026-08-30.
-**Known bugs, closed:** LT-030, LT-031, LT-003, LT-044, LT-004, LT-005.
+**Known bugs, open:** none — as of 2026-09-04.
+**Known bugs, closed:** LT-030, LT-031, LT-003, LT-044, LT-004, LT-005,
+LT-082, LT-083.
 
 ### LT-031 — **bug** Three CSS variables that were never defined — 2026-08-30
 **Source:** found while doing LT-001, not reported.
@@ -341,7 +342,99 @@ and LibreOffice itself reads Visio through the same libvisio. Folded into
 LT-045's converter work — the .vss route lands there.
 
 
+### LT-080 — `.vss` stencils do not import on Windows
+**Source:** asked 2026-09-04 — "can we find a way to import vss", with the
+app's own report pasted from a Windows machine pointed at My Shapes:
+"83 Visio file(s) need libvisio-tools to convert — install it and reload".
+**Why it fails:** the `.vss`/`.vssx` route runs libvisio's `vss2xhtml`, which
+is packaged on Linux and has no Windows package. LibreOffice is not a way out:
+its Visio filter is the same libvisio but calls `parse()`, and a stencil has
+no drawing page — converting this operator's real Tripp Lite `.vss` through
+`soffice` gives one empty page, while `vss2xhtml` on the same file gives 18
+masters. Checked 2026-09-04, both ways, on the operator's own file.
+**Acceptance:** on a stock Windows machine with nothing extra installed,
+pointing the icon library at a My Shapes folder of `.vss` files puts their
+masters in the palette. Verified against the operator's own stencil.
+**Built 2026-09-04, not yet run on real Windows hardware:** `vss2xhtml`,
+`vsd2xhtml` and the 11 DLLs they need (~40 MB, unmodified builds from the
+MSYS2 `mingw64` repo — provenance and licences in
+`vendor/libvisio-win64/NOTICE.md`) are committed and installed as a bundled
+resource on Windows only (`src-tauri/tauri.windows.conf.json`, merged
+additively into `bundle.resources` — confirmed by reading `json-patch`'s own
+merge code rather than assuming, and by extracting a real Linux `.deb` build
+afterward and finding the Windows files absent from it and the 217 stencil
+SVGs still present). `shapeconv::set_tool_dir`, resolved once at startup from
+the Tauri resource directory, points `vss2xhtml`/`vsd2xhtml` at the bundled
+copy when one exists and falls back to `PATH` otherwise — covered by unit
+tests for the resolution logic itself. What is **not** verified: Tauri
+cannot cross-compile a Windows bundle from Linux, so the actual Windows
+install, the resource actually landing next to the exe, and the operator's
+own `.vss` actually converting there are unverified — needs a run on the
+operator's Windows machine (or the CI `bundle (windows-latest)` job, which at
+least proves the build succeeds) before this is Done.
+
 ## Done
+
+### LT-083 — **bug** A stencil's masters are blank tiles — 2026-09-04
+**Source:** found while reproducing LT-080/LT-045 against the operator's real
+`.vss` — not separately reported by him.
+**Was:** libvisio hands a stencil master back as `<image>` pointing at an
+inline `data:image/emf` (or `.wmf`) payload — that is the *entire* content of
+a master in this stencil, no vector fallback underneath. No webview paints an
+`<image>` whose href is `data:image/emf`, so every master converted through
+`vss2xhtml` was a blank palette tile. `blue-box.vsdx` (libvisio's own test
+fixture, used by the existing LT-045 test) happens to carry vector content
+instead, which is why this went unseen until a real vendor stencil was on
+hand.
+**Fixed:** every embedded EMF/WMF across a stencil's masters is decoded and
+run through `soffice` in one batched call, then spliced back in as vector
+content scaled onto the picture's own box — coordinates baked into the
+geometry itself, not left as a wrapping `<g transform>`, because
+`crop_to_content` reads raw path/rect/image attributes and does not follow a
+transform (the first version of the fix passed its own test but produced a
+10504×28808 viewBox; caught by rendering the result to PNG with Inkscape and
+actually looking, not just checking the SVG parsed). Verified against all 18
+masters of the operator's real Tripp Lite stencil, each rendered to PNG and
+inspected by eye — genuine rack elevation drawings, not blank tiles.
+**Acceptance:** a test against the operator's own `tripp-lite-racks.vss`
+fixture that fails while any master's SVG still carries a `data:image/emf` or
+`data:image/wmf` href, then the fix. Shipped as written; also asserts the
+resulting viewBox stays within the master's own scale, which is what caught
+the untransformed-geometry regression above.
+
+### LT-081 — Stencil archives, and a skip message that names the wrong formats — 2026-09-04
+**Source:** the same 2026-09-04 message, from the pasted output — "46 file(s)
+are in formats Coreview cannot read directly (.pptx, .vssx, .zip) — run
+scripts/import-shapes.mjs on them first".
+**Two things wrong:** `.vssx` *is* read — it has gone through the Visio route
+since LT-045, so the message names a format it handles and sends the operator
+off to a script he does not need. And a My Shapes folder is full of `.zip`
+archives of stencils, which are not opened at all.
+**Fixed:** a zip is opened and walked the same way a real subfolder is —
+extracted to a scratch directory and fed back through the same `collect`, so
+an SVG, EMF or `.vss` inside it becomes an icon exactly as a loose file
+would, categorised under the zip's own name the way a real subfolder would
+be (`folder_category` now tries more than one root for this reason). A zip
+that will not open, or an entry a path-traversal check refuses
+(`enclosed_name`), is named in `skipped` rather than silently dropped. The
+refusal message for what is genuinely unreadable now lists the actual
+extensions seen instead of a hardcoded, and partly wrong, example list.
+**Acceptance:** the message names only what was actually skipped, by the
+extensions actually seen; a `.zip` holding stencils or SVGs is read through
+like a folder. Both shipped as written, plus a broken-zip case mirroring the
+existing broken-Visio-file test.
+
+### LT-082 — **bug** A real icon file refused for being over 512 KB — 2026-09-04
+**Source:** the same 2026-09-04 message —
+"Unmaintained-Design-Icons_v2.0(2).svg: larger than 512 KB".
+**Was:** `MAX_SVG_BYTES` is a flat 512 KB guard meant to keep a runaway file
+out of the palette. A legitimate multi-shape icon sheet is bigger than that,
+so a file the operator wanted was dropped with a size complaint.
+**Fixed:** raised to 8 MB — still a guard against a runaway or corrupt file,
+no longer a cap on how much legitimate artwork one icon sheet may hold.
+**Acceptance:** that file loads. A test that fails without the fix — built
+first, confirmed it failed with the message the operator actually saw
+("larger than 512 KB"), then fixed.
 
 ### LT-079 — A link's default style, and a way back to it — 2026-09-02
 A link's menu gains two entries: **Save this style as the default** takes the

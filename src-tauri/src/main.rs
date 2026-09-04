@@ -81,6 +81,18 @@ fn main() {
         .setup(move |app| {
             commands::pump_events(app.handle().clone(), rx);
             fit_to_screen(app);
+            // LT-080: the bundled Windows copy of vss2xhtml/vsd2xhtml, if
+            // this build carries one (src-tauri/tauri.windows.conf.json).
+            // Resolving it here, the one place in the crate that already
+            // has an AppHandle, means shapeconv doesn't need one threaded
+            // through every call — see shapeconv::set_tool_dir. Absent on
+            // Linux and macOS, where this resolves to nothing and every
+            // libvisio call already falls through to PATH.
+            let tool_dir = app
+                .path()
+                .resolve("libvisio-win64", tauri::path::BaseDirectory::Resource)
+                .ok();
+            shapeconv::set_tool_dir(tool_dir);
             Ok(())
         })
         .on_window_event(|window, event| {

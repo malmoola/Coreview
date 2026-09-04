@@ -11,6 +11,7 @@
 //! invalid SVG drawn upside down, so those are rewritten as positive
 //! geometry plus an explicit mirror. Change one port and change the other.
 
+use base64::Engine as _;
 use std::path::{Path, PathBuf};
 
 /// Every point a path's commands touch, control points included — enough for
@@ -368,9 +369,48 @@ pub fn visio_tool_for(ext: &str) -> Option<&'static str> {
     }
 }
 
+/// LT-080: `libvisio-tools` is a Linux package with no Windows equivalent —
+/// on Windows the CLIs are carried in `vendor/libvisio-win64` and installed
+/// as a bundled resource (`src-tauri/tauri.windows.conf.json`) instead of
+/// asking every operator to build libvisio themselves. `main.rs`'s `setup`
+/// resolves that resource directory once, through the only place in this
+/// crate with an `AppHandle`, and hands it here — which is why this is a
+/// `set` rather than a parameter every caller in this module would
+/// otherwise have to thread through. Every test, dev run and Linux build
+/// leaves it unset, so `tool_command` falls straight through to `PATH`
+/// exactly as it always did.
+static TOOL_DIR: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+
+/// Called once, from `main.rs`'s `setup`.
+pub fn set_tool_dir(dir: Option<PathBuf>) {
+    let _ = TOOL_DIR.set(dir);
+}
+
+/// The command to run for a libvisio CLI by name: the bundled copy if one
+/// was set and the file is actually there, otherwise the bare name, which
+/// `Command` resolves against `PATH` the way it always has.
+fn tool_command(name: &str) -> PathBuf {
+    resolve_tool(name, TOOL_DIR.get().and_then(|d| d.as_deref()))
+}
+
+/// The resolution `tool_command` does, as a pure function of an explicit
+/// directory rather than the process-wide `TOOL_DIR` — a `OnceLock` can only
+/// be set once per process, which makes it untestable directly in a test
+/// binary that runs many tests together. This is what is actually under
+/// test; `tool_command` is a one-line wrapper around it.
+fn resolve_tool(name: &str, dir: Option<&Path>) -> PathBuf {
+    if let Some(dir) = dir {
+        let candidate = dir.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+    PathBuf::from(name)
+}
+
 /// Whether the libvisio CLIs are installed.
 pub fn libvisio_available() -> bool {
-    std::process::Command::new("vss2xhtml")
+    std::process::Command::new(tool_command("vss2xhtml"))
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -407,7 +447,7 @@ pub fn split_visio_xhtml(xhtml: &str) -> Vec<String> {
 pub fn convert_visio(path: &Path) -> Result<Vec<String>, String> {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let tool = visio_tool_for(ext).ok_or_else(|| format!("not a Visio file: {ext}"))?;
-    let out = std::process::Command::new(tool)
+    let out = std::process::Command::new(tool_command(tool))
         .arg(path)
         .output()
         .map_err(|e| format!("{tool} failed to start: {e}"))?;
@@ -419,7 +459,259 @@ pub fn convert_visio(path: &Path) -> Result<Vec<String>, String> {
     if svgs.is_empty() {
         return Err(format!("{tool} produced no drawings"));
     }
-    Ok(svgs)
+    Ok(resolve_embedded_metafiles(svgs))
+}
+
+/// One `<image>` found inside a master's SVG whose picture is an inline EMF
+/// or WMF payload, pending conversion.
+struct EmbeddedImage {
+    master: usize,
+    tag: String,
+    ext: &'static str,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    bytes: Vec<u8>,
+}
+
+/// The slice of `s` up to and including its first `<svg ...>` open tag.
+fn svg_open_tag(s: &str) -> &str {
+    &s[..s.find('>').map(|p| p + 1).unwrap_or(s.len())]
+}
+
+/// LT-083: libvisio hands a stencil master back as an `<image>` pointing at
+/// an inline `data:image/emf` or `data:image/wmf` payload — real Visio
+/// artwork, but not something any webview rasterises from an SVG `<image>`
+/// tag, so the master renders as a blank tile. Every embedded picture across
+/// every master is decoded and run through `soffice` in one batched call —
+/// the same conversion LT-003 already does for a standalone EMF file on
+/// disk — then spliced back in as vector content, scaled onto the image's
+/// original box. A picture soffice cannot draw keeps its `<image>` tag,
+/// which stays a blank tile rather than failing the whole stencil.
+fn resolve_embedded_metafiles(svgs: Vec<String>) -> Vec<String> {
+    let mut found = Vec::new();
+    for (master, svg) in svgs.iter().enumerate() {
+        for t in tags(svg, "image") {
+            let Some(href) = attr(t, "xlink:href").or_else(|| attr(t, "href")) else {
+                continue;
+            };
+            let ext = if href.starts_with("data:image/emf;base64,") {
+                "emf"
+            } else if href.starts_with("data:image/wmf;base64,") {
+                "wmf"
+            } else {
+                continue;
+            };
+            let Some((_, b64)) = href.split_once("base64,") else { continue };
+            let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) else {
+                continue;
+            };
+            let (Some(x), Some(y), Some(width), Some(height)) = (
+                parse(attr(t, "x")),
+                parse(attr(t, "y")),
+                parse(attr(t, "width")),
+                parse(attr(t, "height")),
+            ) else {
+                continue;
+            };
+            found.push(EmbeddedImage { master, tag: t.to_string(), ext, x, y, width, height, bytes });
+        }
+    }
+    if found.is_empty() || !soffice_available() {
+        return svgs;
+    }
+    let dir = unique_profile_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let mut files = Vec::new();
+    for (i, item) in found.iter().enumerate() {
+        let src = dir.join(format!("m{i}.{}", item.ext));
+        if std::fs::write(&src, &item.bytes).is_ok() {
+            files.push(src);
+        }
+    }
+    let produced = convert_batch(&files, &dir).unwrap_or_default();
+    let mut out = svgs;
+    for (i, item) in found.iter().enumerate() {
+        let stem = format!("m{i}");
+        let Some(svg_path) =
+            produced.iter().find(|p| p.file_stem().and_then(|s| s.to_str()) == Some(stem.as_str()))
+        else {
+            continue;
+        };
+        let Ok(raw) = std::fs::read_to_string(svg_path) else { continue };
+        let Some(tidied) = tidy_converted(&raw) else { continue };
+        let Some(vb) = attr(svg_open_tag(&tidied), "viewBox") else { continue };
+        let nums: Vec<f64> = vb.split_whitespace().filter_map(|v| v.parse().ok()).collect();
+        if nums.len() != 4 || nums[2] == 0.0 || nums[3] == 0.0 {
+            continue;
+        }
+        let (vx, vy, vw, vh) = (nums[0], nums[1], nums[2], nums[3]);
+        let (sx, sy) = (item.width / vw, item.height / vh);
+        let (tx, ty) = (item.x - vx * sx, item.y - vy * sy);
+        let open_end = tidied.find('>').map(|p| p + 1).unwrap_or(0);
+        let inner = tidied[open_end..].strip_suffix("</svg>").unwrap_or(&tidied[open_end..]);
+        // The scale and offset are baked into every coordinate rather than
+        // left as a wrapping `<g transform>`: crop_to_content, which runs on
+        // this master again right after, reads path/rect/image coordinates
+        // raw and does not follow a transform — a wrapped group would be
+        // invisible to it and the master would crop to the picture's
+        // original, unscaled extent.
+        let wrapped = format!("<g>{}</g>", affine_transform(inner, sx, sy, tx, ty));
+        out[item.master] = out[item.master].replacen(&item.tag, &wrapped, 1);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    out
+}
+
+/// Rewrite one numeric attribute by a linear map `v' = v*scale + shift`,
+/// tolerating a trailing CSS unit like the `px` on libvisio/soffice's own
+/// `font-size`. `None` when the tag has no such attribute.
+fn map_attr(tag: &str, name: &str, scale: f64, shift: f64) -> Option<(String, String)> {
+    let raw = attr(tag, name)?;
+    let split = raw.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(raw.len());
+    let (num, unit) = raw.split_at(split);
+    let v: f64 = num.parse().ok()?;
+    Some((raw.clone(), format!("{}{unit}", v * scale + shift)))
+}
+
+/// Bake `x' = x*sx + tx, y' = y*sy + ty` into every coordinate of a fragment
+/// of already-converted SVG content: `<path d>`, and the point/size
+/// attributes of `<rect>`, `<image>`, `<tspan>`, `<circle>` and `<ellipse>`.
+/// Widths, radii and font sizes scale without translating. Written for
+/// `resolve_embedded_metafiles`, which needs an embedded picture's geometry
+/// already in the master's own coordinate space — see the note at its call
+/// site for why a wrapping transform will not do.
+type AttrScale = (&'static str, f64, f64);
+
+fn affine_transform(svg: &str, sx: f64, sy: f64, tx: f64, ty: f64) -> String {
+    let mut out = svg.to_string();
+    for t in tags(svg, "path") {
+        if let Some(d) = attr(t, "d") {
+            let scaled = scale_path_d(&d, sx, sy, tx, ty);
+            let fixed = t.replacen(&format!("d=\"{d}\""), &format!("d=\"{scaled}\""), 1);
+            out = out.replace(t, &fixed);
+        }
+    }
+    let by_tag: &[(&str, &[AttrScale])] = &[
+        ("rect", &[("x", sx, tx), ("y", sy, ty), ("width", sx, 0.0), ("height", sy, 0.0)]),
+        ("image", &[("x", sx, tx), ("y", sy, ty), ("width", sx, 0.0), ("height", sy, 0.0)]),
+        (
+            "tspan",
+            &[("x", sx, tx), ("y", sy, ty), ("font-size", (sx + sy) / 2.0, 0.0), ("textLength", sx, 0.0)],
+        ),
+        ("circle", &[("cx", sx, tx), ("cy", sy, ty), ("r", (sx + sy) / 2.0, 0.0)]),
+        ("ellipse", &[("cx", sx, tx), ("cy", sy, ty), ("rx", sx, 0.0), ("ry", sy, 0.0)]),
+    ];
+    for (tagname, attrs) in by_tag {
+        let snapshot = out.clone();
+        for t in tags(&snapshot, tagname) {
+            let mut fixed = t.to_string();
+            for (name, scale, shift) in *attrs {
+                if let Some((old, new)) = map_attr(t, name, *scale, *shift) {
+                    fixed = fixed.replace(&format!("{name}=\"{old}\""), &format!("{name}=\"{new}\""));
+                }
+            }
+            out = out.replace(t, &fixed);
+        }
+    }
+    out
+}
+
+/// Rewrite a path's `d` attribute by the same linear map `affine_transform`
+/// applies elsewhere: absolute coordinates get the full affine; a relative
+/// command's deltas get only the scale, since a translate cancels out of
+/// the difference between two already-translated points. The tokeniser and
+/// command table are `path_points`'s, copied rather than shared, because the
+/// two walk the same syntax for different reasons — one measures, one
+/// rewrites — and a change to how one reads a command letter must change
+/// the other identically.
+fn scale_path_d(d: &str, sx: f64, sy: f64, tx: f64, ty: f64) -> String {
+    let mut tokens: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for ch in d.chars() {
+        if ch.is_ascii_alphabetic() {
+            if !cur.is_empty() {
+                tokens.push(std::mem::take(&mut cur));
+            }
+            tokens.push(ch.to_string());
+        } else if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' {
+            cur.push(ch);
+        } else if ch == '-' {
+            if cur.ends_with('e') || cur.ends_with('E') || cur.is_empty() {
+                cur.push(ch);
+            } else {
+                tokens.push(std::mem::take(&mut cur));
+                cur.push(ch);
+            }
+        } else if !cur.is_empty() {
+            tokens.push(std::mem::take(&mut cur));
+        }
+    }
+    if !cur.is_empty() {
+        tokens.push(cur);
+    }
+
+    let mut out = String::new();
+    let mut i = 0usize;
+    let mut cmd = ' ';
+    let num = |i: &mut usize, tokens: &[String]| -> f64 {
+        let v = tokens.get(*i).and_then(|t| t.parse().ok()).unwrap_or(0.0);
+        *i += 1;
+        v
+    };
+    while i < tokens.len() {
+        if tokens[i].len() == 1 && tokens[i].chars().next().unwrap().is_ascii_alphabetic() {
+            cmd = tokens[i].chars().next().unwrap();
+            out.push(cmd);
+            i += 1;
+        }
+        let rel = cmd.is_ascii_lowercase() && cmd != 'z';
+        let (ox, oy) = if rel { (0.0, 0.0) } else { (tx, ty) };
+        match cmd.to_ascii_uppercase() {
+            'M' | 'L' | 'T' => {
+                let x = num(&mut i, &tokens) * sx + ox;
+                let y = num(&mut i, &tokens) * sy + oy;
+                out.push_str(&format!(" {x} {y}"));
+            }
+            'H' => {
+                let x = num(&mut i, &tokens) * sx + ox;
+                out.push_str(&format!(" {x}"));
+            }
+            'V' => {
+                let y = num(&mut i, &tokens) * sy + oy;
+                out.push_str(&format!(" {y}"));
+            }
+            'C' => {
+                for _ in 0..3 {
+                    let x = num(&mut i, &tokens) * sx + ox;
+                    let y = num(&mut i, &tokens) * sy + oy;
+                    out.push_str(&format!(" {x} {y}"));
+                }
+            }
+            'S' | 'Q' => {
+                for _ in 0..2 {
+                    let x = num(&mut i, &tokens) * sx + ox;
+                    let y = num(&mut i, &tokens) * sy + oy;
+                    out.push_str(&format!(" {x} {y}"));
+                }
+            }
+            'A' => {
+                let rx = num(&mut i, &tokens) * sx;
+                let ry = num(&mut i, &tokens) * sy;
+                let rot = num(&mut i, &tokens);
+                let large = num(&mut i, &tokens);
+                let sweep = num(&mut i, &tokens);
+                let x = num(&mut i, &tokens) * sx + ox;
+                let y = num(&mut i, &tokens) * sy + oy;
+                out.push_str(&format!(" {rx} {ry} {rot} {large} {sweep} {x} {y}"));
+            }
+            'Z' => {}
+            _ => i += 1,
+        }
+        out.push(' ');
+    }
+    out
 }
 
 /// Whether `soffice` is runnable here.
@@ -488,6 +780,39 @@ pub fn tidy_converted(svg: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// LT-080: on Windows, `vss2xhtml` is not on `PATH` — it has to resolve
+    /// to the bundled copy `main.rs` points at, and it has to do that
+    /// without breaking every other test's plain `vss2xhtml` (which is what
+    /// `libvisio_available`'s tests rely on here on Linux, where it *is* on
+    /// `PATH`). `resolve_tool` is the resolution logic pulled out into a
+    /// pure function precisely so this can be tested without touching the
+    /// real `TOOL_DIR`, which — being a `OnceLock` — can only be set once
+    /// for the lifetime of the test binary.
+    #[test]
+    fn the_bundled_tool_wins_when_it_is_actually_there() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let exe_name = format!("vss2xhtml{}", std::env::consts::EXE_SUFFIX);
+        std::fs::write(dir.path().join(&exe_name), "not really an executable").unwrap();
+
+        let resolved = resolve_tool("vss2xhtml", Some(dir.path()));
+        assert_eq!(resolved, dir.path().join(&exe_name));
+    }
+
+    #[test]
+    fn a_missing_bundle_falls_back_to_path() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // Nothing written into `dir`: the bundle directory exists but this
+        // particular tool isn't in it.
+        let resolved = resolve_tool("vss2xhtml", Some(dir.path()));
+        assert_eq!(resolved, std::path::PathBuf::from("vss2xhtml"));
+    }
+
+    #[test]
+    fn no_bundle_at_all_falls_back_to_path() {
+        let resolved = resolve_tool("vss2xhtml", None);
+        assert_eq!(resolved, std::path::PathBuf::from("vss2xhtml"));
+    }
 
     const LO_STYLE_SVG: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "svg11.dtd">

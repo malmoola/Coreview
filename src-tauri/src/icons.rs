@@ -17,8 +17,11 @@
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-/// Refuse anything implausibly large for a glyph.
-const MAX_SVG_BYTES: u64 = 512 * 1024;
+/// Refuse anything implausibly large for a glyph. LT-082: 512 KB refused a
+/// real multi-shape icon sheet the operator had (a whole pack exported as
+/// one SVG file, not a single glyph) — this guards against a runaway or
+/// corrupt file, not against how much legitimate artwork one icon carries.
+const MAX_SVG_BYTES: u64 = 8 * 1024 * 1024;
 /// Refuse a runaway directory.
 const MAX_ICONS: usize = 2000;
 
@@ -58,13 +61,17 @@ fn is_paperwork(path: &Path, ext: &str) -> bool {
 }
 
 /// The palette group for a shape with no entry in `index.json`: the folder it
-/// is in, relative to the library root. Nested folders are joined so a set
-/// organised by vendor and family keeps both.
-fn folder_category(root: &Path, path: &Path) -> String {
+/// is in, relative to whichever of `roots` actually contains it. Nested
+/// folders are joined so a set organised by vendor and family keeps both.
+/// More than one root exists because a zip's contents (LT-081) are extracted
+/// to a scratch directory, not the library folder itself, but the shapes
+/// inside it should be grouped the same way a real subfolder would be —
+/// by the zip's own name, then whatever was nested inside it.
+fn folder_category(roots: &[&Path], path: &Path) -> String {
     let Some(parent) = path.parent() else {
         return "Custom".to_string();
     };
-    let Ok(rel) = parent.strip_prefix(root) else {
+    let Some(rel) = roots.iter().find_map(|r| parent.strip_prefix(r).ok()) else {
         return "Custom".to_string();
     };
     let parts: Vec<String> = rel
@@ -91,8 +98,10 @@ struct Found {
     visio: Vec<PathBuf>,
     /// Lucidchart stencils, named so the report can be specific.
     lucid: Vec<PathBuf>,
-    /// Everything else this cannot read directly (a .pptx, a zip).
-    other_formats: usize,
+    /// Zip archives — opened and read through like a folder (LT-081).
+    zips: Vec<PathBuf>,
+    /// Everything else this cannot read directly (a .pptx and the like).
+    other_formats: Vec<PathBuf>,
 }
 
 /// Every shape file under a folder, including its subfolders.
@@ -127,19 +136,88 @@ fn collect(dir: &Path, depth: usize, found: &mut Found) -> Result<(), String> {
                 found.visio.push(path)
             }
             Some(ext) if ext.eq_ignore_ascii_case("lcsl") => found.lucid.push(path),
+            // LT-081: a My Shapes folder is full of these — opened and
+            // walked like a folder, not refused.
+            Some(ext) if ext.eq_ignore_ascii_case("zip") => found.zips.push(path),
             // A library's own paperwork — the name and category index, a
             // licence, a readme — is not a shape that failed to load, and
             // counting it as one made a perfectly good folder report a
             // problem it did not have.
             Some(ext) if is_paperwork(&path, ext) => {}
-            // Anything else is a shape file this cannot read directly —
-            // a Visio stencil, a zip. Counted so the interface can say so
-            // rather than silently showing an almost empty library.
-            Some(_) => found.other_formats += 1,
+            // Anything else is a shape file this cannot read directly, such
+            // as a .pptx. Counted so the interface can say so rather than
+            // silently showing an almost empty library.
+            Some(_) => found.other_formats.push(path),
             None => {}
         }
     }
     Ok(())
+}
+
+/// Extract every zip in `found.zips` into its own folder under `scratch`,
+/// named after the zip the way a real subfolder would be, then walk what
+/// came out through `collect` the same as anything else in the library
+/// (LT-081: "run scripts/import-shapes.mjs on them first" was the answer
+/// even for a zip that held nothing but ordinary SVGs). A zip that will not
+/// open, or an entry a path-traversal check refuses, is skipped by name
+/// rather than silently dropped. Returns the scratch root so callers can
+/// resolve categories against it alongside the library root.
+fn expand_zips(root: &Path, found: &mut Found, skipped: &mut Vec<String>) -> Option<PathBuf> {
+    let zips = std::mem::take(&mut found.zips);
+    if zips.is_empty() {
+        return None;
+    }
+    let scratch = std::env::temp_dir().join(format!("coreview-zip-{}", uuid::Uuid::new_v4()));
+    for zip_path in &zips {
+        let file_name = zip_path.file_name().and_then(|f| f.to_str()).unwrap_or("?").to_string();
+        let file = match std::fs::File::open(zip_path) {
+            Ok(f) => f,
+            Err(e) => {
+                skipped.push(format!("{file_name}: {e}"));
+                continue;
+            }
+        };
+        let mut archive = match zip::ZipArchive::new(file) {
+            Ok(a) => a,
+            Err(e) => {
+                skipped.push(format!("{file_name}: {e}"));
+                continue;
+            }
+        };
+        // Extract to <scratch>/<the zip's own path relative to root, minus
+        // ".zip"> — so a zip nested three folders deep keeps that context,
+        // and folder_category sees it exactly as it would a real subfolder.
+        let rel = zip_path.strip_prefix(root).unwrap_or(zip_path).with_extension("");
+        let dest_root = scratch.join(&rel);
+        let mut extracted_any = false;
+        for i in 0..archive.len() {
+            let Ok(mut entry) = archive.by_index(i) else { continue };
+            if entry.is_dir() {
+                continue;
+            }
+            // `enclosed_name` refuses anything with `..` or an absolute
+            // path — a zip that tried to write outside its own folder.
+            let Some(enclosed) = entry.enclosed_name() else { continue };
+            let dest = dest_root.join(enclosed);
+            if let Some(parent) = dest.parent() {
+                if std::fs::create_dir_all(parent).is_err() {
+                    continue;
+                }
+            }
+            let mut buf = Vec::new();
+            if std::io::Read::read_to_end(&mut entry, &mut buf).is_err() {
+                continue;
+            }
+            if std::fs::write(&dest, &buf).is_ok() {
+                extracted_any = true;
+            }
+        }
+        if !extracted_any {
+            skipped.push(format!("{file_name}: nothing in it could be extracted"));
+        }
+    }
+    let _ = collect(&scratch, 0, found);
+    Some(scratch)
 }
 
 /// The name an icon shows in the palette. The chain the operator asked for in
@@ -326,15 +404,40 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
     let mut skipped = Vec::new();
     let mut found = Found::default();
     collect(&root, 0, &mut found)?;
+    // LT-081: a zip is opened and walked like a folder, not refused —
+    // whatever it holds joins the same svgs/convertible/visio/lucid lists a
+    // real subfolder would have filled. Its contents categorise against
+    // this scratch root, alongside the library root itself.
+    let zip_root = expand_zips(&root, &mut found, &mut skipped);
+    let roots: Vec<&Path> = std::iter::once(root.as_path()).chain(zip_root.as_deref()).collect();
+    if !found.zips.is_empty() {
+        skipped.push(format!(
+            "{} zip archive(s) nested inside another zip were not opened",
+            found.zips.len()
+        ));
+    }
     found.svgs.sort();
     found.convertible.sort();
-    // A folder of Visio stencils and zips found one loose SVG and reported
-    // "1 icon", which reads as an empty library rather than as a library of
-    // files this cannot open. Say what was there.
-    if found.other_formats > 0 {
+    // A folder of Visio stencils and PPTX decks found one loose SVG and
+    // reported "1 icon", which reads as an empty library rather than as a
+    // library of files this cannot open. Say what was there — by the
+    // extensions actually seen, not a guess at what a My Shapes folder
+    // usually holds (LT-081: that guess once named `.vssx`, which this same
+    // scan already reads, and `.zip`, which it now opens instead of
+    // refusing).
+    if !found.other_formats.is_empty() {
+        let mut exts: Vec<String> = found
+            .other_formats
+            .iter()
+            .filter_map(|p| p.extension().and_then(|e| e.to_str()))
+            .map(|e| format!(".{}", e.to_lowercase()))
+            .collect();
+        exts.sort();
+        exts.dedup();
         skipped.push(format!(
-            "{} file(s) are in formats Coreview cannot read directly (.pptx, .vssx, .zip) — run scripts/import-shapes.mjs on them first",
-            found.other_formats
+            "{} file(s) are in formats Coreview cannot read directly ({}) — run scripts/import-shapes.mjs on them first",
+            found.other_formats.len(),
+            exts.join(", ")
         ));
     }
     for path in &found.lucid {
@@ -378,7 +481,7 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
             // The folder a shape sits in is what it is: Fortinet, Nexus 9000,
             // Wireless. Calling a thousand icons "Custom" is a list nobody can
             // find anything in.
-            .unwrap_or_else(|| (String::new(), folder_category(&root, &path)));
+            .unwrap_or_else(|| (String::new(), folder_category(&roots, &path)));
         icons.push(IconEntry {
             name: display_name(&name, &id),
             id,
@@ -410,7 +513,7 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
                 };
                 let many = svgs.len() > 1;
                 let base = stem(src);
-                let category = folder_category(&root, src);
+                let category = folder_category(&roots, src);
                 for (n, svg) in svgs.iter().enumerate() {
                     if icons.len() >= MAX_ICONS {
                         skipped.push(format!("stopped at {MAX_ICONS} icons"));
@@ -484,7 +587,7 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
                     let (name, category) = meta
                         .get(&file_name)
                         .cloned()
-                        .unwrap_or_else(|| (String::new(), folder_category(&root, src)));
+                        .unwrap_or_else(|| (String::new(), folder_category(&roots, src)));
                     icons.push(IconEntry {
                         name: display_name(&name, &id),
                         id,
@@ -495,6 +598,10 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
             }
             let _ = std::fs::remove_dir_all(&work);
         }
+    }
+
+    if let Some(scratch) = zip_root {
+        let _ = std::fs::remove_dir_all(scratch);
     }
 
     Ok(IconLibrary {
@@ -664,6 +771,43 @@ mod tests {
 
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    /// LT-082: "Unmaintained-Design-Icons_v2.0(2).svg" is a real file the
+    /// operator had — a whole icon pack exported as one SVG, past the old
+    /// 512 KB guard — refused with "larger than 512 KB" alongside files that
+    /// really were runaway. The guard is meant to catch those, not to cap
+    /// how much legitimate artwork one icon file may hold.
+    #[test]
+    fn a_large_but_legitimate_icon_sheet_still_loads() {
+        let dir = std::env::temp_dir().join(format!("coreview-icons-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut body = String::new();
+        for i in 0..11000 {
+            body.push_str(&format!("<path id=\"icon-{i}\" d=\"M{i} {i} l10 0 l0 10 l-10 0 z\"/>"));
+        }
+        let svg =
+            format!("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 6100 6100\">{body}</svg>");
+        assert!(
+            svg.len() as u64 > 512 * 1024,
+            "fixture must exceed the old 512 KB cap: {} bytes",
+            svg.len()
+        );
+        std::fs::write(dir.join("Unmaintained-Design-Icons_v2.0(2).svg"), &svg).unwrap();
+
+        let lib = scan(dir.to_str().unwrap()).expect("the folder should scan");
+        assert!(
+            lib.icons.iter().any(|i| i.id.to_lowercase().contains("unmaintained")),
+            "the icon sheet was refused: {:?}",
+            lib.skipped
+        );
+        assert!(
+            !lib.skipped.iter().any(|s| s.contains("larger than")),
+            "still rejected for size: {:?}",
+            lib.skipped
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
 
 #[cfg(test)]
@@ -709,7 +853,7 @@ mod folder_tests {
         write(&root.join("Cisco/Nexus 9000/n9k-c93180.svg"), SVG);
         // The formats a real shape folder is actually full of.
         write(&root.join("Switches_Cisco_Nexus_9000.vss"), "binary-ish");
-        write(&root.join("NetEquip.zip"), "PK\u{3}\u{4}");
+        write(&root.join("Deck.pptx"), "PK\u{3}\u{4}not-really-a-pptx");
         write(&root.join("Affinity-Native.lcsl"), "{}");
         dir
     }
@@ -842,6 +986,120 @@ mod folder_tests {
         assert_eq!(lib.icons[0].name, "Blue Box");
         assert!(lib.icons[0].svg.contains("viewBox"));
         assert!(!lib.icons[0].svg.contains("svg:"));
+    }
+
+    /// LT-045/LT-080: the operator's own `.vss` — a Tripp Lite SmartRack
+    /// stencil out of a Windows My Shapes folder — becomes one palette icon
+    /// per master, and each icon carries artwork a webview can actually
+    /// draw. libvisio hands the masters back as embedded EMF, which no
+    /// browser renders: an icon whose only picture is `data:image/emf` is a
+    /// blank tile, which is what this stencil produced before LT-083.
+    #[test]
+    fn a_real_operator_stencil_becomes_drawable_icons() {
+        if !crate::shapeconv::libvisio_available() {
+            eprintln!("skipping: libvisio-tools not installed here");
+            return;
+        }
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/tripp-lite-racks.vss");
+        std::fs::copy(&fixture, dir.path().join("Tripp Lite SmartRack Racks.vss"))
+            .expect("copy");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert_eq!(lib.icons.len(), 18, "skipped: {:?}", lib.skipped);
+        assert!(lib.icons[0].name.starts_with("Tripp Lite SmartRack Racks"));
+        for icon in &lib.icons {
+            let vb = icon
+                .svg
+                .find("viewBox=\"")
+                .map(|p| &icon.svg[p + 9..])
+                .and_then(|s| s.split('"').next())
+                .unwrap_or_else(|| panic!("{} has no viewBox", icon.id));
+            let nums: Vec<f64> = vb.split_whitespace().filter_map(|v| v.parse().ok()).collect();
+            assert_eq!(nums.len(), 4, "{}: malformed viewBox {vb:?}", icon.id);
+            // Every master here is a rack, tall and narrow: a few hundred
+            // units at most (the masters themselves declare 1-4 inches by
+            // up to 11 inches). A viewBox in the thousands means the crop
+            // ran on the picture's un-transformed source coordinates rather
+            // than its coordinates in the master's own space.
+            assert!(
+                nums[2] < 1000.0 && nums[3] < 1000.0,
+                "{}: viewBox {vb:?} is way past the master's own size — a splice left \
+                 untransformed geometry behind for crop_to_content to measure",
+                icon.id
+            );
+            assert!(
+                !icon.svg.contains("data:image/emf") && !icon.svg.contains("data:image/wmf"),
+                "{} is a blank tile: its artwork is still a metafile",
+                icon.id
+            );
+        }
+    }
+
+    /// LT-081: "can we find a way to import vss" arrived with a My Shapes
+    /// folder pasted in the app's own output — a zip full of stencils,
+    /// reported as one of "46 file(s) ... Coreview cannot read directly".
+    /// It is opened and walked like a folder: an SVG inside becomes an icon,
+    /// categorised under the zip's own name the way a real subfolder would
+    /// be, and a `.vss` inside converts exactly as a loose one would.
+    #[test]
+    fn a_zip_of_stencils_is_read_through_like_a_folder() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write(&dir.path().join("Vendor/loose.svg"), SVG);
+        let zip_bytes = {
+            let mut buf = std::io::Cursor::new(Vec::new());
+            let mut zw = zip::ZipWriter::new(&mut buf);
+            let opts = zip::write::SimpleFileOptions::default();
+            zw.start_file("Racks/switch.svg", opts).unwrap();
+            std::io::Write::write_all(&mut zw, SVG.as_bytes()).unwrap();
+            zw.finish().unwrap();
+            buf.into_inner()
+        };
+        std::fs::write(dir.path().join("Vendor/Net Equip.zip"), &zip_bytes).unwrap();
+
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        let icon = lib
+            .icons
+            .iter()
+            .find(|i| i.id.contains("switch"))
+            .unwrap_or_else(|| panic!("the zip's SVG never became an icon: {:?}", lib.skipped));
+        assert_eq!(icon.category, "Vendor / Net Equip / Racks", "{:?}", icon.category);
+        assert!(lib.icons.iter().any(|i| i.id.contains("loose")), "the real subfolder still scans");
+    }
+
+    /// A zip that will not open at all is reported by name, the same way a
+    /// broken Visio file is — never folded into a generic count.
+    #[test]
+    fn a_broken_zip_is_reported_by_name() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write(&dir.path().join("corrupt.zip"), "PK\u{3}\u{4}not really a zip");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        assert!(lib.icons.is_empty());
+        assert!(
+            lib.skipped.iter().any(|s| s.contains("corrupt.zip")),
+            "skipped: {:?}",
+            lib.skipped
+        );
+    }
+
+    /// LT-081: the refusal message once named `.vssx` and `.zip` as examples
+    /// of what Coreview cannot read — both wrong, since `.vssx` has gone
+    /// through the Visio route since LT-045 and `.zip` is opened by the test
+    /// above. The message now names only extensions actually left over.
+    #[test]
+    fn the_refusal_message_never_names_a_format_it_actually_reads() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write(&dir.path().join("stencil.vssx"), "binary-ish");
+        write(&dir.path().join("Deck.pptx"), "not a real deck");
+        let lib = super::scan(dir.path().to_str().expect("path")).expect("scan");
+        let refusal = lib
+            .skipped
+            .iter()
+            .find(|s| s.contains("cannot read directly"))
+            .unwrap_or_else(|| panic!("no refusal message at all: {:?}", lib.skipped));
+        assert!(refusal.contains(".pptx"), "{refusal}");
+        assert!(!refusal.contains(".vssx"), "{refusal}");
+        assert!(!refusal.contains(".zip"), "{refusal}");
     }
 
     /// A Visio file that cannot be read is reported by name (or by the
