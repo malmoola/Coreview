@@ -1,0 +1,24 @@
+{
+  "source": "Tripp Lite SmartRack Racks.vss, from the operator's own My Shapes folder",
+  "note": "Legacy binary .vss, converted through vss2xhtml (libvisio). Master names are not exposed by that tool (see docs/ROADMAP.md LT-045), so these 18 are numbered in the order the stencil declares them, not named after what each rack actually is.",
+  "icons": [
+    { "id": "tripp-lite-smartrack-racks-1", "name": "Tripp Lite SmartRack Rack 1", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-1.svg" },
+    { "id": "tripp-lite-smartrack-racks-2", "name": "Tripp Lite SmartRack Rack 2", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-2.svg" },
+    { "id": "tripp-lite-smartrack-racks-3", "name": "Tripp Lite SmartRack Rack 3", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-3.svg" },
+    { "id": "tripp-lite-smartrack-racks-4", "name": "Tripp Lite SmartRack Rack 4", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-4.svg" },
+    { "id": "tripp-lite-smartrack-racks-5", "name": "Tripp Lite SmartRack Rack 5", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-5.svg" },
+    { "id": "tripp-lite-smartrack-racks-6", "name": "Tripp Lite SmartRack Rack 6", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-6.svg" },
+    { "id": "tripp-lite-smartrack-racks-7", "name": "Tripp Lite SmartRack Rack 7", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-7.svg" },
+    { "id": "tripp-lite-smartrack-racks-8", "name": "Tripp Lite SmartRack Rack 8", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-8.svg" },
+    { "id": "tripp-lite-smartrack-racks-9", "name": "Tripp Lite SmartRack Rack 9", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-9.svg" },
+    { "id": "tripp-lite-smartrack-racks-10", "name": "Tripp Lite SmartRack Rack 10", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-10.svg" },
+    { "id": "tripp-lite-smartrack-racks-11", "name": "Tripp Lite SmartRack Rack 11", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-11.svg" },
+    { "id": "tripp-lite-smartrack-racks-12", "name": "Tripp Lite SmartRack Rack 12", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-12.svg" },
+    { "id": "tripp-lite-smartrack-racks-13", "name": "Tripp Lite SmartRack Rack 13", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-13.svg" },
+    { "id": "tripp-lite-smartrack-racks-14", "name": "Tripp Lite SmartRack Rack 14", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-14.svg" },
+    { "id": "tripp-lite-smartrack-racks-15", "name": "Tripp Lite SmartRack Rack 15", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-15.svg" },
+    { "id": "tripp-lite-smartrack-racks-16", "name": "Tripp Lite SmartRack Rack 16", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-16.svg" },
+    { "id": "tripp-lite-smartrack-racks-17", "name": "Tripp Lite SmartRack Rack 17", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-17.svg" },
+    { "id": "tripp-lite-smartrack-racks-18", "name": "Tripp Lite SmartRack Rack 18", "category": "Racks", "file": "racks/tripp-lite-smartrack-racks-18.svg" }
+  ]
+}

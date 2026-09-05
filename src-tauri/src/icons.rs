@@ -52,7 +52,11 @@ const MAX_DEPTH: usize = 6;
 
 /// Whether a file is a library's own paperwork rather than a shape.
 fn is_paperwork(path: &Path, ext: &str) -> bool {
-    if ["txt", "md", "json", "yml", "yaml", "toml"].iter().any(|e| ext.eq_ignore_ascii_case(e)) {
+    // .html: the browsable contact sheet the import scripts write next to a
+    // converted vendor set (stencils/cisco, stencils/tripp-lite) — a way to
+    // eyeball what shipped, not a shape that failed to load.
+    if ["txt", "md", "json", "yml", "yaml", "toml", "html"].iter().any(|e| ext.eq_ignore_ascii_case(e))
+    {
         return true;
     }
     path.file_name()
@@ -958,6 +962,12 @@ mod folder_tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../stencils");
         let lib = super::scan(dir.to_str().expect("path")).expect("scan");
         assert!(lib.icons.len() >= 200, "only {} icons", lib.icons.len());
+        // Everything in here shipped through this scan already, at import
+        // time — nothing about it is user-provided, so nothing about it
+        // should be unreadable. A skip here means the app would greet a
+        // brand new install with "N file(s) cannot be read directly" about
+        // its own bundled artwork.
+        assert!(lib.skipped.is_empty(), "shipped stencils reported a problem: {:?}", lib.skipped);
         let categories: std::collections::HashSet<_> =
             lib.icons.iter().map(|i| i.category.as_str()).collect();
         assert!(categories.len() >= 5, "categories: {categories:?}");

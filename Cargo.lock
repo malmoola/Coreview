@@ -808,6 +808,7 @@ dependencies = [
  "base64 0.22.1",
  "coreview-discover",
  "coreview-probe",
+ "roxmltree",
  "rusqlite",
  "serde",
  "serde_json",

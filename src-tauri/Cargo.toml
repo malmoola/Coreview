@@ -30,3 +30,8 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 tempfile = "3"
+# Already resolved transitively through usvg (pdf.rs); pinned as a direct
+# dependency so tests can check a converted SVG is well-formed XML, not just
+# that it contains the right substrings. LT-084 was exactly this: a tag-count
+# bug that a substring check would not have caught.
+roxmltree = "0.20"

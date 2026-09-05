@@ -308,10 +308,19 @@ pub fn strip_cruft(svg: &str) -> String {
                 .iter()
                 .any(|k| attr(head, "class").is_some_and(|c| c.contains(k)));
             if boiler {
-                let close = s[start..]
-                    .find("</defs>")
-                    .map(|p| start + p + "</defs>".len())
-                    .unwrap_or(s.len());
+                // LT-084: a self-closing `<defs .../>` (soffice writes one
+                // per page, content or not) has no `</defs>` of its own —
+                // searching for one anyway finds the next *unrelated*
+                // block's close and deletes everything in between,
+                // orphaning any `<g>` that opened inside that range.
+                let close = if head.ends_with("/>") {
+                    open_end
+                } else {
+                    s[start..]
+                        .find("</defs>")
+                        .map(|p| start + p + "</defs>".len())
+                        .unwrap_or(s.len())
+                };
                 s.replace_range(start..close, "");
                 removed = true;
                 break;
@@ -323,14 +332,24 @@ pub fn strip_cruft(svg: &str) -> String {
         }
     }
     // A <g> that only carried the page clip contributes nothing without it.
+    // LT-085: a self-closing `<g clip-path="..."/>` was replaced wholesale
+    // with a plain `<g>` — turning an already-empty, self-terminating tag
+    // into an open one with nothing to ever close it, which is exactly the
+    // "unclosed <g>" symptom LT-084 also produced from a different cause.
+    // Self-closing collapses to nothing at all; only a real, non-empty
+    // `<g clip-path="...">...</g>` loses just its clip-path.
     let mut i = 0usize;
     while let Some(rel) = s[i..].find("<g ") {
         let start = i + rel;
         let end = s[start..].find('>').map(|p| start + p + 1).unwrap_or(s.len());
-        if attr(&s[start..end], "clip-path").is_some() && !s[start..end].contains("id=") {
-            s.replace_range(start..end, "<g>");
+        let tag = &s[start..end];
+        if attr(tag, "clip-path").is_some() && !tag.contains("id=") {
+            let replacement = if tag.ends_with("/>") { "" } else { "<g>" };
+            s.replace_range(start..end, replacement);
+            i = start + replacement.len();
+        } else {
+            i = end;
         }
-        i = start + 3;
     }
     for _ in 0..3 {
         while let Some(p) = s.find("<g></g>") {
@@ -741,6 +760,70 @@ pub fn tidy_converted(svg: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// LT-085 (bug): found in the same investigation as LT-084, against the
+    /// same real master — a second, unrelated way to end up with an
+    /// unclosed `<g>`. The "a `<g>` that only carried the page clip
+    /// contributes nothing without it" simplification replaced
+    /// `<g clip-path="...">...</g>` with `<g>...</g>`, correct for a normal
+    /// tag — but for an already self-closing `<g clip-path="..."/>` (which
+    /// soffice writes for a clip applied to an empty group), the same
+    /// wholesale replacement produced a bare `<g>` with no body and no
+    /// closing tag ever coming, since a self-closing tag never has one.
+    #[test]
+    fn a_self_closing_clip_group_is_not_reopened() {
+        let svg = r#"<svg viewBox="0 0 100 100">
+ <g clip-path="url(#clip_path_1)"/>
+ <g clip-path="url(#p)">
+  <path d="M0 0 L1 1 Z"/>
+ </g>
+</svg>"#;
+        let out = strip_cruft(svg);
+        let opens = tags(&out, "g").iter().filter(|t| !t.ends_with("/>")).count();
+        let closes = out.matches("</g>").count();
+        assert_eq!(opens, closes, "unbalanced <g>: {opens} opens, {closes} closes in {out:?}");
+        assert!(out.contains("M0 0 L1 1"), "real content was lost: {out:?}");
+    }
+
+    /// LT-084 (bug): found converting the operator's own Tripp Lite stencil
+    /// — one of its 18 masters (an embedded EMF, converted through soffice
+    /// the way LT-083 does it) came out with an unclosed `<g>`, which
+    /// Inkscape reported as "Opening and ending tag mismatch: g ... and
+    /// svg". Bisected by running `strip_cruft`/`normalize_images`/
+    /// `crop_to_content` one at a time and counting open vs close `<g>`
+    /// tags after each: balanced in, unbalanced straight out of
+    /// `strip_cruft`.
+    ///
+    /// The cause: a self-closing `<defs class="TextShapeIndex"/>` — real
+    /// soffice output, one `<defs>` per page whether it has content or not
+    /// — is boilerplate, so the removal loop marks it for deletion and then
+    /// searches for `</defs>` to know where the boilerplate ends. A
+    /// self-closing tag has no such closing tag; the search finds the
+    /// *next* `</defs>` in the document instead — the close of a whole
+    /// unrelated later block — and deletes everything between them,
+    /// swallowing real content and orphaning any `<g>` that opened inside
+    /// the swallowed range but closed outside it.
+    #[test]
+    fn a_self_closing_defs_does_not_swallow_the_next_one() {
+        let svg = r#"<svg viewBox="0 0 100 100">
+ <defs class="ClipPathGroup"><clipPath id="p"><rect width="100" height="100"/></clipPath></defs>
+ <defs class="TextShapeIndex"/>
+ <g class="SlideGroup">
+  <g>
+   <defs class="EmbeddedBulletChars"><g id="bullet1"><path d="M0 0 L1 1 Z"/></g></defs>
+   <g class="Page">
+    <path d="M2 2 L3 3 Z"/>
+   </g>
+  </g>
+ </g>
+</svg>"#;
+        let out = strip_cruft(svg);
+        let opens = tags(&out, "g").iter().filter(|t| !t.ends_with("/>")).count();
+        let closes = out.matches("</g>").count();
+        assert_eq!(opens, closes, "unbalanced <g>: {opens} opens, {closes} closes in {out:?}");
+        assert!(out.contains("class=\"Page\""), "real content was swallowed: {out:?}");
+        assert!(out.contains("M2 2 L3 3"), "real content was swallowed: {out:?}");
+    }
 
     const LO_STYLE_SVG: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "svg11.dtd">
