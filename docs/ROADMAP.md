@@ -68,16 +68,6 @@ affected, which could be a small correction or a large undertaking
 depending on how many of the shipped Cisco shapes are actually
 bitmap-backed. Counting that is the first step, before promising a fix.
 
-### LT-101 — **bug** "Send backward" does not move a node behind others
-**Source:** asked 2026-09-07 — "send backward isn't working," alongside a
-screenshot of the node context menu (Edit properties / Duplicate / Set
-maintenance / Lock / Bring forward / Send backward / Delete).
-**Not yet reproduced or fixed** — `reorder()` in `src/components/Canvas.tsx`
-swaps a node with its immediate neighbour in `doc.nodes`' array order,
-which is what stacking currently uses, so worth checking first whether an
-explicit z-index elsewhere (locked-node handling in the same file's `nodes`
-memo) overrides plain array order and makes the swap a no-op visually.
-
 ### LT-097 — Drag a link's port labels along the link
 **Source:** asked 2026-09-07 — "I need to be able to drag the port lable."
 Screenshot shows the small tags near each end of a link (`Gi0/1`, `eth1`,
@@ -131,9 +121,9 @@ durations, since the legend below it already gives status totals).
 - Where a bug cannot be fixed, it says why in plain words rather than being
   quietly closed.
 
-**Known bugs, open:** LT-101 — as of 2026-09-07.
+**Known bugs, open:** none — as of 2026-09-07.
 **Known bugs, closed:** LT-030, LT-031, LT-003, LT-044, LT-004, LT-005,
-LT-082, LT-083, LT-084, LT-085, LT-091.
+LT-082, LT-083, LT-084, LT-085, LT-091, LT-101.
 
 ### LT-031 — **bug** Three CSS variables that were never defined — 2026-08-30
 **Source:** found while doing LT-001, not reported.
@@ -446,6 +436,36 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-101 — **bug** "Send backward" does not move a node behind others — 2026-09-07
+**Source:** asked 2026-09-07 — "send backward isn't working," alongside a
+screenshot of the node context menu (Edit properties / Duplicate / Set
+maintenance / Lock / Bring forward / Send backward / Delete).
+**Reproduced:** duplicated a device so two identical glyphs overlapped,
+right-clicked the front one, chose "Send backward" — nothing moved.
+**Was:** `reorder()` in `src/components/Canvas.tsx` swapped a node with its
+immediate neighbour in the document's own node array, and paint order used
+to follow that array via a flat `zIndex` (0 for a section, 1 for
+everything else — the same value for every non-section node). React
+Flow's own node store is a `Map` keyed by id, and it updates an existing
+entry in place rather than removing and re-adding it — so reordering the
+array we hand it changes nothing about that `Map`'s iteration order.
+Between two nodes sharing the same explicit `zIndex`, paint order follows
+that Map order, which "Bring forward"/"Send backward" were reordering an
+array that had no bearing on.
+**Fixed:** `zIndex` is now derived from each node's actual position in
+that array (a section still always at 0; everything else at its index +
+1), so reordering the array — which is exactly what `reorder()` already
+did — now changes something paint order actually reads.
+**Verified live, through the actual running app, not just by reading the
+code:** duplicated a device so it overlapped the original, confirmed the
+newer one (later in the array) painted on top; sent it backward
+repeatedly and watched it cross behind the original partway through —
+proving the fix responds to reordering, not just asserting it compiles.
+One call of "Send backward" moves one step in a document that can have
+many nodes between two visually-overlapping ones, which is why the very
+first click in this same session looked like nothing happened — that part
+was never the bug.
 
 ### LT-100 — Remove the Tripp Lite / rack stencils — 2026-09-07
 **Source:** asked 2026-09-07 — "remove all Tripp Lite / Racks 18 they are

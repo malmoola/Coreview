@@ -718,14 +718,24 @@ export function Canvas() {
 
   const nodes = useMemo(
     () =>
-      view.nodes.map((n) => {
+      view.nodes.map((n, i) => {
         const layers = layersOf(pg.canvas.layers);
         const locked =
           Boolean((n.data as { locked?: boolean }).locked) ||
           !isEditable((n.data as { layers?: string[] }).layers, layers);
         // A section is a backdrop: it has to sit under the devices standing
         // in it, or it covers them and the diagram is a set of empty boxes.
-        const zIndex = (n.data as { deviceType?: string }).deviceType === 'zone' ? 0 : 1;
+        //
+        // Everything else takes its stacking from its position in the
+        // document's own node array (LT-101) rather than a flat 1 for
+        // every node. React Flow keeps its own node lookup as a Map keyed
+        // by id and updates entries in place — re-ordering the array we
+        // pass it does not move anything in that Map's iteration order, so
+        // "Bring forward"/"Send backward" (which only ever reordered the
+        // array) were changing nothing anyone could see. An explicit,
+        // array-position-derived zIndex is what actually drives paint
+        // order, and it does respond to that reorder.
+        const zIndex = (n.data as { deviceType?: string }).deviceType === 'zone' ? 0 : i + 1;
         return locked ? { ...n, draggable: false, zIndex } : { ...n, zIndex };
       }),
     [view.nodes, pg.canvas.layers],
