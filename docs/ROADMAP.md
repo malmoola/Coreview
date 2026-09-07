@@ -68,17 +68,6 @@ affected, which could be a small correction or a large undertaking
 depending on how many of the shipped Cisco shapes are actually
 bitmap-backed. Counting that is the first step, before promising a fix.
 
-### LT-100 — Remove the Tripp Lite / rack stencils
-**Source:** asked 2026-09-07 — "remove all Tripp Lite / Racks 18 they are
-not useful at all." Reverses LT-086 (and its two follow-on bug fixes,
-LT-084/LT-085) — the 18 Tripp Lite SmartRack SVGs shipped as built-in
-stencils.
-**Acceptance:** the Tripp Lite/rack stencils no longer appear in the shape
-palette or installer; `stencils/tripp-lite/` and whatever wires it into the
-built-in icon set are removed. Recorded here rather than silently reverted,
-the same way LT-080's reversal got D-024 — this was real, requested,
-verified work, and its removal is a decision worth a record too.
-
 ### LT-101 — **bug** "Send backward" does not move a node behind others
 **Source:** asked 2026-09-07 — "send backward isn't working," alongside a
 screenshot of the node context menu (Edit properties / Duplicate / Set
@@ -457,6 +446,30 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-100 — Remove the Tripp Lite / rack stencils — 2026-09-07
+**Source:** asked 2026-09-07 — "remove all Tripp Lite / Racks 18 they are
+not useful at all." Reverses LT-086 (and its two follow-on bug fixes,
+LT-084/LT-085) — the 18 Tripp Lite SmartRack SVGs shipped as built-in
+stencils.
+**Built:** checked how a bundled stencil actually reaches the palette
+before touching anything — `tauri.conf.json` bundles the whole `stencils/`
+directory as one resource (`"../stencils/": "stencils/"`), and
+`list_bundled_icons` (`src-tauri/src/commands.rs`) scans that resource
+directory generically with the same code that scans a user's own icon
+folder. Nothing names "Tripp Lite" anywhere in that path — it is purely
+whatever happens to be under `stencils/`. So removal was exactly
+`stencils/tripp-lite/` deleted, no code changes anywhere.
+**Left alone, deliberately:** `src-tauri/fixtures/tripp-lite-racks.vss` and
+the tests that use it (`icons.rs`'s `a_real_operator_stencil_becomes_
+drawable_icons`, asserting 18 icons) — that is a captured real `.vss` file
+testing the general *"import your own Visio stencil folder"* pipeline, a
+different feature from the built-in bundled set, and removing it would
+have weakened test coverage for something not asked to change.
+**Verified:** `cargo test -p coreview` (92 tests, including the untouched
+fixture-based ones above) and the full frontend suite both still pass;
+confirmed by grep that nothing else in the codebase — frontend or
+Rust — names the Tripp Lite stencils, so nothing else needed touching.
 
 ### LT-094 — Pages, like Lucidchart — 2026-09-07
 **Source:** asked 2026-09-07 — "Lets also add pages just like how lucidchart
