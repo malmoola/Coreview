@@ -13,6 +13,7 @@ use tokio::sync::{mpsc, Mutex, Semaphore};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
+use crate::http::{probe_http, probe_https};
 use crate::icmp::probe_icmp;
 use crate::net::{probe_dns, probe_tcp};
 use crate::state::ProbeState;
@@ -387,7 +388,39 @@ pub async fn run_once(cfg: &ProbeConfig) -> ProbeResult {
             )
             .await
         }
-        ProbeKind::Dns => probe_dns(&cfg.id, &cfg.target, cfg.timeout_ms, t).await,
+        ProbeKind::Dns => {
+            probe_dns(
+                &cfg.id,
+                &cfg.target,
+                cfg.expected_address.as_deref(),
+                cfg.timeout_ms,
+                t,
+            )
+            .await
+        }
+        ProbeKind::Http => {
+            probe_http(
+                &cfg.id,
+                &cfg.target,
+                cfg.tcp_port,
+                cfg.http_path.as_deref(),
+                cfg.timeout_ms,
+                t,
+            )
+            .await
+        }
+        ProbeKind::Https => {
+            probe_https(
+                &cfg.id,
+                &cfg.target,
+                cfg.tcp_port,
+                cfg.http_path.as_deref(),
+                cfg.ignore_cert_errors,
+                cfg.timeout_ms,
+                t,
+            )
+            .await
+        }
         ProbeKind::Manual => ProbeResult {
             probe_id: cfg.id.clone(),
             timestamp_ms: t,

@@ -6,7 +6,7 @@ export type HealthStatus =
   | 'disabled'
   | 'maintenance';
 
-export type ProbeKind = 'icmp' | 'tcp' | 'dns' | 'manual';
+export type ProbeKind = 'icmp' | 'tcp' | 'dns' | 'http' | 'https' | 'manual';
 
 export type ObjectKind = 'node' | 'link';
 
@@ -67,6 +67,14 @@ export interface Probe {
   maintenance: boolean;
   isPrimary: boolean;
   notes?: string;
+  /** `http`/`https` request path, e.g. `/health`. Unset sends `/`. */
+  httpPath?: string | null;
+  /** `https` only: skip certificate validation, for an internal CA or a
+   *  self-signed backup-site endpoint. */
+  ignoreCertErrors?: boolean;
+  /** `dns` only: fail (as `address_mismatch`) if resolution does not include
+   *  this address — proves a DNS/GSLB failover actually moved a name. */
+  expectedAddress?: string | null;
 }
 
 export const PROBE_DEFAULTS = {

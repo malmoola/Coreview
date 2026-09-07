@@ -1026,6 +1026,8 @@ function ProbeEditor({
                 <option value="icmp">ICMP ping</option>
                 <option value="tcp">TCP port connect</option>
                 <option value="dns">DNS resolution</option>
+                <option value="http">HTTP GET</option>
+                <option value="https">HTTPS GET</option>
                 <option value="manual">Manual / disabled</option>
               </select>
             </Field>
@@ -1037,19 +1039,55 @@ function ProbeEditor({
                 onChange={(e) => patch({ target: e.target.value })}
               />
             </Field>
-            {probe.kind === 'tcp' && (
+            {(probe.kind === 'tcp' || probe.kind === 'http' || probe.kind === 'https') && (
               <Field label="Port">
                 <input
                   className="cv-input"
                   type="number"
                   min={1}
                   max={65535}
-                  value={probe.tcpPort ?? 443}
+                  value={probe.tcpPort ?? (probe.kind === 'http' ? 80 : 443)}
                   onChange={(e) => patch({ tcpPort: Number(e.target.value) })}
                 />
               </Field>
             )}
           </div>
+
+          {(probe.kind === 'http' || probe.kind === 'https') && (
+            <div className="cv-row">
+              <Field label="Path">
+                <input
+                  className="cv-input cv-mono"
+                  value={probe.httpPath ?? '/'}
+                  placeholder="/health"
+                  onChange={(e) => patch({ httpPath: e.target.value })}
+                />
+              </Field>
+              {probe.kind === 'https' && (
+                <label className="cv-check cv-check-inline">
+                  <input
+                    type="checkbox"
+                    checked={probe.ignoreCertErrors ?? false}
+                    onChange={(e) => patch({ ignoreCertErrors: e.target.checked })}
+                  />
+                  Ignore certificate errors
+                </label>
+              )}
+            </div>
+          )}
+
+          {probe.kind === 'dns' && (
+            <div className="cv-row">
+              <Field label="Expected address">
+                <input
+                  className="cv-input cv-mono"
+                  value={probe.expectedAddress ?? ''}
+                  placeholder="10.20.30.40 — blank accepts any answer"
+                  onChange={(e) => patch({ expectedAddress: e.target.value || null })}
+                />
+              </Field>
+            </div>
+          )}
 
           <div className="cv-row">
             <Field label="Interval (s)">

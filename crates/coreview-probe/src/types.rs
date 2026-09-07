@@ -17,6 +17,8 @@ pub enum ProbeKind {
     Icmp,
     Tcp,
     Dns,
+    Http,
+    Https,
     Manual,
 }
 
@@ -47,6 +49,22 @@ pub struct ProbeConfig {
     /// Suppresses status reporting without deleting configuration.
     #[serde(default)]
     pub maintenance: bool,
+    /// Request path for `Http`/`Https`, e.g. `/health`. `None` sends `/`.
+    #[serde(default)]
+    pub http_path: Option<String>,
+    /// `Https` only: skip certificate validation. For a backup site on an
+    /// internal CA or a self-signed endpoint, where the thing worth proving
+    /// during a failover drill is "the application answers", not "the
+    /// certificate chains to a public root".
+    #[serde(default)]
+    pub ignore_cert_errors: bool,
+    /// `Dns` only: the address a name is expected to resolve to. `None` keeps
+    /// the original behaviour (healthy if anything resolves). Set, a
+    /// resolution that does not include this address is reported as
+    /// `AddressMismatch` rather than `Success` — the way to prove a
+    /// GSLB/DNS-based failover actually moved a name to the backup site.
+    #[serde(default)]
+    pub expected_address: Option<String>,
 }
 
 impl ProbeConfig {
@@ -67,6 +85,9 @@ impl ProbeConfig {
             warning_latency_ms: Some(100),
             enabled: true,
             maintenance: false,
+            http_path: None,
+            ignore_cert_errors: false,
+            expected_address: None,
         }
     }
 }
@@ -84,6 +105,14 @@ pub enum Outcome {
     NoAnswer,
     OsError,
     InvalidTarget,
+    /// Connected and got a response, but the HTTP status was outside 2xx/3xx.
+    HttpError,
+    /// TLS handshake or certificate validation failed (`Https`, unless
+    /// `ignore_cert_errors` is set).
+    CertificateError,
+    /// `Dns` with `expected_address` set: resolution succeeded, but not to
+    /// the expected address.
+    AddressMismatch,
 }
 
 impl Outcome {

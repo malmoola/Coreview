@@ -48,7 +48,10 @@ export interface ProbeResultDto {
     | 'dns_failure'
     | 'no_answer'
     | 'os_error'
-    | 'invalid_target';
+    | 'invalid_target'
+    | 'http_error'
+    | 'certificate_error'
+    | 'address_mismatch';
   rttMs: number | null;
   resolved: string[];
   summary: string;

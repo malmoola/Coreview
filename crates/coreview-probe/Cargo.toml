@@ -2,14 +2,25 @@
 name = "coreview-probe"
 version = "0.2.0"
 edition = "2021"
-description = "Probe engine for Coreview: validation, ICMP/TCP/DNS checks, threshold state machine, scheduler"
+description = "Probe engine for Coreview: validation, ICMP/TCP/DNS/HTTP(S) checks, threshold state machine, scheduler"
 license = "MIT"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
-tokio = { version = "1", features = ["macros", "process", "net", "time", "sync", "rt", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "process", "net", "time", "sync", "rt", "rt-multi-thread", "io-util"] }
 tokio-util = "0.7"
+# HTTPS probing. rustls rather than an OpenSSL-backed stack, to keep the
+# Windows build free of a system OpenSSL dependency the way the rest of this
+# project already is (rusqlite's bundled sqlite, no libvisio on Windows).
+# Crypto provider is aws-lc-rs, not rustls's own default of ring: this
+# workspace already pulls in aws-lc-rs/aws-lc-sys through russh's SSH crypto,
+# so this reuses that build instead of compiling a second, independent
+# native-crypto backend (ring) alongside it.
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "logging", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "logging", "tls12"] }
+rustls-pki-types = "1"
+webpki-roots = "1"
 
 [dev-dependencies]
 serde_json = "1"

@@ -16,26 +16,18 @@ use coreview_probe::engine::{run_once, Engine, EngineEvent, SessionState};
 // which `clippy -D warnings` in CI turns into a failed build.
 #[cfg(target_os = "linux")]
 use coreview_probe::icmp::probe_icmp;
-use coreview_probe::types::{HealthStatus, ObjectKind, Outcome, ProbeConfig, ProbeKind};
+use coreview_probe::types::{HealthStatus, Outcome, ProbeConfig, ProbeKind};
 use std::time::{Duration, Instant};
 
 fn probe(id: &str, target: &str, kind: ProbeKind) -> ProbeConfig {
+    // Struct-update from the shared defaults rather than a full literal, so
+    // a new ProbeConfig field (LT-087/088/089) does not have to be added
+    // here by hand every time one is added to the type.
     ProbeConfig {
-        id: id.into(),
-        project_id: "live-test".into(),
-        object_kind: ObjectKind::Node,
-        object_id: format!("node-{id}"),
         name: format!("probe-{id}"),
         kind,
-        target: target.into(),
-        tcp_port: None,
         interval_seconds: 1,
-        timeout_ms: 1000,
-        failure_threshold: 3,
-        recovery_threshold: 1,
-        warning_latency_ms: Some(100),
-        enabled: true,
-        maintenance: false,
+        ..ProbeConfig::defaults(id, "live-test", &format!("node-{id}"), target)
     }
 }
 

@@ -13,6 +13,23 @@ shipped differs from what was asked, the Done entry says so.
 *In progress or picked up next. Never more than three — LT-029 is a standing
 bar rather than a piece of work, and does not count against that.*
 
+*(This section has drifted well past three — a lot of what's below reads as
+already finished, some literally titled "resolved". Flagged to the operator
+2026-09-06; not reorganised without being asked.)*
+
+### LT-090 — Traceroute, on demand
+**Source:** same message.
+**Why not a recurring probe:** traceroute has no pass/fail signal — it's a
+diagnostic snapshot of the current path, useful mid-drill when something
+isn't reaching the backup DC and you want to see where it's actually going.
+Building it as a scored, threshold-based probe would smuggle back the
+RTT-trend/metrics-history idea already declined in D-023.
+**Acceptance:** an on-demand action against a node (same shape as the
+existing "test now"), shelling out to the platform's own `traceroute` /
+`tracert.exe` and parsing its text output — the same privilege-free pattern
+`ping` already uses here, no raw sockets. Shows the hop list once, not
+logged or scored over time.
+
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -343,6 +360,59 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-087 — HTTP probing — 2026-09-06
+**Source:** asked 2026-09-06, alongside HTTPS/DNS/traceroute — a two-data-centre
+failover drill: "we test failover emulating full data center failure and we
+want to confirm the applications are all good on the backup Data Center...
+some customers have F5's and traffic from the internet is going to both data
+centers."
+**Built:** a probe kind that opens a `TcpStream`, hand-writes a minimal
+HTTP/1.1 GET (no HTTP client dependency), and reads the status line. 2xx/3xx
+is healthy; anything else (4xx/5xx, refused, timeout) is down, with the
+actual status code in the summary rather than a generic "down" — confirmed
+with the operator rather than assumed.
+**Verified:** a real TCP listener written for the test (not a mock),
+covering a healthy 204, an unhealthy 503, and nothing listening on the port
+at all, each asserting the specific `Outcome` the operator asked to have
+distinguished.
+
+### LT-088 — HTTPS probing — 2026-09-06
+**Source:** same message as LT-087.
+**Built:** the same GET-and-status-code check as LT-087, over TLS via
+`rustls`/`tokio-rustls` (no OpenSSL, so the Windows build stays painless).
+Crypto provider is `aws-lc-rs`, not rustls's own default of `ring` — this
+workspace already pulls in `aws-lc-rs` through `russh`'s SSH crypto, so this
+reuses that build instead of compiling a second native-crypto backend
+alongside it (found and fixed after the first attempt genuinely ran the
+machine out of memory rebuilding both). Certificate validation is on by
+default (bundled Mozilla root list via `webpki-roots`, not the OS trust
+store, so behaviour doesn't vary between Windows and Linux); a per-probe
+`ignoreCertErrors` toggle skips it, for a backup DC on an internal CA or a
+self-signed endpoint — confirmed with the operator.
+**Verified live, against real servers, not just loopback:** a trusted
+public cert (validated normally, succeeded), a known self-signed cert at
+`self-signed.badssl.com` (correctly rejected as `CertificateError:
+UnknownIssuer` with validation on, correctly accepted with
+`ignoreCertErrors` on). All three outcomes confirmed by hand before this
+shipped; not committed as an automated test, since it depends on live
+internet hosts and this project's other network tests deliberately stay
+hermetic (loopback and the RFC 5737 documentation range only).
+
+### LT-089 — DNS probing: confirm the resolved address, not just that one came back — 2026-09-06
+**Source:** same message. DNS probing already exists (LT-002-era) and only
+checks that something resolved. For this operator's scenario — many F5
+deployments steer failover through DNS (GTM/GSLB) — that isn't enough to
+prove a failover actually happened.
+**Built:** an optional `expectedAddress` field on a DNS probe. Empty keeps
+the original behaviour. Filled in, a resolution that does not include that
+address comes back as `AddressMismatch` — a failure, not a warning — rather
+than `Success`, so pointing this at a failover record proves DNS actually
+flipped to the backup DC rather than merely still answering.
+**Acceptance:** shipped as written above (mismatch treated as a hard
+failure was a judgement call, not asked for in those exact words — flagged
+here per the standing rule that shipped acceptance differing from what was
+asked gets said explicitly).
 
 ### LT-086 — Ship the operator's Tripp Lite SmartRack racks as built-in stencils — 2026-09-04
 **Source:** asked 2026-09-04, re-uploading the same file — "can you add these

@@ -5,6 +5,7 @@
 //! state machine, scheduler) and can be tested with plain `cargo test`.
 
 pub mod engine;
+pub mod http;
 pub mod icmp;
 pub mod net;
 pub mod state;

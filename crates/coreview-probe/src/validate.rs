@@ -21,6 +21,8 @@ pub enum ValidationError {
     BadTimeout,
     #[error("threshold must be between 1 and 100")]
     BadThreshold,
+    #[error("path must start with '/' and contain no control characters")]
+    BadPath,
 }
 
 /// A target that has been proven safe to hand to a process argument vector.
@@ -123,6 +125,22 @@ pub fn validate_threshold(n: u32) -> Result<u32, ValidationError> {
     Ok(n)
 }
 
+/// An HTTP/HTTPS request path, proven safe to write literally into a raw
+/// request line. `None` or empty defaults to `/`. Must start with `/` (a
+/// full URL is not a path) and carry no control character — a bare `\r` or
+/// `\n` would let a target string split a second request into the one this
+/// builds by hand.
+pub fn validate_path(raw: Option<&str>) -> Result<String, ValidationError> {
+    let path = match raw {
+        None | Some("") => return Ok("/".to_string()),
+        Some(p) => p,
+    };
+    if path.len() > 2048 || !path.starts_with('/') || path.chars().any(|c| c.is_control()) {
+        return Err(ValidationError::BadPath);
+    }
+    Ok(path.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,5 +200,27 @@ mod tests {
         assert!(validate_interval(0).is_err());
         assert!(validate_timeout(50).is_err());
         assert!(validate_threshold(0).is_err());
+    }
+
+    #[test]
+    fn path_defaults_to_root() {
+        assert_eq!(validate_path(None).unwrap(), "/");
+        assert_eq!(validate_path(Some("")).unwrap(), "/");
+    }
+
+    #[test]
+    fn path_accepts_a_normal_route() {
+        assert_eq!(validate_path(Some("/health?deep=1")).unwrap(), "/health?deep=1");
+    }
+
+    /// A raw target string ends up on a request line this code writes by
+    /// hand: `GET {path} HTTP/1.1\r\n`. A `\r` or `\n` inside the path would
+    /// let it inject a second header or a whole second request.
+    #[test]
+    fn path_rejects_request_splitting() {
+        assert!(validate_path(Some("/ok\r\nHost: evil")).is_err());
+        assert!(validate_path(Some("/ok\nX-Injected: 1")).is_err());
+        assert!(validate_path(Some("no-leading-slash")).is_err());
+        assert!(validate_path(Some(&"/".repeat(2049))).is_err());
     }
 }
