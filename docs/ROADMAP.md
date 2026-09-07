@@ -68,17 +68,6 @@ affected, which could be a small correction or a large undertaking
 depending on how many of the shipped Cisco shapes are actually
 bitmap-backed. Counting that is the first step, before promising a fix.
 
-### LT-097 — Drag a link's port labels along the link
-**Source:** asked 2026-09-07 — "I need to be able to drag the port lable."
-Screenshot shows the small tags near each end of a link (`Gi0/1`, `eth1`,
-`port24`...) — the port-end labels, not the link's own centre label, which
-LT-051 already made draggable this same way.
-**Acceptance:** each port label (source and target) can be dragged along
-its link the same way the centre label already works — takes the pointer,
-slides to the nearest point on the drawn path, cannot leave the link,
-position stored per-link and undoable. Likely the same mechanism as LT-051
-applied to two more anchor points rather than a new one.
-
 ### LT-098 — More than 4 link connection points per shape
 **Source:** asked 2026-09-07 — "I need the connector to connect to the
 shapes at 360 so anywhere I move the link it moves not just 4 directions
@@ -436,6 +425,33 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-097 — Drag a link's port labels along the link — 2026-09-07
+**Source:** asked 2026-09-07 — "I need to be able to drag the port lable."
+Screenshot showed the small tags near each end of a link (`Gi0/1`, `eth1`,
+`port24`...) — the port-end labels, not the link's own centre label, which
+LT-051 already made draggable this same way.
+**Built:** two new fields on `LinkData`, `sourcePortAt`/`targetPortAt` (0..1
+along the drawn path), the exact same mechanism `labelAt` already gave the
+centre label — unset keeps `portAnchors`' fixed-distance-from-each-end
+placement (the parallel-cable stacking fix, LT-050/055), only a link
+someone has actually dragged switches to a stored fraction.
+**A real bug caught by testing the drag, not by reading the code:**
+`.cv-edge-label`'s base CSS is deliberately `pointer-events: none` — "a
+label sits on top of the line it describes... nothing on a label is
+clickable, so it loses nothing by standing aside," from before LT-051 made
+the *centre* label draggable, at which point `.cv-edge-center` alone
+opted back in with its own `pointer-events: auto`. Port labels never got
+that override, so the first working version of this had a correctly-wired
+drag handler sitting on an element the pointer could not reach at all —
+every drag attempt silently did nothing. Confirmed by testing the
+*pre-existing* centre-label drag first as a control (it worked), which is
+what pointed at the CSS rather than the new drag code. Fixed by adding
+`.cv-edge-port` to the same `pointer-events: auto; cursor: grab` rule.
+**Verified live, through the actual running app:** dragged a target port
+label along a real link in the sample project, watched it slide and land
+near the far end; reloaded the app and confirmed the new position
+persisted; undid it back to the original placement.
 
 ### LT-101 — **bug** "Send backward" does not move a node behind others — 2026-09-07
 **Source:** asked 2026-09-07 — "send backward isn't working," alongside a

@@ -1535,12 +1535,13 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   white-space: nowrap;
 }
 
-/* --- LT-051/052: labels that ride the link. The centre label takes the
-   pointer again — it is a thing you drag now, which costs the hover-the-link
-   trick underneath it and is worth it. Flat text is written straight on the
-   line: no box, no border, just ink with the canvas halo. --- */
-.cv-edge-center { pointer-events: auto; cursor: grab; }
-.cv-edge-center:active { cursor: grabbing; }
+/* --- LT-051/052/097: labels that ride the link. The centre label and the
+   port labels take the pointer again — they are things you drag now, which
+   costs the hover-the-link trick underneath them and is worth it. Flat text
+   is written straight on the line: no box, no border, just ink with the
+   canvas halo. --- */
+.cv-edge-center, .cv-edge-port { pointer-events: auto; cursor: grab; }
+.cv-edge-center:active, .cv-edge-port:active { cursor: grabbing; }
 .cv-edge-flat {
   position: absolute;
   pointer-events: auto;

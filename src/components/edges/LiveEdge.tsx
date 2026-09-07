@@ -289,6 +289,10 @@ function LiveEdgeInner(props: EdgeProps) {
         store.commit();
         if (final.key === 'label') {
           store.updateEdgeData(id, { labelAt: final.at });
+        } else if (final.key === 'sourcePort') {
+          store.updateEdgeData(id, { sourcePortAt: final.at });
+        } else if (final.key === 'targetPort') {
+          store.updateEdgeData(id, { targetPortAt: final.at });
         } else {
           store.updateEdgeData(id, {
             texts: (data.texts ?? []).map((t) =>
@@ -428,6 +432,18 @@ function LiveEdgeInner(props: EdgeProps) {
     labelFraction === 0.5 && dragAt?.key !== 'label'
       ? null // untouched links keep React Flow's own midpoint
       : pointAt(edgePath, labelFraction);
+  // LT-097: a port label is draggable the same way the centre label is.
+  // Unset keeps portAnchors' fixed-distance-from-each-end placement (the
+  // parallel-cable stacking fix, LT-050/055) — only a link someone has
+  // actually dragged switches to a stored fraction along the path.
+  const sourcePortFraction = dragAt?.key === 'sourcePort' ? dragAt.at : data.sourcePortAt;
+  const sourcePortPoint = sourcePortFraction === undefined ? null : pointAt(edgePath, sourcePortFraction);
+  const sourcePortAnchorX = anchors ? anchors.s.x : sourceX + (targetX - sourceX) * PORT_LABEL_AT;
+  const sourcePortAnchorY = anchors ? anchors.s.y : sourceY + (targetY - sourceY) * PORT_LABEL_AT;
+  const targetPortFraction = dragAt?.key === 'targetPort' ? dragAt.at : data.targetPortAt;
+  const targetPortPoint = targetPortFraction === undefined ? null : pointAt(edgePath, targetPortFraction);
+  const targetPortAnchorX = anchors ? anchors.t.x : targetX + (sourceX - targetX) * PORT_LABEL_AT;
+  const targetPortAnchorY = anchors ? anchors.t.y : targetY + (sourceY - targetY) * PORT_LABEL_AT;
   const livePath = wpDrag
     ? waypointRoute({ x: sourceX, y: sourceY }, wpDrag.points, { x: targetX, y: targetY }).path
     : edgePath;
@@ -620,12 +636,16 @@ function LiveEdgeInner(props: EdgeProps) {
       <EdgeLabelRenderer>
         {data.sourcePortLabel ? (
           <div
-            className="cv-edge-label cv-edge-port"
+            className="cv-edge-label cv-edge-port nodrag nopan"
             style={{
               transform: `translate(-50%, -50%) translate(${
-                anchors ? anchors.s.x : sourceX + (targetX - sourceX) * PORT_LABEL_AT
-              }px, ${anchors ? anchors.s.y : sourceY + (targetY - sourceY) * PORT_LABEL_AT}px)`,
+                sourcePortPoint ? sourcePortPoint.x : sourcePortAnchorX
+              }px, ${sourcePortPoint ? sourcePortPoint.y : sourcePortAnchorY}px)`,
             }}
+            onPointerDown={beginLabelDrag(
+              'sourcePort',
+              sourcePortFraction ?? nearestFractionOnPath(edgePath, sourcePortAnchorX, sourcePortAnchorY) ?? 0.1,
+            )}
           >
             {data.sourcePortLabel}
           </div>
@@ -746,12 +766,16 @@ function LiveEdgeInner(props: EdgeProps) {
 
         {data.targetPortLabel ? (
           <div
-            className="cv-edge-label cv-edge-port"
+            className="cv-edge-label cv-edge-port nodrag nopan"
             style={{
               transform: `translate(-50%, -50%) translate(${
-                anchors ? anchors.t.x : targetX + (sourceX - targetX) * PORT_LABEL_AT
-              }px, ${anchors ? anchors.t.y : targetY + (sourceY - targetY) * PORT_LABEL_AT}px)`,
+                targetPortPoint ? targetPortPoint.x : targetPortAnchorX
+              }px, ${targetPortPoint ? targetPortPoint.y : targetPortAnchorY}px)`,
             }}
+            onPointerDown={beginLabelDrag(
+              'targetPort',
+              targetPortFraction ?? nearestFractionOnPath(edgePath, targetPortAnchorX, targetPortAnchorY) ?? 0.9,
+            )}
           >
             {data.targetPortLabel}
           </div>

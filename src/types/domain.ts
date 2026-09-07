@@ -196,6 +196,12 @@ export interface LinkData extends Record<string, unknown> {
   /** Where along the drawn path the centre label sits, 0..1. Unset is the
    *  midpoint — every link ever drawn before LT-051. */
   labelAt?: number;
+  /** Where along the drawn path each port label sits, 0..1 (LT-097), the
+   *  same mechanism as `labelAt`. Unset keeps the fixed-distance-from-each-
+   *  end placement `portAnchors` already computes (LT-050/055's parallel-
+   *  cable stacking fix) — dragging a port label is what sets this. */
+  sourcePortAt?: number;
+  targetPortAt?: number;
   /** Flat text attached to the link (LT-052): a port number written straight
    *  on the line, no box, no border. Each remembers its spot along the path. */
   texts?: { id: string; at: number; text: string }[];
