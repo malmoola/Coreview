@@ -35,6 +35,7 @@ interface LinkSpec {
 
 function build(nodes: Spec[], links: LinkSpec[], noteBody: string): ProjectDocument {
   const doc = emptyDocument();
+  const page = doc.pages[0]!;
   const ids = new Map<string, string>();
 
   for (const s of nodes) {
@@ -58,7 +59,7 @@ function build(nodes: Spec[], links: LinkSpec[], noteBody: string): ProjectDocum
         showDetails: true,
       },
     };
-    doc.nodes.push(node);
+    page.nodes.push(node);
 
     if (s.address) {
       const probe: Probe = {
@@ -103,10 +104,10 @@ function build(nodes: Spec[], links: LinkSpec[], noteBody: string): ProjectDocum
         healthRule: { type: l.rule ?? 'both-endpoints' },
       },
     };
-    doc.edges.push(edge);
+    page.edges.push(edge);
   }
 
-  doc.nodes.push({
+  page.nodes.push({
     id: uid(),
     type: 'note',
     position: { x: 720, y: 40 },

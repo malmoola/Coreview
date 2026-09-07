@@ -15,6 +15,19 @@ import { zoneDeltas } from '../lib/zones';
 import { alignTo, distribute } from '../lib/alignment';
 import { copySelection, pasteClipping, type Clipping } from '../lib/clipboard';
 import { layersOf, withNewLayer, withoutLayer, type Layer } from '../lib/layers';
+import {
+  activePage,
+  allEdges,
+  allNodes,
+  duplicatePage as duplicatePageIn,
+  newPage,
+  renamePage as renamePageIn,
+  reorderPages as reorderPagesIn,
+  setActivePage as setActivePageIn,
+  withNewPage,
+  withoutPage,
+  withPage,
+} from '../lib/pages';
 import type { ColourBy } from '../lib/tinting';
 import {
   linkStatus as computeLinkStatus,
@@ -35,29 +48,37 @@ import type {
 export type TopoNode = Node<DeviceNodeData, 'device'> | Node<NoteNodeData, 'note'>;
 export type TopoEdge = Edge<LinkData>;
 
-/** The durable part of a project. Everything else is UI or live state. */
-export interface ProjectDocument {
+/**
+ * One independent drawing (LT-094). Its own devices, links, and everything
+ * about how they are drawn — completely separate from any other page in the
+ * project, the way a rack elevation and a logical topology are two drawings
+ * rather than two views of one.
+ */
+export interface ProjectPage {
+  id: string;
+  name: string;
   nodes: TopoNode[];
   edges: TopoEdge[];
-  probes: Probe[];
   canvas: {
     gridEnabled: boolean;
     snapEnabled: boolean;
     minimap: boolean;
     /** What a link looks like unless it has been given a look of its own
-     *  (LT-079). On the document, so the choice travels with the diagram. */
+     *  (LT-079). On the page, so the choice travels with the diagram. */
     linkStyle?: Partial<LinkStyleDefaults>;
     /** Little hops where one link crosses another. On by default: two lines
      *  meeting at a point look exactly like two lines joined at a point. */
     lineJumps?: boolean;
     /** The sheet the diagram is drawn on. On by default; turning it off gives
-     *  back the endless desk for a diagram that is not going on paper. */
-    page?: boolean;
+     *  back the endless desk for a diagram that is not going on paper. Named
+     *  apart from "page" (LT-094) so the print-sheet boundary of one drawing
+     *  is never confused with which of several drawings this is. */
+    sheet?: boolean;
     /** What the sheet has grown to. Grows automatically, shrinks only through
      *  "Fit page to content" — a sheet that snaps smaller mid-drag makes the
      *  whole layout jump. */
-    pageRect?: { x: number; y: number; w: number; h: number };
-    /** The views this document is drawn in. A network is documented more than
+    sheetRect?: { x: number; y: number; w: number; h: number };
+    /** The views this page is drawn in. A network is documented more than
      *  once — physical, logical, the change on Saturday — and three files that
      *  disagree within a fortnight is what this exists to avoid. */
     layers?: Layer[];
@@ -70,6 +91,18 @@ export interface ProjectDocument {
      *  bordered panel that holds the same text inside it. */
     nodeStyle?: 'glyph' | 'card';
   };
+}
+
+/** The durable part of a project. Everything else is UI or live state. */
+export interface ProjectDocument {
+  pages: ProjectPage[];
+  /** Which page is being viewed and edited. Always one of `pages` once
+   *  through migration/emptyDocument — never used to mean "no page". */
+  activePageId: string;
+  /** Flat and project-wide regardless of which page a device or link is
+   *  drawn on (LT-094) — which page something is drawn on is not the same
+   *  question as whether it is being checked. */
+  probes: Probe[];
 }
 
 export interface AppSettings {
@@ -96,8 +129,8 @@ export interface AppSettings {
 }
 
 interface HistoryEntry {
-  nodes: TopoNode[];
-  edges: TopoEdge[];
+  pages: ProjectPage[];
+  activePageId: string;
   probes: Probe[];
 }
 
@@ -151,6 +184,19 @@ interface Store {
   duplicateProject: (id: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   updateMeta: (patch: Partial<ProjectMeta>) => void;
+
+  // --- pages (LT-094)
+  /** Adds a page and makes it the active one. */
+  addPage: (name: string) => void;
+  /** Removes a page and everything drawn on it, cascading to its probes.
+   *  Refuses to remove the last page. */
+  removePage: (id: string) => void;
+  renamePage: (id: string, name: string) => void;
+  /** A copy of one page with fresh ids throughout and no probes carried
+   *  over — the same rule paste already applies to a copied selection. */
+  duplicatePage: (id: string) => void;
+  reorderPages: (fromIndex: number, toIndex: number) => void;
+  setActivePage: (id: string) => void;
 
   onNodesChange: (changes: NodeChange<TopoNode>[]) => void;
   /** Bind the current selection together so it moves as one. */
@@ -230,19 +276,21 @@ interface Store {
   loadIconLibrary: (dir: string) => Promise<void>;
   ensureNodeCheck: (id: string) => void;
   clearIconLibrary: () => Promise<void>;
-  setCanvas: (patch: Partial<ProjectDocument['canvas']>) => void;
+  setCanvas: (patch: Partial<ProjectPage['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
   setInspectorOpen: (open: boolean) => void;
   setStatusMessage: (msg: string | null) => void;
 }
 
-export const emptyDocument = (): ProjectDocument => ({
-  nodes: [],
-  edges: [],
-  probes: [],
-  canvas: { gridEnabled: true, snapEnabled: true, minimap: true, nodeStyle: 'glyph' },
-});
+export const emptyDocument = (): ProjectDocument => {
+  const id = uid();
+  return {
+    pages: [newPage('Page 1', id)],
+    activePageId: id,
+    probes: [],
+  };
+};
 
 const HISTORY_LIMIT = 60;
 
@@ -386,7 +434,11 @@ function readRecovery(id: string): { savedAt: number; document: ProjectDocument 
     const raw = localStorage.getItem(recoveryKey(id));
     if (!raw) return null;
     const slot = JSON.parse(raw) as { savedAt?: number; document?: ProjectDocument };
-    if (typeof slot.savedAt !== 'number' || !slot.document?.nodes) return null;
+    // A slot written before LT-094 has no `pages` — pre-migration shape, and
+    // restoreRecovery merges this straight onto emptyDocument() without
+    // running migrateDocument. Discarding it here is the same "old slot is
+    // stale" rule this function already applies to time, applied to shape.
+    if (typeof slot.savedAt !== 'number' || !slot.document?.pages) return null;
     return { savedAt: slot.savedAt, document: slot.document };
   } catch {
     return null;
@@ -395,8 +447,8 @@ function readRecovery(id: string): { savedAt: number; document: ProjectDocument 
 
 function snapshot(doc: ProjectDocument): HistoryEntry {
   return {
-    nodes: JSON.parse(JSON.stringify(doc.nodes)),
-    edges: JSON.parse(JSON.stringify(doc.edges)),
+    pages: JSON.parse(JSON.stringify(doc.pages)),
+    activePageId: doc.activePageId,
     probes: JSON.parse(JSON.stringify(doc.probes)),
   };
 }
@@ -475,11 +527,11 @@ export const useStore = create<Store>((set, get) => ({
       set({ statusMessage: 'That project could not be found in local storage.' });
       return;
     }
-    const merged = { ...emptyDocument(), ...(pkg.document as ProjectDocument) };
-    // LT-065: bring an old document's device glyphs onto square bounds so the
-    // selection ring and corners hug them. Marks the doc dirty only when it
-    // actually changed something, so opening a current project is read-only.
-    const { doc, changed } = migrateDocument(merged);
+    // Wraps a pre-LT-094 document into a single page, then (LT-065) brings an
+    // old document's device glyphs onto square bounds so the selection ring
+    // and corners hug them. Marks the doc dirty only when it actually
+    // changed something, so opening a current project is read-only.
+    const { doc, changed } = migrateDocument(pkg.document);
     set({
       meta: pkg.meta,
       doc,
@@ -606,53 +658,78 @@ export const useStore = create<Store>((set, get) => ({
     set({ meta: { ...meta, ...patch }, dirty: true });
   },
 
+  addPage(name) {
+    get().commit('Add a page');
+    set((s) => ({ doc: withNewPage(s.doc, name, uid()), dirty: true }));
+  },
+
+  removePage(id) {
+    get().commit('Remove a page');
+    set((s) => ({ doc: withoutPage(s.doc, id), dirty: true }));
+  },
+
+  renamePage(id, name) {
+    set((s) => ({ doc: renamePageIn(s.doc, id, name), dirty: true }));
+  },
+
+  duplicatePage(id) {
+    get().commit('Duplicate a page');
+    set((s) => ({ doc: duplicatePageIn(s.doc, id, uid), dirty: true }));
+  },
+
+  reorderPages(fromIndex, toIndex) {
+    set((s) => ({ doc: reorderPagesIn(s.doc, fromIndex, toIndex), dirty: true }));
+  },
+
+  setActivePage(id) {
+    set((s) => ({ doc: setActivePageIn(s.doc, id) }));
+  },
+
   onNodesChange(changes) {
     const structural = changes.some((c) => c.type === 'remove' || c.type === 'add');
     if (structural) get().commit();
     set((s) => ({
-      doc: { ...s.doc, nodes: moveGroups(changes, s.doc.nodes) },
+      doc: withPage(s.doc, { nodes: moveGroups(changes, activePage(s.doc).nodes) }),
       dirty: true,
     }));
   },
 
   groupSelected() {
-    const selected = get().doc.nodes.filter((n) => n.selected);
+    const selected = activePage(get().doc).nodes.filter((n) => n.selected);
     // One object is not a group, and grouping is only meaningful across two.
     if (selected.length < 2) return;
     get().commit('Group');
     const groupId = uid();
     const ids = new Set(selected.map((n) => n.id));
     set((s) => ({
-      doc: {
-        ...s.doc,
-        nodes: s.doc.nodes.map((n) =>
+      doc: withPage(s.doc, {
+        nodes: activePage(s.doc).nodes.map((n) =>
           ids.has(n.id) ? ({ ...n, data: { ...n.data, groupId } } as TopoNode) : n,
         ),
-      },
+      }),
       dirty: true,
     }));
   },
 
   ungroup(nodeId) {
-    const groupId = groupOf(get().doc.nodes.find((n) => n.id === nodeId));
+    const groupId = groupOf(activePage(get().doc).nodes.find((n) => n.id === nodeId));
     if (!groupId) return;
     get().commit('Ungroup');
     set((s) => ({
-      doc: {
-        ...s.doc,
-        nodes: s.doc.nodes.map((n) => {
+      doc: withPage(s.doc, {
+        nodes: activePage(s.doc).nodes.map((n) => {
           if (groupOf(n) !== groupId) return n;
           const data = { ...n.data };
           delete (data as { groupId?: string }).groupId;
           return { ...n, data } as TopoNode;
         }),
-      },
+      }),
       dirty: true,
     }));
   },
 
   groupBySubnet() {
-    const { assignments, subnets, ungrouped } = bucketBySubnet(get().doc.nodes);
+    const { assignments, subnets, ungrouped } = bucketBySubnet(activePage(get().doc).nodes);
     if (assignments.size === 0) return { groups: 0, ungrouped };
     get().commit('Group by subnet');
     // One id per subnet rather than the subnet string itself: a group id is
@@ -660,97 +737,98 @@ export const useStore = create<Store>((set, get) => ({
     // something to start parsing it.
     const ids = new Map(subnets.map((s) => [s, uid()]));
     set((state) => ({
-      doc: {
-        ...state.doc,
-        nodes: state.doc.nodes.map((n) => {
+      doc: withPage(state.doc, {
+        nodes: activePage(state.doc).nodes.map((n) => {
           const subnet = assignments.get(n.id);
           return subnet
             ? ({ ...n, data: { ...n.data, groupId: ids.get(subnet) } } as TopoNode)
             : n;
         }),
-      },
+      }),
       dirty: true,
     }));
     return { groups: subnets.length, ungrouped };
   },
 
   tidyLayout() {
-    const nodes = get().doc.nodes;
+    const nodes = activePage(get().doc).nodes;
     const { moved, rows } = evenOutSpacing(nodes);
     const locked = nodes.filter((n) => (n.data as { locked?: boolean }).locked).length;
     if (moved.size === 0) return { moved: 0, rows, locked };
     get().commit('Tidy layout');
     set((state) => ({
-      doc: {
-        ...state.doc,
-        nodes: state.doc.nodes.map((n) => {
+      doc: withPage(state.doc, {
+        nodes: activePage(state.doc).nodes.map((n) => {
           const at = moved.get(n.id);
           return at ? ({ ...n, position: at } as TopoNode) : n;
         }),
-      },
+      }),
       dirty: true,
     }));
     return { moved: moved.size, rows, locked };
   },
 
   routeLinks() {
-    const changed = chooseLinkSides(get().doc.nodes, get().doc.edges);
+    const changed = chooseLinkSides(activePage(get().doc).nodes, activePage(get().doc).edges);
     if (changed.length === 0) return 0;
     get().commit('Re-route links');
     const byId = new Map(changed.map((c) => [c.id, c]));
     set((state) => ({
-      doc: {
-        ...state.doc,
-        edges: state.doc.edges.map((e) => {
+      doc: withPage(state.doc, {
+        edges: activePage(state.doc).edges.map((e) => {
           const want = byId.get(e.id);
           return want
             ? { ...e, sourceHandle: want.sourceHandle, targetHandle: want.targetHandle }
             : e;
         }),
-      },
+      }),
       dirty: true,
     }));
     return changed.length;
   },
 
   addLayer(name) {
-    const layers = layersOf(get().doc.canvas.layers);
+    const page = activePage(get().doc);
+    const layers = layersOf(page.canvas.layers);
     get().commit('Add a view');
     set((s) => ({
-      doc: { ...s.doc, canvas: { ...s.doc.canvas, layers: withNewLayer(layers, name, uid()) } },
+      doc: withPage(s.doc, {
+        canvas: { ...activePage(s.doc).canvas, layers: withNewLayer(layers, name, uid()) },
+      }),
       dirty: true,
     }));
   },
 
   removeLayer(id) {
-    const layers = layersOf(get().doc.canvas.layers);
+    const layers = layersOf(activePage(get().doc).canvas.layers);
     get().commit('Remove a view');
     // The objects on it are deliberately left alone: they fall back to being
     // on every view, which is where an unassigned object lives. Deleting a
     // view of the network must not delete the network.
     set((s) => ({
-      doc: { ...s.doc, canvas: { ...s.doc.canvas, layers: withoutLayer(layers, id) } },
+      doc: withPage(s.doc, {
+        canvas: { ...activePage(s.doc).canvas, layers: withoutLayer(layers, id) },
+      }),
       dirty: true,
     }));
   },
 
   setLayer(id, patch) {
-    const layers = layersOf(get().doc.canvas.layers);
+    const layers = layersOf(activePage(get().doc).canvas.layers);
     set((s) => ({
-      doc: {
-        ...s.doc,
+      doc: withPage(s.doc, {
         canvas: {
-          ...s.doc.canvas,
+          ...activePage(s.doc).canvas,
           layers: layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
         },
-      },
+      }),
       // Which views are on is part of how the diagram was left.
       dirty: true,
     }));
   },
 
   copySelection() {
-    const { nodes, edges } = get().doc;
+    const { nodes, edges } = activePage(get().doc);
     clipboard = copySelection(nodes, edges);
     return clipboard.nodes.length;
   },
@@ -760,16 +838,15 @@ export const useStore = create<Store>((set, get) => ({
     const fresh = pasteClipping(clipboard, { x: 40, y: 40 }, uid);
     get().commit('Paste');
     set((state) => ({
-      doc: {
-        ...state.doc,
+      doc: withPage(state.doc, {
         // The paste is selected and everything else is not, so it can be
         // dragged into place straight away.
         nodes: [
-          ...state.doc.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+          ...activePage(state.doc).nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
           ...fresh.nodes,
         ],
-        edges: [...state.doc.edges, ...fresh.edges],
-      },
+        edges: [...activePage(state.doc).edges, ...fresh.edges],
+      }),
       dirty: true,
       selectedNodeId: fresh.nodes.length === 1 ? fresh.nodes[0]!.id : null,
       selectedEdgeId: null,
@@ -785,11 +862,10 @@ export const useStore = create<Store>((set, get) => ({
 
   selectNone() {
     set((state) => ({
-      doc: {
-        ...state.doc,
-        nodes: state.doc.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
-        edges: state.doc.edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
-      },
+      doc: withPage(state.doc, {
+        nodes: activePage(state.doc).nodes.map((n) => (n.selected ? { ...n, selected: false } : n)),
+        edges: activePage(state.doc).edges.map((e) => (e.selected ? { ...e, selected: false } : e)),
+      }),
       selectedNodeId: null,
       selectedEdgeId: null,
     }));
@@ -805,10 +881,9 @@ export const useStore = create<Store>((set, get) => ({
 
   selectAll() {
     set((state) => ({
-      doc: {
-        ...state.doc,
-        nodes: state.doc.nodes.map((n) => (n.selected ? n : { ...n, selected: true })),
-      },
+      doc: withPage(state.doc, {
+        nodes: activePage(state.doc).nodes.map((n) => (n.selected ? n : { ...n, selected: true })),
+      }),
       selectedNodeId: null,
       selectedEdgeId: null,
     }));
@@ -816,8 +891,8 @@ export const useStore = create<Store>((set, get) => ({
 
   arrange(ids, how) {
     const wanted = new Set(ids);
-    const boxes = get()
-      .doc.nodes.filter((n) => wanted.has(n.id) && !(n.data as { locked?: boolean }).locked)
+    const boxes = activePage(get().doc)
+      .nodes.filter((n) => wanted.has(n.id) && !(n.data as { locked?: boolean }).locked)
       .map((n) => ({
         id: n.id,
         x: n.position.x,
@@ -834,39 +909,37 @@ export const useStore = create<Store>((set, get) => ({
     if (moved.size === 0) return 0;
     get().commit('Arrange');
     set((state) => ({
-      doc: {
-        ...state.doc,
-        nodes: state.doc.nodes.map((n) => {
+      doc: withPage(state.doc, {
+        nodes: activePage(state.doc).nodes.map((n) => {
           const at = moved.get(n.id);
           return at ? ({ ...n, position: at } as TopoNode) : n;
         }),
-      },
+      }),
       dirty: true,
     }));
     return moved.size;
   },
 
   unpinLinks() {
-    const pinned = get().doc.edges.filter(
+    const pinned = activePage(get().doc).edges.filter(
       (e) => (e.data as { pinnedSides?: boolean } | undefined)?.pinnedSides,
     );
     if (pinned.length === 0) return 0;
     const ids = new Set(pinned.map((e) => e.id));
     get().commit('Release links');
     set((state) => ({
-      doc: {
-        ...state.doc,
-        edges: state.doc.edges.map((e) =>
+      doc: withPage(state.doc, {
+        edges: activePage(state.doc).edges.map((e) =>
           ids.has(e.id) ? ({ ...e, data: { ...e.data, pinnedSides: false } } as TopoEdge) : e,
         ),
-      },
+      }),
       dirty: true,
     }));
     return pinned.length;
   },
 
   groupMembers(nodeId) {
-    const nodes = get().doc.nodes;
+    const nodes = activePage(get().doc).nodes;
     const groupId = groupOf(nodes.find((n) => n.id === nodeId));
     return groupId ? nodes.filter((n) => groupOf(n) === groupId).map((n) => n.id) : [];
   },
@@ -875,14 +948,14 @@ export const useStore = create<Store>((set, get) => ({
     const structural = changes.some((c) => c.type === 'remove' || c.type === 'add');
     if (structural) get().commit();
     set((s) => ({
-      doc: { ...s.doc, edges: applyEdgeChanges(changes, s.doc.edges) as TopoEdge[] },
+      doc: withPage(s.doc, { edges: applyEdgeChanges(changes, activePage(s.doc).edges) as TopoEdge[] }),
       dirty: true,
     }));
   },
 
   addNode(node) {
     get().commit();
-    set((s) => ({ doc: { ...s.doc, nodes: [...s.doc.nodes, node] }, dirty: true }));
+    set((s) => ({ doc: withPage(s.doc, { nodes: [...activePage(s.doc).nodes, node] }), dirty: true }));
   },
 
   addEdge(edge) {
@@ -891,22 +964,21 @@ export const useStore = create<Store>((set, get) => ({
     // diagram drawn after that choice needs no tidying up afterwards. What
     // the caller set explicitly still wins — a crawl that marks a link red
     // means it.
-    const style = linkStyleDefaults(get().doc.canvas.linkStyle);
+    const style = linkStyleDefaults(activePage(get().doc).canvas.linkStyle);
     const withStyle = {
       ...edge,
       data: { ...style, ...(edge.data ?? {}) },
     } as typeof edge;
-    set((s) => ({ doc: { ...s.doc, edges: [...s.doc.edges, withStyle] }, dirty: true }));
+    set((s) => ({ doc: withPage(s.doc, { edges: [...activePage(s.doc).edges, withStyle] }), dirty: true }));
   },
 
   updateNodeData(id, patch) {
     set((s) => ({
-      doc: {
-        ...s.doc,
-        nodes: s.doc.nodes.map((n) =>
+      doc: withPage(s.doc, {
+        nodes: activePage(s.doc).nodes.map((n) =>
           n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as TopoNode) : n,
         ),
-      },
+      }),
       dirty: true,
     }));
     // LT-061: the primary check follows the primary address. A device that
@@ -919,11 +991,12 @@ export const useStore = create<Store>((set, get) => ({
   /** The automatic half of monitoring (LT-061): give a device's primary
    *  check the device's primary address. Called on address edits; a check
    *  the operator aimed somewhere on purpose keeps its aim unless the
-   *  addresses change again. */
+   *  addresses change again. Searches every page: monitoring is project-wide
+   *  regardless of which page a device is drawn on (LT-094). */
   ensureNodeCheck(id) {
     const { doc, meta } = get();
     if (!meta) return;
-    const node = doc.nodes.find((n) => n.id === id);
+    const node = allNodes(doc).find((n) => n.id === id);
     if (!node || node.type !== 'device') return;
     const d = node.data as DeviceNodeData;
     const primary =
@@ -946,12 +1019,11 @@ export const useStore = create<Store>((set, get) => ({
     const wanted = new Set(ids);
     get().commit(label ?? 'Edit devices');
     set((s) => ({
-      doc: {
-        ...s.doc,
-        nodes: s.doc.nodes.map((n) =>
+      doc: withPage(s.doc, {
+        nodes: activePage(s.doc).nodes.map((n) =>
           wanted.has(n.id) ? ({ ...n, data: { ...n.data, ...patch } } as TopoNode) : n,
         ),
-      },
+      }),
       dirty: true,
     }));
   },
@@ -961,9 +1033,8 @@ export const useStore = create<Store>((set, get) => ({
     const wanted = new Set(ids);
     get().commit(label ?? 'Edit devices');
     set((s) => ({
-      doc: {
-        ...s.doc,
-        nodes: s.doc.nodes.map((n) =>
+      doc: withPage(s.doc, {
+        nodes: activePage(s.doc).nodes.map((n) =>
           wanted.has(n.id)
             ? ({
                 ...n,
@@ -971,47 +1042,45 @@ export const useStore = create<Store>((set, get) => ({
               } as TopoNode)
             : n,
         ),
-      },
+      }),
       dirty: true,
     }));
   },
 
   updateEdgeData(id, patch) {
     set((s) => ({
-      doc: {
-        ...s.doc,
-        edges: s.doc.edges.map((e) =>
+      doc: withPage(s.doc, {
+        edges: activePage(s.doc).edges.map((e) =>
           e.id === id ? { ...e, data: { ...(e.data as LinkData), ...patch } } : e,
         ),
-      },
+      }),
       dirty: true,
     }));
   },
 
   deleteSelected() {
     const { doc, selectedNodeId, selectedEdgeId } = get();
+    const page = activePage(doc);
     get().commit();
     const selectedNodes = new Set(
-      doc.nodes.filter((n) => n.selected || n.id === selectedNodeId).map((n) => n.id),
+      page.nodes.filter((n) => n.selected || n.id === selectedNodeId).map((n) => n.id),
     );
     const selectedEdges = new Set(
-      doc.edges.filter((e) => e.selected || e.id === selectedEdgeId).map((e) => e.id),
+      page.edges.filter((e) => e.selected || e.id === selectedEdgeId).map((e) => e.id),
     );
     const lockedIds = new Set(
-      doc.nodes.filter((n) => (n.data as { locked?: boolean }).locked).map((n) => n.id),
+      page.nodes.filter((n) => (n.data as { locked?: boolean }).locked).map((n) => n.id),
     );
-    const nodes = doc.nodes.filter((n) => !selectedNodes.has(n.id) || lockedIds.has(n.id));
+    const nodes = page.nodes.filter((n) => !selectedNodes.has(n.id) || lockedIds.has(n.id));
     const keptNodeIds = new Set(nodes.map((n) => n.id));
-    const edges = doc.edges.filter(
+    const edges = page.edges.filter(
       (e) =>
         !selectedEdges.has(e.id) && keptNodeIds.has(e.source) && keptNodeIds.has(e.target),
     );
     const removed = new Set([...selectedNodes, ...selectedEdges]);
     set({
       doc: {
-        ...doc,
-        nodes,
-        edges,
+        ...withPage(doc, { nodes, edges }),
         probes: doc.probes.filter((p) => !removed.has(p.objectId)),
       },
       selectedNodeId: null,
@@ -1078,7 +1147,10 @@ export const useStore = create<Store>((set, get) => ({
 
   nodeStatus(nodeId) {
     const { doc, runtime, session } = get();
-    const node = doc.nodes.find((n) => n.id === nodeId);
+    // Every page, not just the active one: a status can be asked for a
+    // device on any page (the Monitored Objects table spans the whole
+    // project), and monitoring does not depend on which page is on screen.
+    const node = allNodes(doc).find((n) => n.id === nodeId);
     const maintenance = Boolean((node?.data as DeviceNodeData | undefined)?.maintenance);
     if (session.state !== 'running' && !maintenance) {
       const probes = get().probesFor(nodeId);
@@ -1091,7 +1163,7 @@ export const useStore = create<Store>((set, get) => ({
 
   linkStatus(edgeId) {
     const { doc, runtime, session } = get();
-    const edge = doc.edges.find((e) => e.id === edgeId);
+    const edge = allEdges(doc).find((e) => e.id === edgeId);
     if (!edge) return 'unknown';
     const data = (edge.data ?? {}) as LinkData;
     return computeLinkStatus({
@@ -1233,7 +1305,7 @@ export const useStore = create<Store>((set, get) => ({
       const probe = doc.probes.find((x) => x.id === t.probeId);
       const objectName =
         t.objectKind === 'node'
-          ? ((doc.nodes.find((n) => n.id === t.objectId)?.data as DeviceNodeData | undefined)
+          ? ((allNodes(doc).find((n) => n.id === t.objectId)?.data as DeviceNodeData | undefined)
               ?.label ?? t.objectId)
           : linkName(get(), t.objectId);
       const row: EventRow = {
@@ -1381,7 +1453,10 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   setCanvas(patch) {
-    set((s) => ({ doc: { ...s.doc, canvas: { ...s.doc.canvas, ...patch } }, dirty: true }));
+    set((s) => ({
+      doc: withPage(s.doc, { canvas: { ...activePage(s.doc).canvas, ...patch } }),
+      dirty: true,
+    }));
   },
 
   setPanelOpen(open) {
@@ -1405,11 +1480,12 @@ export const useStore = create<Store>((set, get) => ({
 }));
 
 function linkName(state: Store, edgeId: string): string {
-  const edge = state.doc.edges.find((e) => e.id === edgeId);
+  const edge = allEdges(state.doc).find((e) => e.id === edgeId);
   if (!edge) return edgeId;
   const label = (n?: TopoNode) => (n?.data as DeviceNodeData | undefined)?.label ?? '?';
-  const src = label(state.doc.nodes.find((n) => n.id === edge.source));
-  const dst = label(state.doc.nodes.find((n) => n.id === edge.target));
+  const nodes = allNodes(state.doc);
+  const src = label(nodes.find((n) => n.id === edge.source));
+  const dst = label(nodes.find((n) => n.id === edge.target));
   return `${src} ↔ ${dst}`;
 }
 

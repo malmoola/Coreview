@@ -7,6 +7,7 @@ import { colourForKey, keyForData } from '../../lib/tinting';
 import { useStore } from '../../state/store';
 import { timeAgo } from '../../lib/timeAgo';
 import { ipc } from '../../lib/ipc';
+import { activePage } from '../../lib/pages';
 import type { DeviceNodeData, HealthStatus, ProbeRuntime } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 
@@ -172,7 +173,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   );
   const runtime = useStore((s) => s.runtime);
   const running = useStore((s) => s.session.state === 'running');
-  const nodeStyle = useStore((s) => s.doc.canvas.nodeStyle ?? 'glyph');
+  const nodeStyle = useStore((s) => activePage(s.doc).canvas.nodeStyle ?? 'glyph');
   // The card waits a beat so a cursor crossing the canvas does not strobe
   // cards, and a drag never grows one mid-move.
   const [hover, setHover] = useState(false);
@@ -194,7 +195,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const hit = useStore((s) => s.canvasHighlight?.has(id) ?? false);
   const dimmed = useStore((s) => (s.canvasHighlight ? !s.canvasHighlight.has(id) : false));
   const beginEditing = useStore((s) => s.beginEditing);
-  const colourBy = useStore((s) => s.doc.canvas.colourBy ?? 'health');
+  const colourBy = useStore((s) => activePage(s.doc).canvas.colourBy ?? 'health');
   const rename = useStore((s) => s.updateNodeData);
   const openLink = () => {
     if (d.link) ipc.openExternalUrl(d.link).catch((err: unknown) => console.error(err));

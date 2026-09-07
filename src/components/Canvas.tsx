@@ -25,6 +25,7 @@ import { ColourLegend } from './ColourLegend';
 import { ShortcutHelp } from './ShortcutHelp';
 import { TraceroutePanel } from './TraceroutePanel';
 import { Page } from './Page';
+import { PageTabs } from './PageTabs';
 import { effectivePage, pageForContent } from '../lib/pageRect';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
 import { routeForView } from '../lib/routeLinks';
@@ -32,6 +33,7 @@ import { alignmentFor, spacingHint, type Box, type Guide } from '../lib/alignmen
 import { isEditable, isVisible, layersOf } from '../lib/layers';
 import { resetToDefault, styleOf } from '../lib/linkDefaults';
 import { useStore, type TopoEdge, type TopoNode } from '../state/store';
+import { activePage, withPage } from '../lib/pages';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
 import type { DeviceNodeData, DeviceType, LinkData, NoteNodeData } from '../types/domain';
@@ -129,6 +131,8 @@ export function Canvas() {
 
   const doc = useStore((s) => s.doc);
   const store = useStore();
+  // The page being drawn (LT-094) — this component renders exactly one.
+  const pg = activePage(doc);
 
   const onConnect: OnConnect = useCallback(
     (c: Connection) => {
@@ -142,7 +146,7 @@ export function Canvas() {
       // from a note and then having to turn off its health, its arrow and its
       // packet dots by hand is three steps to say something obvious.
       const annotation = (id: string) => {
-        const n = doc.nodes.find((x) => x.id === id);
+        const n = pg.nodes.find((x) => x.id === id);
         if (!n) return false;
         if (n.type === 'note') return true;
         const kind = (n.data as { deviceType?: string }).deviceType;
@@ -175,7 +179,7 @@ export function Canvas() {
       store.addEdge(edge);
       store.select(null, edge.id);
     },
-    [store, doc.nodes],
+    [store, pg.nodes],
   );
 
   const onDrop = useCallback(
@@ -212,11 +216,11 @@ export function Canvas() {
         },
       ];
     }
-    const node = doc.nodes.find((n) => n.id === nodeId);
+    const node = pg.nodes.find((n) => n.id === nodeId);
     const locked = Boolean((node?.data as { locked?: boolean } | undefined)?.locked);
     const maintenance = Boolean((node?.data as DeviceNodeData | undefined)?.maintenance);
     const members = store.groupMembers(nodeId);
-    const selectedCount = doc.nodes.filter((n) => n.selected).length;
+    const selectedCount = pg.nodes.filter((n) => n.selected).length;
     // The same target a device's own primary check is aimed at (LT-061), so
     // "where is this actually going" traces the address being monitored,
     // not just whichever address happens to be listed first.
@@ -260,7 +264,7 @@ export function Canvas() {
           ] as const).map(([how, label]) => ({
             label,
             onSelect: () => {
-              const ids = doc.nodes.filter((n) => n.selected).map((n) => n.id);
+              const ids = pg.nodes.filter((n) => n.selected).map((n) => n.id);
               const moved = store.arrange(ids, how);
               store.setStatusMessage(
                 moved === 0
@@ -276,7 +280,7 @@ export function Canvas() {
               label: `Fold this group into one box (${members.length} objects)`,
               onSelect: () => {
                 const group = (
-                  doc.nodes.find((n) => n.id === nodeId)?.data as { groupId?: string }
+                  pg.nodes.find((n) => n.id === nodeId)?.data as { groupId?: string }
                 )?.groupId;
                 if (group) setFolded((was) => new Set(was).add(group));
               },
@@ -303,7 +307,7 @@ export function Canvas() {
   };
 
   const reorder = (nodeId: string, delta: number) => {
-    const nodes = [...doc.nodes];
+    const nodes = [...pg.nodes];
     const i = nodes.findIndex((n) => n.id === nodeId);
     const j = i + delta;
     if (i < 0 || j < 0 || j >= nodes.length) return;
@@ -312,11 +316,11 @@ export function Canvas() {
     nodes[i] = b;
     nodes[j] = a;
     store.commit();
-    useStore.setState((s) => ({ doc: { ...s.doc, nodes }, dirty: true }));
+    useStore.setState((s) => ({ doc: withPage(s.doc, { nodes }), dirty: true }));
   };
 
   const edgeMenu = (edgeId: string): MenuItem[] => {
-    const edge = doc.edges.find((e) => e.id === edgeId);
+    const edge = pg.edges.find((e) => e.id === edgeId);
     const data = edge?.data;
     return [
       { label: 'Edit link properties', onSelect: () => store.select(null, edgeId) },
@@ -345,7 +349,7 @@ export function Canvas() {
         label: 'Reset to default style',
         onSelect: () => {
           store.commit();
-          store.updateEdgeData(edgeId, resetToDefault(doc.canvas.linkStyle));
+          store.updateEdgeData(edgeId, resetToDefault(pg.canvas.linkStyle));
         },
       },
       {
@@ -384,7 +388,7 @@ export function Canvas() {
           // The one deliberate shrink. Growth is automatic; going back is not,
           // because a sheet that snaps smaller on its own makes the layout
           // jump under the pointer.
-          store.setCanvas({ pageRect: pageForContent(doc.nodes) });
+          store.setCanvas({ sheetRect: pageForContent(pg.nodes) });
           store.setStatusMessage('The page now fits what is on it.');
         },
       },
@@ -398,17 +402,17 @@ export function Canvas() {
           ]
         : []),
       {
-        label: doc.canvas.gridEnabled ? 'Hide grid' : 'Show grid',
-        onSelect: () => store.setCanvas({ gridEnabled: !doc.canvas.gridEnabled }),
+        label: pg.canvas.gridEnabled ? 'Hide grid' : 'Show grid',
+        onSelect: () => store.setCanvas({ gridEnabled: !pg.canvas.gridEnabled }),
       },
       {
         label:
-          (doc.canvas.nodeStyle ?? 'glyph') === 'glyph'
+          (pg.canvas.nodeStyle ?? 'glyph') === 'glyph'
             ? 'Draw devices as cards'
             : 'Draw devices as symbols',
         onSelect: () =>
           store.setCanvas({
-            nodeStyle: (doc.canvas.nodeStyle ?? 'glyph') === 'glyph' ? 'card' : 'glyph',
+            nodeStyle: (pg.canvas.nodeStyle ?? 'glyph') === 'glyph' ? 'card' : 'glyph',
           }),
       },
       {
@@ -426,7 +430,7 @@ export function Canvas() {
         },
       },
       ...(['health', 'role', 'subnet', 'tag', 'vlan'] as const)
-        .filter((by) => by !== (doc.canvas.colourBy ?? 'health'))
+        .filter((by) => by !== (pg.canvas.colourBy ?? 'health'))
         .map((by) => ({
           label:
             by === 'health'
@@ -439,9 +443,9 @@ export function Canvas() {
           onSelect: () => store.setCanvas({ colourBy: by }),
         })),
       {
-        label: (doc.canvas.lineJumps ?? true) ? 'Stop hopping crossed links' : 'Hop crossed links',
+        label: (pg.canvas.lineJumps ?? true) ? 'Stop hopping crossed links' : 'Hop crossed links',
         onSelect: () =>
-          store.setCanvas({ lineJumps: !(doc.canvas.lineJumps ?? true) }),
+          store.setCanvas({ lineJumps: !(pg.canvas.lineJumps ?? true) }),
       },
       {
         label: 'Let every link follow its devices',
@@ -508,7 +512,7 @@ export function Canvas() {
    *  thing that says where the drawing surface is cannot be seen. When the
    *  page is off, there is nothing to fit but the devices. */
   const fitEverything = useCallback(() => {
-    if (!(doc.canvas.page ?? true)) {
+    if (!(pg.canvas.sheet ?? true)) {
       // A fit keeps the old ceiling: LT-047 opened the wheel's walls, and
       // unbounded fitting turns two close devices into a monitor-filling
       // glyph.
@@ -516,10 +520,10 @@ export function Canvas() {
       return;
     }
     // The same rect the page renderer draws — one function, not two copies.
-    const sheet = effectivePage(doc.canvas.pageRect, doc.nodes);
+    const sheet = effectivePage(pg.canvas.sheetRect, pg.nodes);
     rf.fitBounds({ x: sheet.x, y: sheet.y, width: sheet.w, height: sheet.h }, { padding: 0.08 });
     if (rf.getZoom() > 2) rf.zoomTo(2);
-  }, [doc.canvas.page, doc.canvas.pageRect, doc.nodes, rf]);
+  }, [pg.canvas.sheet, pg.canvas.sheetRect, pg.nodes, rf]);
 
   // Space held is "grab the diagram". Kept separate from the shortcut handler
   // below because it has to watch both the press and the release, and must
@@ -585,7 +589,7 @@ export function Canvas() {
           h: 'across', v: 'down',
         } as const)[e.key.toLowerCase() as 'l'];
         if (how) {
-          const ids = doc.nodes.filter((n) => n.selected).map((n) => n.id);
+          const ids = pg.nodes.filter((n) => n.selected).map((n) => n.id);
           if (ids.length > 1) {
             e.preventDefault();
             const moved = store.arrange(ids, how);
@@ -627,7 +631,7 @@ export function Canvas() {
         store.redo();
       } else if (mod && e.key.toLowerCase() === 'd') {
         e.preventDefault();
-        const sel = doc.nodes.find((n) => n.selected);
+        const sel = pg.nodes.find((n) => n.selected);
         if (sel) {
           // Offset by one grid step, and the copy takes the selection — the
           // original must let go of it, or the next Delete removes both.
@@ -642,7 +646,7 @@ export function Canvas() {
       } else if (e.key.startsWith('Arrow') && !mod) {
         // Arrows nudge by a pixel, Shift-arrows by a grid step. The keyboard
         // is how the last two pixels of a layout actually get done.
-        const ids = doc.nodes
+        const ids = pg.nodes
           .filter((n) => n.selected && !(n.data as { locked?: boolean }).locked)
           .map((n) => n.id);
         if (ids.length > 0) {
@@ -651,7 +655,7 @@ export function Canvas() {
           const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
           const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
           store.onNodesChange(
-            doc.nodes
+            pg.nodes
               .filter((n) => ids.includes(n.id))
               .map((n) => ({
                 id: n.id,
@@ -681,7 +685,7 @@ export function Canvas() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [doc.nodes, rf, store, fitEverything, help]);
+  }, [pg.nodes, rf, store, fitEverything, help]);
 
   // React Flow decides whether a node can be dragged from a `draggable` field
   // on the node itself. `locked` lives in `data`, which it never looks at, so
@@ -690,32 +694,32 @@ export function Canvas() {
   const view = useMemo(() => {
     // Hidden views come out first: everything after this — folding, routing,
     // hops — should be reasoning about the diagram as it is being looked at.
-    const layers = layersOf(doc.canvas.layers);
+    const layers = layersOf(pg.canvas.layers);
     const anyHidden = layers.some((l) => !l.visible);
     const nodes = anyHidden
-      ? doc.nodes.filter((n) => isVisible((n.data as { layers?: string[] }).layers, layers))
-      : doc.nodes;
+      ? pg.nodes.filter((n) => isVisible((n.data as { layers?: string[] }).layers, layers))
+      : pg.nodes;
     const alive = new Set(nodes.map((n) => n.id));
     const edges = anyHidden
-      ? doc.edges.filter(
+      ? pg.edges.filter(
           (e) =>
             isVisible((e.data as { layers?: string[] } | undefined)?.layers, layers) &&
             // A link whose device is on a hidden view has nowhere to land.
             alive.has(e.source) &&
             alive.has(e.target),
         )
-      : doc.edges;
+      : pg.edges;
 
     const folded_ = collapseView(nodes, edges, folded);
     // Routed after folding, so a link redrawn to a folded box leaves the side
     // of the box that faces where it is going.
     return { nodes: folded_.nodes, edges: routeForView(folded_.nodes, folded_.edges) };
-  }, [doc.nodes, doc.edges, doc.canvas.layers, folded]);
+  }, [pg.nodes, pg.edges, pg.canvas.layers, folded]);
 
   const nodes = useMemo(
     () =>
       view.nodes.map((n) => {
-        const layers = layersOf(doc.canvas.layers);
+        const layers = layersOf(pg.canvas.layers);
         const locked =
           Boolean((n.data as { locked?: boolean }).locked) ||
           !isEditable((n.data as { layers?: string[] }).layers, layers);
@@ -724,7 +728,7 @@ export function Canvas() {
         const zIndex = (n.data as { deviceType?: string }).deviceType === 'zone' ? 0 : 1;
         return locked ? { ...n, draggable: false, zIndex } : { ...n, zIndex };
       }),
-    [view.nodes, doc.canvas.layers],
+    [view.nodes, pg.canvas.layers],
   );
 
   const boxOf = (n: TopoNode): Box => ({
@@ -753,7 +757,7 @@ export function Canvas() {
       // Defaulted on. A document saved before this existed has no value here,
       // and reading that as "off" quietly disabled guides for every diagram
       // already drawn.
-      if (!(doc.canvas.snapEnabled ?? true) || altDown.current) {
+      if (!(pg.canvas.snapEnabled ?? true) || altDown.current) {
         if (altDown.current) setGuides([]);
         store.onNodesChange(changes);
         return;
@@ -775,7 +779,7 @@ export function Canvas() {
       }
 
       const moving = dragging[0]!;
-      const node = doc.nodes.find((n) => n.id === moving.id);
+      const node = pg.nodes.find((n) => n.id === moving.id);
       if (!node) {
         store.onNodesChange(changes);
         return;
@@ -784,7 +788,7 @@ export function Canvas() {
       // and a snap that grabs from forty away feels like the device is being
       // taken out of your hands.
       const tolerance = 7 / Math.max(0.2, rf.getZoom());
-      const others = doc.nodes.filter((n) => n.id !== moving.id && !n.selected).map(boxOf);
+      const others = pg.nodes.filter((n) => n.id !== moving.id && !n.selected).map(boxOf);
       const dragged = { ...boxOf(node), ...moving.position };
       const found = alignmentFor(dragged, others, tolerance);
 
@@ -852,7 +856,7 @@ export function Canvas() {
         ) as NodeChange<TopoNode>[],
       );
     },
-    [doc.canvas.snapEnabled, doc.nodes, rf, store],
+    [pg.canvas.snapEnabled, pg.nodes, rf, store],
   );
 
 
@@ -1029,6 +1033,7 @@ export function Canvas() {
       )}
       {finding && <FindBox onClose={() => setFinding(false)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
+      <PageTabs />
     </div>
   );
 }

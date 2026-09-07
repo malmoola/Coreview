@@ -12,6 +12,7 @@ import { linkStatus } from '../health/evaluate';
 import { formatTime } from '../lib/timeFormat';
 import type { DeviceNodeData, HealthStatus, LinkData, ProbeRuntime } from '../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../types/domain';
+import { activePage, allEdges, allNodes } from '../lib/pages';
 
 type Row = {
   id: string;
@@ -80,7 +81,9 @@ export function StatusPanel() {
   const [handedOver, setHandedOver] = useState<{ address: string; name: string }[]>([]);
   const [query, setQuery] = useState('');
   const rf = useReactFlow();
-  const docNodes = useStore((s) => s.doc.nodes);
+  // The active page only (LT-094): jumpToFirst below centres the viewport on
+  // it, which only works for a node React Flow actually has rendered.
+  const docNodes = useStore((s) => activePage(s.doc).nodes);
   const setHighlight = useStore((s) => s.setCanvasHighlight);
   // The same words that filter the table light up the canvas, so the list and
   // the drawing answer the question together.
@@ -122,7 +125,11 @@ export function StatusPanel() {
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = [];
-    for (const n of doc.nodes) {
+    // Every page (LT-094): monitoring is project-wide regardless of which
+    // page a device or link is drawn on.
+    const nodes = allNodes(doc);
+    const edges = allEdges(doc);
+    for (const n of nodes) {
       if (n.type !== 'device') continue;
       const d = n.data as DeviceNodeData;
       const probes = doc.probes.filter((p) => p.objectId === n.id);
@@ -141,10 +148,10 @@ export function StatusPanel() {
         tags: d.tags ?? [],
       });
     }
-    for (const e of doc.edges) {
+    for (const e of edges) {
       const d = e.data as LinkData;
       const nameOf = (id: string) =>
-        (doc.nodes.find((n) => n.id === id)?.data as DeviceNodeData | undefined)?.label ?? id;
+        (nodes.find((n) => n.id === id)?.data as DeviceNodeData | undefined)?.label ?? id;
       const linkProbes = doc.probes.filter((p) => p.objectId === e.id);
       const live = linkProbes[0] ? runtime.get(linkProbes[0].id) : undefined;
       out.push({

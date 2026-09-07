@@ -12,6 +12,7 @@ import { useReactFlow } from '@xyflow/react';
 
 import { findNodes, type Match } from '../lib/findNodes';
 import { useStore } from '../state/store';
+import { activePage } from '../lib/pages';
 
 const WHERE: Record<Match['matchedOn'], string> = {
   name: 'name',
@@ -23,7 +24,9 @@ const WHERE: Record<Match['matchedOn'], string> = {
 
 export function FindBox({ onClose }: { onClose: () => void }) {
   const rf = useReactFlow();
-  const nodes = useStore((s) => s.doc.nodes);
+  // The active page only (LT-094) — a match elsewhere would have nothing to
+  // jump to, since React Flow only has the active page's nodes rendered.
+  const nodes = useStore((s) => activePage(s.doc).nodes);
   const select = useStore((s) => s.select);
   const [query, setQuery] = useState('');
   const [at, setAt] = useState(0);

@@ -12,6 +12,7 @@ import { TIME_FORMATS, isLocalFormat, zoneLabel, type TimeFormat } from '../lib/
 import { eventsToCsv, linksToCsv, nodesToCsv } from '../lib/csv';
 import type { DeviceNodeData, HealthStatus, LinkData, NodeAddress } from '../types/domain';
 import { STATUS_LABEL } from '../types/domain';
+import { activePage, allEdges, allNodes } from '../lib/pages';
 
 const SESSION_LABEL: Record<string, string> = {
   stopped: 'Validation stopped',
@@ -72,11 +73,15 @@ export function TopBar({ onExit }: { onExit: () => void }) {
   /** Runs an export and reports where it landed, or that it failed. */
   const paper = paperById(settings.paper);
   const sheet = sheetSize(paper, settings.orientation);
+  // Named `pg` rather than `page` — this file already uses "page" to mean
+  // the paper an export is sized to, a different thing from a Pages (LT-094)
+  // ProjectPage, and the two must not be confused inside this one file.
+  const pg = activePage(store.doc);
   /** Said in the menu, because "A3 landscape" does not tell anyone whether
    *  their diagram will still be readable on it. */
   const pageNote = (() => {
     if (paper.width === 0) return 'The file is sized to the diagram.';
-    const bounds = store.doc.nodes.reduce(
+    const bounds = pg.nodes.reduce(
       (acc, n) => ({
         w: Math.max(acc.w, n.position.x + (n.width ?? 176)),
         h: Math.max(acc.h, n.position.y + (n.height ?? 96)),
@@ -90,17 +95,19 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       : `${describePage(paper, settings.orientation)} — the diagram fits at full size.`;
   })();
 
-  /** The diagram as it is being looked at, with hidden views left out. */
+  /** The diagram as it is being looked at: the active page (LT-094), with
+   *  hidden views left out. Drawing exports (SVG/PNG/PDF/Visio) are scoped
+   *  to this page for now — see docs/ROADMAP.md's LT-094 entry. */
   const shown = (() => {
-    const layers = layersOf(store.doc.canvas.layers);
+    const layers = layersOf(pg.canvas.layers);
     if (layers.every((l) => l.visible)) {
-      return { nodes: store.doc.nodes, edges: store.doc.edges };
+      return { nodes: pg.nodes, edges: pg.edges };
     }
-    const nodes = store.doc.nodes.filter((n) =>
+    const nodes = pg.nodes.filter((n) =>
       isVisible((n.data as { layers?: string[] }).layers, layers),
     );
     const alive = new Set(nodes.map((n) => n.id));
-    const edges = store.doc.edges.filter(
+    const edges = pg.edges.filter(
       (e) =>
         isVisible((e.data as { layers?: string[] } | undefined)?.layers, layers) &&
         alive.has(e.source) &&
@@ -132,17 +139,17 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       nodeStatus: (id) => store.nodeStatus(id),
       linkStatus: (id) => store.linkStatus(id),
       includeTitleBlock: true,
-      nodeStyle: store.doc.canvas.nodeStyle ?? 'glyph',
+      nodeStyle: pg.canvas.nodeStyle ?? 'glyph',
       // What you are looking at is what comes out. Exporting dark from a
       // white screen put a black rectangle in the middle of a white page.
       ground: settings.ground,
       page: sheet.w > 0 ? { width: sheet.w, height: sheet.h } : undefined,
-      // The on-screen page, computed from the same function the canvas draws
-      // it with, and from the same visible nodes — hidden views do not hold
-      // the exported sheet open either.
+      // The on-screen sheet, computed from the same function the canvas
+      // draws it with, and from the same visible nodes — hidden views do
+      // not hold the exported sheet open either.
       sheetRect:
-        (store.doc.canvas.page ?? true)
-          ? effectivePage(store.doc.canvas.pageRect, shown.nodes)
+        (pg.canvas.sheet ?? true)
+          ? effectivePage(pg.canvas.sheetRect, shown.nodes)
           : undefined,
     });
 
@@ -152,8 +159,8 @@ export function TopBar({ onExit }: { onExit: () => void }) {
 
   // LT-028: how many sheets the diagram spans at full size on the chosen paper.
   const contentBounds = () => {
-    if (store.doc.canvas.page ?? true) {
-      const p = effectivePage(store.doc.canvas.pageRect, shown.nodes);
+    if (pg.canvas.sheet ?? true) {
+      const p = effectivePage(pg.canvas.sheetRect, shown.nodes);
       return { x: p.x, y: p.y, width: p.w, height: p.h };
     }
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -190,7 +197,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
           nodeStatus: (id) => store.nodeStatus(id),
           linkStatus: (id) => store.linkStatus(id),
           includeTitleBlock: true,
-          nodeStyle: store.doc.canvas.nodeStyle ?? 'glyph',
+          nodeStyle: pg.canvas.nodeStyle ?? 'glyph',
           ground: settings.ground,
           page: { width: sheet.w, height: sheet.h },
           tile: { x: t.x, y: t.y, w: t.w, h: t.h },
@@ -229,8 +236,8 @@ export function TopBar({ onExit }: { onExit: () => void }) {
   const exportVisio = async () => {
     setBusy('vsdx');
     try {
-      const sheet = (store.doc.canvas.page ?? true)
-        ? effectivePage(store.doc.canvas.pageRect, shown.nodes)
+      const sheet = (pg.canvas.sheet ?? true)
+        ? effectivePage(pg.canvas.sheetRect, shown.nodes)
         : null;
       const originX = sheet ? sheet.x : 0;
       const originY = sheet ? sheet.y : 0;
@@ -287,9 +294,11 @@ export function TopBar({ onExit }: { onExit: () => void }) {
     void runExport(`${slug(meta.name)}-events.csv`, () => eventsToCsv(store.events), 'text/csv');
   };
 
-  /** The diagram as the two files the importer reads back. */
+  /** The diagram as the two files the importer reads back. Every page
+   *  (LT-094): this is an inventory, not a drawing, and a device missing
+   *  from it because the wrong tab was open would be a real surprise. */
   const exportTopologyCsv = () => {
-    const devices = store.doc.nodes.filter((n) => n.type === 'device');
+    const devices = allNodes(store.doc).filter((n) => n.type === 'device');
     const nameOf = new Map(
       devices.map((n) => [n.id, String((n.data as DeviceNodeData).label ?? '')]),
     );
@@ -316,7 +325,7 @@ export function TopBar({ onExit }: { onExit: () => void }) {
 
     // Links reference devices by name, because that is what the importer
     // matches on and what a person reading the file can follow.
-    const links = store.doc.edges
+    const links = allEdges(store.doc)
       .filter((e) => nameOf.has(e.source) && nameOf.has(e.target))
       .map((e) => {
         const d = (e.data ?? {}) as LinkData;
@@ -371,8 +380,9 @@ export function TopBar({ onExit }: { onExit: () => void }) {
       meta,
       events: store.events,
       counts,
-      nodeCount: store.doc.nodes.filter((n) => n.type === 'device').length,
-      linkCount: store.doc.edges.length,
+      // Every page (LT-094): a validation report is a record, not a drawing.
+      nodeCount: allNodes(store.doc).filter((n) => n.type === 'device').length,
+      linkCount: allEdges(store.doc).length,
       sessionStart: session.startedAt,
       sessionEnd: session.state === 'stopped' ? Date.now() : null,
     });
@@ -446,9 +456,9 @@ export function TopBar({ onExit }: { onExit: () => void }) {
              alone puts the page edge off-screen, and the edge is the thing
              that says where the drawing surface is. */
           onClick={() =>
-            (store.doc.canvas.page ?? true)
+            (pg.canvas.sheet ?? true)
               ? (() => {
-                  const sheet = effectivePage(store.doc.canvas.pageRect, store.doc.nodes);
+                  const sheet = effectivePage(pg.canvas.sheetRect, pg.nodes);
                   rf.fitBounds({ x: sheet.x, y: sheet.y, width: sheet.w, height: sheet.h }, { padding: 0.08 });
                   if (rf.getZoom() > 2) rf.zoomTo(2);
                 })()
@@ -664,7 +674,8 @@ function statusCounts(): Record<HealthStatus, number> {
     disabled: 0,
     maintenance: 0,
   };
-  for (const n of s.doc.nodes) {
+  // Every page (LT-094): these counts are monitoring, not a drawing.
+  for (const n of allNodes(s.doc)) {
     if (n.type !== 'device') continue;
     counts[s.nodeStatus(n.id)] += 1;
   }

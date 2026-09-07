@@ -16,6 +16,7 @@ import { useReactFlow } from '@xyflow/react';
 import { diffTopology, hasChanges } from '../lib/topologyDiff';
 import type { CrawledDevice, Neighbor } from '../lib/ipc';
 import { useStore } from '../state/store';
+import { activePage } from '../lib/pages';
 
 function Group({
   title,
@@ -60,8 +61,10 @@ export function ChangeReport({
 }: {
   result: { devices: CrawledDevice[]; notVisited: Neighbor[] };
 }) {
-  const nodes = useStore((s) => s.doc.nodes);
-  const edges = useStore((s) => s.doc.edges);
+  // The active page (LT-094): a crawl merges into whatever page is open, and
+  // "jump to it" needs the node to actually be part of the rendered page.
+  const nodes = useStore((s) => activePage(s.doc).nodes);
+  const edges = useStore((s) => activePage(s.doc).edges);
 
   const rf = useReactFlow();
   const select = useStore((s) => s.select);

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { ipc, isDesktop, type BackupDevice, type BackupEvent, type DiffLine } from '../lib/ipc';
 import { CredentialPicker } from './CredentialPicker';
+import { allNodes } from '../lib/pages';
 
 /** `20260828-101530-running-config.txt` reads as a date and a kind. */
 function describeCapture(filename: string): string {
@@ -58,7 +59,9 @@ export function BackupPanel({
    *  handed over. Merged by address so a device that is both does not appear
    *  twice. */
   const targets = useMemo(() => {
-    const fromDiagram = store.doc.nodes
+    // Every page (LT-094): a device's config doesn't care which page it is
+    // drawn on, the same reasoning as the Monitored Objects table.
+    const fromDiagram = allNodes(store.doc)
       .filter((n) => n.type === 'device')
       .map((n) => {
         const data = n.data as { label?: string; addresses?: { address: string; isPrimary?: boolean }[] };
@@ -70,7 +73,7 @@ export function BackupPanel({
 
     const seen = new Set(fromDiagram.map((t) => t.address));
     return [...fromDiagram, ...fromCrawl.filter((t) => t.address && !seen.has(t.address))];
-  }, [store.doc.nodes, fromCrawl]);
+  }, [store.doc, fromCrawl]);
 
   const refreshDevices = () => {
     void ipc

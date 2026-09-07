@@ -18,19 +18,21 @@ import { ViewportPortal } from '@xyflow/react';
 import { useStore } from '../state/store';
 import { isVisible, layersOf } from '../lib/layers';
 import { effectivePage, sameRect } from '../lib/pageRect';
+import { activePage } from '../lib/pages';
 
 /** Where the grid lines fall, in diagram units. */
 const MINOR = 12;
 const MAJOR = 60;
 
 export function Page() {
-  // Defaulted on: a document saved before the page existed has no value here,
+  const canvas = useStore((s) => activePage(s.doc).canvas);
+  // Defaulted on: a document saved before the sheet existed has no value here,
   // and reading that as "off" leaves a blank sheet with no grid on it.
-  const gridEnabled = useStore((s) => s.doc.canvas.gridEnabled ?? true);
-  const pageEnabled = useStore((s) => s.doc.canvas.page ?? true);
-  const nodes = useStore((s) => s.doc.nodes);
-  const canvasLayers = useStore((s) => s.doc.canvas.layers);
-  const stored = useStore((s) => s.doc.canvas.pageRect);
+  const gridEnabled = canvas.gridEnabled ?? true;
+  const pageEnabled = canvas.sheet ?? true;
+  const nodes = useStore((s) => activePage(s.doc).nodes);
+  const canvasLayers = canvas.layers;
+  const stored = canvas.sheetRect;
   const setCanvas = useStore((s) => s.setCanvas);
 
   // The sheet as it should be drawn right now: grown live while a node is
@@ -49,7 +51,7 @@ export function Page() {
   // does not dirty the document.
   useEffect(() => {
     if (stored && sameRect(stored, rect)) return;
-    const t = setTimeout(() => setCanvas({ pageRect: rect }), 400);
+    const t = setTimeout(() => setCanvas({ sheetRect: rect }), 400);
     return () => clearTimeout(t);
   }, [rect, stored, setCanvas]);
 

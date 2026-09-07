@@ -9,6 +9,7 @@ import { newProbe } from '../lib/probes';
 import { uid } from '../lib/id';
 import { DEVICE_LABEL } from './icons';
 import type { DeviceNodeData, DeviceType, LinkData } from '../types/domain';
+import { activePage } from '../lib/pages';
 
 type Parsed =
   | { kind: 'nodes'; rows: NodeCsvRow[]; errors: string[] }
@@ -67,7 +68,7 @@ export function CsvImportPanel() {
   };
 
   const addNodes = (rows: NodeCsvRow[]) => {
-    const bottom = store.doc.nodes.reduce((m, n) => Math.max(m, n.position.y + 120), 0);
+    const bottom = activePage(store.doc).nodes.reduce((m, n) => Math.max(m, n.position.y + 120), 0);
     rows.forEach((r, i) => {
       const node = makeDeviceNode(deviceType(r.type), 80 + (i % 6) * 230, bottom + 80 + Math.floor(i / 6) * 140);
       const d = node.data as DeviceNodeData;
@@ -95,8 +96,8 @@ export function CsvImportPanel() {
     // generates. Matched case-insensitively: a sheet and a diagram rarely
     // agree on capitalisation.
     const byName = new Map(
-      store.doc.nodes
-        .filter((n) => n.type === 'device')
+      activePage(store.doc)
+        .nodes.filter((n) => n.type === 'device')
         .map((n) => [String((n.data as DeviceNodeData).label).trim().toLowerCase(), n.id]),
     );
     let added = 0;

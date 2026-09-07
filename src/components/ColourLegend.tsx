@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 
 import { useStore } from '../state/store';
 import { legendFor, type ColourBy } from '../lib/tinting';
+import { activePage } from '../lib/pages';
 
 const WHAT: Record<ColourBy, string> = {
   health: 'Health',
@@ -19,8 +20,8 @@ const WHAT: Record<ColourBy, string> = {
 };
 
 export function ColourLegend() {
-  const nodes = useStore((s) => s.doc.nodes);
-  const colourBy = useStore((s) => s.doc.canvas.colourBy ?? 'health');
+  const nodes = useStore((s) => activePage(s.doc).nodes);
+  const colourBy = useStore((s) => activePage(s.doc).canvas.colourBy ?? 'health');
   const ground = useStore((s) => s.settings.ground);
   const setCanvas = useStore((s) => s.setCanvas);
 

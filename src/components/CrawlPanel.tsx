@@ -18,6 +18,7 @@ import { buildTopology } from '../lib/topology';
 import { ChangeReport } from './ChangeReport';
 import { selectAttached, vendorCounts } from '../lib/attached';
 import type { DeviceNodeData } from '../types/domain';
+import { activePage } from '../lib/pages';
 
 const CLASS_LABEL: Record<DeviceClassName, string> = {
   router: 'Router',
@@ -378,16 +379,17 @@ export function CrawlPanel({
   const build = () => {
     if (!result || !store.meta) return;
     const keep = new Set(picked.map((r) => r.key.toLowerCase()));
-    const bottom = store.doc.nodes.reduce((m, n) => Math.max(m, n.position.y + 120), 0);
+    const page = activePage(store.doc);
+    const bottom = page.nodes.reduce((m, n) => Math.max(m, n.position.y + 120), 0);
 
     const topo = buildTopology(result, store.meta.id, {
       origin: { x: 80, y: bottom + 80 },
       attached: showAttached ? chosenAttached : [],
       // A second crawl updates the diagram rather than drawing another copy
       // of the network beside it, so re-running discovery is something you can
-      // do weekly instead of once.
-      existingNodes: store.doc.nodes,
-      existingEdges: store.doc.edges,
+      // do weekly instead of once. Scoped to the active page (LT-094).
+      existingNodes: page.nodes,
+      existingEdges: page.edges,
     });
 
     // The ticks in the table decide what is placed. Matching on the drawn

@@ -10,9 +10,10 @@ import { useState } from 'react';
 
 import { useStore } from '../state/store';
 import { layersOf } from '../lib/layers';
+import { activePage } from '../lib/pages';
 
 export function Layers() {
-  const canvas = useStore((s) => s.doc.canvas);
+  const canvas = useStore((s) => activePage(s.doc).canvas);
   const setLayer = useStore((s) => s.setLayer);
   const addLayer = useStore((s) => s.addLayer);
   const removeLayer = useStore((s) => s.removeLayer);

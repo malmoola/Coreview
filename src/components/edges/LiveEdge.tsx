@@ -17,6 +17,7 @@ import { STATUS_COLOR_DARK, readableOn, statusColors } from '../../theme';
 import { capPath, capsFor, dashFor } from '../../lib/linkStyle';
 import { jumpsFor, withJumps } from '../../lib/lineJumps';
 import { segmentMidpoints, waypointRoute } from '../../lib/waypointRoute';
+import { activePage } from '../../lib/pages';
 import { bezierPath, type Side } from '../../lib/bezierPath';
 import { dragSegment, pathVertices, segmentGrips } from '../../lib/elbowRoute';
 import {
@@ -218,7 +219,7 @@ function LiveEdgeInner(props: EdgeProps) {
   // cable: nothing travels along it, it carries no health, and it does not
   // hop over the links it crosses.
   const isLeader = data.kind === 'leader';
-  const jumpsEnabled = useStore((s) => s.doc.canvas.lineJumps ?? true);
+  const jumpsEnabled = useStore((s) => activePage(s.doc).canvas.lineJumps ?? true);
   const color = statusColors(ground)[status];
   // The line can be given a colour of its own — a fibre run, a carrier
   // circuit, a VLAN — without the link ceasing to be a live one. Everything
@@ -496,7 +497,7 @@ function LiveEdgeInner(props: EdgeProps) {
   // lists its members from the discovery note; a plain link shows A's port
   // and B's.
   const nameOf = (nodeId: string) =>
-    (doc.nodes.find((n) => n.id === nodeId)?.data as DeviceNodeData | undefined)?.label ?? nodeId;
+    (activePage(doc).nodes.find((n) => n.id === nodeId)?.data as DeviceNodeData | undefined)?.label ?? nodeId;
   const sp = data.sourcePortLabel?.trim();
   const tp = data.targetPortLabel?.trim();
   const bundleMembers = /(\d+) bundled ports: ([^\n]+)/.exec(data.notes ?? '');

@@ -7,6 +7,7 @@ import { SubnetList } from './SubnetList';
 import type { DeviceNodeData } from '../types/domain';
 import { uid } from '../lib/id';
 import { newProbe } from '../lib/probes';
+import { activePage } from '../lib/pages';
 
 type Hit = { ip: string; rttMs: number | null; picked: boolean };
 
@@ -82,7 +83,7 @@ export function DiscoverPanel() {
    *  in a grid clear of whatever is already there. */
   const addPicked = () => {
     if (!picked.length) return;
-    const existing = store.doc.nodes;
+    const existing = activePage(store.doc).nodes;
     const bottom = existing.reduce((m, n) => Math.max(m, n.position.y + 120), 0);
     // Placed below whatever is already drawn, so a sweep never lands on top
     // of an existing diagram.

@@ -127,27 +127,6 @@ more detail than the small inline bar can show (exactly what detail is
 worth pinning down before building — likely per-event timestamps and
 durations, since the legend below it already gives status totals).
 
-### LT-094 — Pages, like Lucidchart
-**Source:** asked 2026-09-07 — "Lets also add pages just like how lucidchart
-does."
-**Resolved 2026-09-07:** asked directly whether this meant the existing
-"Views" panel (`src/components/Layers.tsx` — one shared canvas, one shared
-object set, a view is a saved visibility filter over it) or true Lucidchart
-pages (each an independent canvas with its own object positions). Answer:
-independent canvases.
-**Acceptance:** a project holds one or more pages, each its own canvas with
-its own devices/links/Views/grid/snap/colour settings. A tab strip switches
-between them (add/rename/duplicate/delete/reorder). A device's monitoring
-(probes, the Monitored Objects table, the validation session) stays
-project-wide regardless of which page it's drawn on — which page something
-is drawn on is not the same question as whether it's being checked. Opening
-a project saved before this feature existed shows everything on one page,
-unchanged.
-**Not in v1:** true multi-page export (one Visio page per Coreview page) —
-export works from the active page only for now; the CSV/Markdown data
-exports and the Monitored Objects table stay project-wide since they are
-inventories, not drawings.
-
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -478,6 +457,75 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-094 — Pages, like Lucidchart — 2026-09-07
+**Source:** asked 2026-09-07 — "Lets also add pages just like how lucidchart
+does."
+**Resolved 2026-09-07:** asked directly whether this meant the existing
+"Views" panel (`src/components/Layers.tsx` — one shared canvas, one shared
+object set, a view is a saved visibility filter over it) or true Lucidchart
+pages (each an independent canvas with its own object positions). Answer:
+independent canvases. Confirmed again after reading the actual store code:
+offered a smaller, lower-risk alternative (tag each object with a page,
+reusing the Views filtering pattern) versus the larger, fully-nested
+structure this called for — the operator chose the larger one.
+**Built:** `ProjectDocument` changed from one flat `{nodes, edges, canvas,
+probes}` to `{pages: ProjectPage[], activePageId, probes}`, each
+`ProjectPage` holding its own nodes, edges, and canvas settings (grid,
+snap, colour-by, node style, link style, Views). `probes` stays flat and
+project-wide — a device's monitoring was never a question of which page
+draws it. A new pure module, `src/lib/pages.ts`, holds the page
+list-manipulation (add/remove/rename/duplicate/reorder/switch), mirroring
+`src/lib/layers.ts`'s own pure-function style, and a new `PageTabs.tsx`
+component gives it a tab strip along the bottom of the canvas — modelled on
+the Views panel's own interaction vocabulary (inline-editable name, a
+remove affordance, an add control), laid out sideways. Renamed the
+existing `canvas.page`/`canvas.pageRect` fields (the print-sheet boundary
+of one drawing — an unrelated, pre-existing feature) to `canvas.sheet`/
+`canvas.sheetRect` so the two concepts sharing the word "page" could not be
+confused with each other in the same file.
+**Migration:** `migrateDocument` (`src/lib/migrate.ts`) gained a first step
+that wraps a document saved before this into a single page named "Page 1"
+— idempotent, and everything that was on it stays exactly where it was.
+**~30 store actions in `src/state/store.ts`** that used to reach into
+`doc.nodes`/`doc.edges`/`doc.canvas` directly now go through
+`activePage(doc)`/`withPage(doc, patch)`; the handful that are genuinely
+project-wide (`nodeStatus`, `linkStatus`, the Monitored Objects table,
+`ensureNodeCheck`, backup/CSV export) go through `allNodes`/`allEdges`
+instead, which flatten every page.
+**Export scope for v1:** SVG/PNG/PDF/Visio (drawing exports) draw the
+active page only; CSV/Markdown (data exports, not drawings) and the
+Monitored Objects table stay project-wide. True multi-page Visio export
+(one `.vsdx` page per Coreview page) is real, separate work, concentrated
+in `src-tauri/src/visio.rs`'s currently-hardcoded single-page XML — not
+attempted here.
+**A real bug found and fixed during verification, not left in:** the first
+working version of `PageTabs.tsx` had a tab's inline-rename `<input>`
+calling `e.stopPropagation()` on click, which silently swallowed every
+click meant to switch to that tab — clicking a tab did nothing, and it was
+easy to misread as "pages aren't really independent" rather than "the
+click never arrived." Fixed by switching to the tab's `onFocus` instead
+(which a plain click into the input also triggers, without needing the
+click to bubble at all) — caught by testing the actual click, not by
+reading the code, exactly the kind of thing this project's own standard
+("distinguish 'I compiled it' from 'I ran it and watched it work'") exists
+to catch.
+**Verified live, through the actual running app, not just unit tests:**
+opened a project saved before this feature existed and confirmed it came
+up as one page named "Page 1" with everything intact; added a second page
+and confirmed it was genuinely blank; placed a device on it and watched
+the Monitored Objects count go up regardless of which page was on screen;
+switched back to the first page and confirmed it was untouched; renamed a
+page inline; duplicated a page and confirmed the copy got fresh ids, no
+carried-over probes, and a unique name; deleted a page and confirmed its
+device dropped out of Monitored Objects (the probe cascade) and the tab
+strip fell back to another page; confirmed the last remaining page refuses
+to be deleted. `src/lib/pages.ts` also carries 22 direct unit tests
+(add/remove/rename/duplicate/reorder/switch, unique-name collision,
+probe-cascade-on-delete, last-page-refusal), and `migrate.ts` carries 4
+covering the new wrap step specifically (isolated from the pre-existing
+LT-065 glyph-squaring tests, which were adjusted to test squaring alone
+rather than picking up an extra "changed" count from the wrap).
 
 ### LT-095 — A hyperlink on an object — 2026-09-07
 **Source:** asked 2026-09-07 alongside pages and note hyperlinks —

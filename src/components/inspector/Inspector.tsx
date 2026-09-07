@@ -13,6 +13,7 @@ import { describeSelection, withTag, withoutTag } from '../../lib/bulkEdit';
 import { buildTimeline, shortDuration, totals } from '../../lib/statusHistory';
 import { capsFor } from '../../lib/linkStyle';
 import { layersOf, toggleOn } from '../../lib/layers';
+import { activePage } from '../../lib/pages';
 import type {
   DeviceNodeData,
   DeviceType,
@@ -60,7 +61,7 @@ export function Inspector() {
   const selectedNodeId = useStore((s) => s.selectedNodeId);
   const selectedEdgeId = useStore((s) => s.selectedEdgeId);
   const meta = useStore((s) => s.meta);
-  const nodes = useStore((s) => s.doc.nodes);
+  const nodes = useStore((s) => activePage(s.doc).nodes);
 
   const many = nodes.filter((n) => n.selected);
 
@@ -91,7 +92,7 @@ export function Inspector() {
  * selection disagrees on says so rather than showing the first one.
  */
 function MultiInspector({ ids }: { ids: string[] }) {
-  const nodes = useStore((s) => s.doc.nodes);
+  const nodes = useStore((s) => activePage(s.doc).nodes);
   const updateMany = useStore((s) => s.updateManyNodeData);
   const mapMany = useStore((s) => s.mapManyNodeData);
   const [newTag, setNewTag] = useState('');
@@ -252,7 +253,7 @@ function BulkLayers({
   ids: string[];
   sel: { commonLayers: string[]; someLayers: string[] };
 }) {
-  const canvas = useStore((s) => s.doc.canvas);
+  const canvas = useStore((s) => activePage(s.doc).canvas);
   const mapMany = useStore((s) => s.mapManyNodeData);
   const layers = layersOf(canvas.layers);
   if (layers.length < 2) return null;
@@ -476,7 +477,7 @@ function LayerPicker({
   on: string[] | undefined;
   onChange: (next: string[]) => void;
 }) {
-  const canvas = useStore((s) => s.doc.canvas);
+  const canvas = useStore((s) => activePage(s.doc).canvas);
   const layers = layersOf(canvas.layers);
   if (layers.length < 2) return null;
   return (
@@ -625,7 +626,7 @@ function ProjectCheckTiming() {
 }
 
 function NodeInspector({ nodeId }: { nodeId: string }) {
-  const node = useStore((s) => s.doc.nodes.find((n) => n.id === nodeId));
+  const node = useStore((s) => activePage(s.doc).nodes.find((n) => n.id === nodeId));
   const update = useStore((s) => s.updateNodeData);
   const status = useStore((s) => s.nodeStatus(nodeId));
 
@@ -864,7 +865,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
 }
 
 function AddressList({ nodeId }: { nodeId: string }) {
-  const node = useStore((s) => s.doc.nodes.find((n) => n.id === nodeId));
+  const node = useStore((s) => activePage(s.doc).nodes.find((n) => n.id === nodeId));
   const update = useStore((s) => s.updateNodeData);
   const d = node?.data as DeviceNodeData | undefined;
   if (!d) return null;
@@ -950,7 +951,7 @@ function ProbeList({ objectKind, objectId }: { objectKind: 'node' | 'link'; obje
   // Start a new node probe on the address the node already carries. Leaving it
   // blank means "Add probe" produces something that checks nothing, which
   // reads as the app being broken rather than as a field left to fill in.
-  const nodes = useStore((s) => s.doc.nodes);
+  const nodes = useStore((s) => activePage(s.doc).nodes);
   const suggestedTarget = useMemo(() => {
     if (objectKind !== 'node') return '';
     const data = nodes.find((n) => n.id === objectId)?.data as DeviceNodeData | undefined;
@@ -1229,7 +1230,7 @@ function ProbeEditor({
 }
 
 function LinkInspector({ edgeId }: { edgeId: string }) {
-  const edge = useStore((s) => s.doc.edges.find((e) => e.id === edgeId));
+  const edge = useStore((s) => activePage(s.doc).edges.find((e) => e.id === edgeId));
   const doc = useStore((s) => s.doc);
   const runtime = useStore((s) => s.runtime);
   const sessionRunning = useStore((s) => s.session.state === 'running');
@@ -1252,7 +1253,7 @@ function LinkInspector({ edgeId }: { edgeId: string }) {
 
   const nodeProbes = doc.probes.filter((p) => p.objectKind === 'node');
   const nameOf = (id: string) =>
-    (doc.nodes.find((n) => n.id === id)?.data as DeviceNodeData | undefined)?.label ?? id;
+    (activePage(doc).nodes.find((n) => n.id === id)?.data as DeviceNodeData | undefined)?.label ?? id;
 
   return (
     <>

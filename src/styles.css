@@ -1294,6 +1294,38 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
 .cv-layer-remove:hover { color: var(--down); }
 .cv-layers-add { margin-bottom: 6px; }
 
+/* Pages (LT-094): a tab strip along the bottom of the canvas, scoped to the
+   canvas's own width rather than the whole window — the shape palette and
+   inspector rails either side keep their own space, the way Lucidchart's
+   page tabs sit only under the drawing area. */
+.cv-page-tabs {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: flex; align-items: stretch; gap: 2px; padding: 4px 8px;
+  background: var(--panel); border-top: 1px solid var(--line);
+  overflow-x: auto;
+}
+.cv-page-tab {
+  display: flex; align-items: center; padding: 0 4px;
+  border: 1px solid transparent; border-radius: 4px 4px 0 0;
+  background: none; cursor: pointer; max-width: 160px;
+}
+.cv-page-tab:hover { background: var(--hover); }
+.cv-page-tab.is-active {
+  background: var(--bg); border-color: var(--line) var(--line) var(--bg);
+}
+.cv-page-tab-name {
+  min-width: 0; width: 100%; background: none; border: none;
+  color: var(--text); font-size: 12px; font-family: inherit;
+  padding: 5px 4px; cursor: inherit; text-overflow: ellipsis;
+}
+.cv-page-tab.is-active .cv-page-tab-name { cursor: text; }
+.cv-page-tab-name:focus { outline: none; }
+.cv-page-tab-add {
+  background: none; border: none; cursor: pointer; color: var(--text-dim);
+  font-size: 16px; line-height: 1; padding: 0 10px; border-radius: 4px;
+}
+.cv-page-tab-add:hover { color: var(--text); background: var(--hover); }
+
 /* A callout: a small card that says something, with a leader pointing at what
    it is about. Deliberately quiet — it is a remark on the diagram, not part
    of the network. */
