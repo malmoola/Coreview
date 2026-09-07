@@ -17,6 +17,34 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-094 — Pages, like Lucidchart
+**Source:** asked 2026-09-07 — "Lets also add pages just like how lucidchart
+does."
+**Open question before this is built:** the project already has a "Views"
+panel (`src/components/Layers.tsx`) — one shared canvas, one shared set of
+objects, where a view is a saved visibility/lock filter over it (physical
+vs. logical vs. a specific change). Lucidchart's Pages are a different
+thing: each page is its own independent canvas with its own object
+positions, navigated by tabs, more like a slide deck than a filter. Which
+one is wanted decides the whole design — whether pages share the device/link
+set (same object, different page-local position) or are fully independent
+diagrams inside one project file — so this needs an answer before work
+starts, not an assumption.
+
+### LT-095 — A hyperlink on an object
+**Source:** same message — "hyprlinks."
+**Acceptance:** a device (or note) can carry a URL — a runbook, a vendor
+portal, a ticket — openable from the canvas without leaving the app context.
+No hyperlink field exists anywhere in the schema today (checked).
+
+### LT-096 — Notes support hyperlinks in their text
+**Source:** same message — "notes with hyperlinks."
+**Acceptance:** a note's body already renders a small inline markdown
+dialect (`# `/`## ` headings, `- ` bullets, `- [ ]` checkboxes, `**bold**`,
+`` `code` `` — see `NoteNode.tsx`'s `renderBody`/`inline`). This adds link
+syntax, most naturally `[text](url)`, to that same inline parser, rendered
+as a clickable link rather than plain text.
+
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
