@@ -17,6 +17,57 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-102 — Recolour a whole selection of shapes at once
+**Source:** asked 2026-09-07 — "is it possibel to give admin the ablitity
+to change all the shapes colors?" Read as: a bulk colour edit, the same
+shape the multi-select bulk editor already uses for tags/lock/maintenance
+(`MultiInspector` in `src/components/inspector/Inspector.tsx`), extended to
+a device's `style.iconColor`/`style.background`/`style.border` (there is
+no "admin" account in this app — one operator, no login — so this is
+simply "the person using it," same as everywhere else here).
+**Acceptance:** selecting more than one shape and changing a colour field
+applies it to the whole selection, the same bulk-edit pattern already used
+for other fields.
+
+### LT-103 — Add and remove shapes from the built-in palette
+**Source:** asked 2026-09-07 — "can we give the admin the ablity to
+delete shapes and add shapes." Today the palette's built-in categories
+(Compute and services, Sites and clouds, Shapes, etc.) are fixed in the
+app; only a user-pointed folder of SVGs (Icon library) or Visio-imported
+stencils are user-editable. This asks to edit the built-in palette itself.
+**Open question before this is built:** "add/remove" from a *built-in*
+list is a different thing from managing a *custom* list — removing a
+built-in shape either hides it (reversible, per-machine preference) or
+deletes it for good (not, and breaks any diagram already using it). Needs
+an answer before work starts.
+
+### LT-104 — Drag a shape from the canvas into the shape library
+**Source:** asked 2026-09-07 — "can we give admin the ablility to past
+shape into the diagram page then drag it to the shape library?" Read as:
+place/customise a shape on the canvas, then drag it onto the palette to
+save it as a new reusable stencil — turning a one-off customisation into
+something reachable again without repeating the customisation.
+**Acceptance:** dragging a shape from the canvas onto the shape library
+(or a dedicated drop target in it) adds it there for reuse, with whatever
+customisation (colour, icon) it already had on the canvas.
+
+### LT-105 — Cisco shapes as real (vector) shapes, not embedded pictures
+**Source:** asked 2026-09-07 — "can we turn all the cisco shapes to real
+shapes not just pictures?" Checked, and this is a real, specific gap, not
+a misunderstanding: `src-tauri/src/icons.rs`'s own test
+`keeps_embedded_bitmaps_but_not_fetching_ones` (line 668) confirms the
+icon pipeline deliberately preserves an embedded raster image inside the
+SVG wrapper rather than converting it to vector paths — which is exactly
+what several official Cisco Visio stencils are made of. Those render fine
+but cannot be recoloured or edited as a shape the way a drawn vector icon
+can.
+**Not yet scoped.** Turning an embedded bitmap into an editable vector
+shape is not a format conversion — it is redrawing the artwork (by hand,
+or with a vector-tracer of some quality) for however many Cisco shapes are
+affected, which could be a small correction or a large undertaking
+depending on how many of the shipped Cisco shapes are actually
+bitmap-backed. Counting that is the first step, before promising a fix.
+
 ### LT-100 — Remove the Tripp Lite / rack stencils
 **Source:** asked 2026-09-07 — "remove all Tripp Lite / Racks 18 they are
 not useful at all." Reverses LT-086 (and its two follow-on bug fixes,
