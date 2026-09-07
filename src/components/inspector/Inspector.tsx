@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { DEFAULTS } from '../../theme';
+import { DEFAULTS, deviceColor } from '../../theme';
 
 import { useStore } from '../../state/store';
 import { uid } from '../../lib/id';
@@ -10,6 +10,7 @@ import { DEVICE_LABEL } from '../icons';
 import { STATUS_COLOR } from '../edges/LiveEdge';
 import { describeRule, linkStatus } from '../../health/evaluate';
 import { describeSelection, withTag, withoutTag } from '../../lib/bulkEdit';
+import type { Shared } from '../../lib/bulkEdit';
 import { buildTimeline, shortDuration, totals } from '../../lib/statusHistory';
 import { capsFor } from '../../lib/linkStyle';
 import { layersOf, toggleOn } from '../../lib/layers';
@@ -54,6 +55,38 @@ function Field({
       {children}
       {hint && <span className="cv-field-hint">{hint}</span>}
     </label>
+  );
+}
+
+/** A colour override with a way back to automatic (LT-102). `isSet` decides
+ *  whether "Reset" shows — the swatch itself cannot tell a real override
+ *  from the automatic colour it happens to match. */
+function ColorField({
+  label,
+  value,
+  isSet,
+  hint,
+  onChange,
+  onReset,
+}: {
+  label: string;
+  value: string;
+  isSet: boolean;
+  hint?: string;
+  onChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  return (
+    <Field label={label} hint={hint}>
+      <div className="cv-row cv-row-tight">
+        <input className="cv-color" type="color" value={value} onChange={(e) => onChange(e.target.value)} />
+        {isSet && (
+          <button type="button" className="cv-link" onClick={onReset}>
+            Reset
+          </button>
+        )}
+      </div>
+    </Field>
   );
 }
 
@@ -110,6 +143,25 @@ function MultiInspector({ ids }: { ids: string[] }) {
     mapMany(deviceIds, (d) => ({ tags: withTag(d.tags, tag) }), `Tag ${tag}`);
     setNewTag('');
   };
+
+  // Every device keeps its own automatic colour by default (different types,
+  // different statuses), so there is no single swatch to show for "not set" —
+  // a neutral placeholder stands in until an override is actually chosen.
+  const NEUTRAL_SWATCH = '#64748b';
+  const bulkColorValue = (field: Shared<string | undefined>) =>
+    field.kind === 'same' && field.value ? field.value : NEUTRAL_SWATCH;
+  const setBulkColor = (key: 'iconColor' | 'background' | 'border', value: string) =>
+    mapMany(deviceIds, (d) => ({ style: { ...(d as DeviceNodeData).style, [key]: value } }), `Set ${key}`);
+  const resetBulkColor = (key: 'iconColor' | 'background' | 'border') =>
+    mapMany(
+      deviceIds,
+      (d) => {
+        const next = { ...(d as DeviceNodeData).style };
+        delete next[key];
+        return { style: next };
+      },
+      `Reset ${key}`,
+    );
 
   return (
     <>
@@ -213,6 +265,33 @@ function MultiInspector({ ids }: { ids: string[] }) {
               </div>
             </Field>
           )}
+
+          <div className="cv-row">
+            <ColorField
+              label="Icon"
+              value={bulkColorValue(sel.iconColor)}
+              isSet={sel.iconColor.kind === 'same' && !!sel.iconColor.value}
+              hint={sel.iconColor.kind === 'mixed' ? 'Mixed — choosing one sets them all' : undefined}
+              onChange={(v) => setBulkColor('iconColor', v)}
+              onReset={() => resetBulkColor('iconColor')}
+            />
+            <ColorField
+              label="Background"
+              value={bulkColorValue(sel.background)}
+              isSet={sel.background.kind === 'same' && !!sel.background.value}
+              hint={sel.background.kind === 'mixed' ? 'Mixed — choosing one sets them all' : undefined}
+              onChange={(v) => setBulkColor('background', v)}
+              onReset={() => resetBulkColor('background')}
+            />
+            <ColorField
+              label="Border"
+              value={bulkColorValue(sel.border)}
+              isSet={sel.border.kind === 'same' && !!sel.border.value}
+              hint={sel.border.kind === 'mixed' ? 'Mixed — choosing one sets them all' : undefined}
+              onChange={(v) => setBulkColor('border', v)}
+              onReset={() => resetBulkColor('border')}
+            />
+          </div>
 
           <BulkLayers ids={chosen.map((n) => n.id)} sel={sel} />
 
@@ -629,6 +708,7 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
   const node = useStore((s) => activePage(s.doc).nodes.find((n) => n.id === nodeId));
   const update = useStore((s) => s.updateNodeData);
   const status = useStore((s) => s.nodeStatus(nodeId));
+  const ground = useStore((s) => s.settings.ground);
 
   if (!node) return null;
 
@@ -724,6 +804,14 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
   }
 
   const d = node.data as DeviceNodeData;
+  const auto = deviceColor(d.deviceType, status, ground);
+  const setColor = (key: keyof NonNullable<DeviceNodeData['style']>, value: string) =>
+    update(nodeId, { style: { ...d.style, [key]: value } });
+  const resetColor = (key: keyof NonNullable<DeviceNodeData['style']>) => {
+    const next = { ...d.style };
+    delete next[key];
+    update(nodeId, { style: next });
+  };
 
   return (
     <>
@@ -794,6 +882,14 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
             onChange={(e) => update(nodeId, { rack: e.target.value })}
           />
         </Field>
+      </div>
+      <div className="cv-row">
+        <ColorField label="Icon" value={d.style?.iconColor ?? auto} isSet={!!d.style?.iconColor}
+          onChange={(v) => setColor('iconColor', v)} onReset={() => resetColor('iconColor')} />
+        <ColorField label="Background" value={d.style?.background ?? auto} isSet={!!d.style?.background}
+          onChange={(v) => setColor('background', v)} onReset={() => resetColor('background')} />
+        <ColorField label="Border" value={d.style?.border ?? auto} isSet={!!d.style?.border}
+          onChange={(v) => setColor('border', v)} onReset={() => resetColor('border')} />
       </div>
       <Field label="Tags" hint="Comma separated">
         <input

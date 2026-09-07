@@ -17,18 +17,6 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
-### LT-102 — Recolour a whole selection of shapes at once
-**Source:** asked 2026-09-07 — "is it possibel to give admin the ablitity
-to change all the shapes colors?" Read as: a bulk colour edit, the same
-shape the multi-select bulk editor already uses for tags/lock/maintenance
-(`MultiInspector` in `src/components/inspector/Inspector.tsx`), extended to
-a device's `style.iconColor`/`style.background`/`style.border` (there is
-no "admin" account in this app — one operator, no login — so this is
-simply "the person using it," same as everywhere else here).
-**Acceptance:** selecting more than one shape and changing a colour field
-applies it to the whole selection, the same bulk-edit pattern already used
-for other fields.
-
 ### LT-104 — Drag a shape from the canvas into the shape library
 **Source:** asked 2026-09-07 — "can we give admin the ablility to past
 shape into the diagram page then drag it to the shape library?" Read as:
@@ -412,6 +400,50 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-102 — Recolour a whole selection of shapes at once — 2026-09-07
+**Source:** asked 2026-09-07 — "is it possibel to give admin the ablitity
+to change all the shapes colors?" Read as a bulk colour edit, the same
+shape the multi-select bulk editor already uses for tags/lock/maintenance
+(`MultiInspector` in `src/components/inspector/Inspector.tsx`) — there is
+no "admin" account in this app, one operator, no login, so this is simply
+"the person using it," same as everywhere else here.
+**Found while scoping:** `DeviceNodeData.style` (`iconColor`/`background`/
+`border`) already existed and was already read everywhere a device is
+drawn or exported (`DeviceNode.tsx`, `diagram.ts`) — but nothing anywhere
+could set it. There was no single-device colour editor to extend, bulk or
+otherwise; this shipped both, since a bulk control with no single-device
+counterpart to check one result against would have been an odd, unverifiable
+half-feature.
+**Built:** a shared `ColorField` (label, swatch, and a "Reset" back to
+automatic that only appears once a field is actually overridden — the
+swatch alone cannot tell a real override from the automatic colour it
+happens to match). `NodeInspector` gets one row of these for a single
+device, defaulting each swatch to `deviceColor(deviceType, status, ground)`
+— the same automatic colour the canvas already draws — until overridden.
+`MultiInspector` gets the same row over the whole selection: extended
+`Selection` (`src/lib/bulkEdit.ts`) with `iconColor`/`background`/`border`
+as `Shared<string | undefined>`, the same `shared()` machinery already
+used for device type, so a selection that agrees on "no override" reads
+`same, undefined` and one that disagrees reads `mixed` — shown with the
+same "choosing one sets them all" hint already used for a mixed device
+type. Setting or resetting a field goes through `mapManyNodeData`, not
+`updateManyNodeData`, merging into each device's own existing `style`
+object individually rather than overwriting it wholesale — the flat
+patch the latter applies would have deleted an unrelated style key a
+different device in the same selection already had set.
+**Verified live, through the actual running app:** selected one device,
+opened the native colour picker on "Icon," picked a colour — the swatch,
+a "Reset" link, and the device's actual glyph on the canvas all updated
+together; Reset put it back to the automatic colour on all three at once.
+Selected two devices of different types (a firewall and a core switch,
+different automatic colours), confirmed all three fields showed the
+neutral "not set" swatch with no mixed hint (both genuinely agreed on "no
+override"); set "Icon" to green and watched both glyphs turn green
+together on the canvas; Reset restored each to its own distinct automatic
+colour, not a shared one — proving the merge went through each device's
+own data rather than a flat overwrite. `npx tsc --noEmit`, `npm run lint`,
+and `npx vitest run` (494 tests, one new) all clean.
 
 ### LT-103 — Remove an added-on stencil pack to free space — 2026-09-07
 **Source:** asked 2026-09-07 — "can we give the admin the ablity to

@@ -84,6 +84,23 @@ describe('describeSelection', () => {
     expect(mixed.locked).toEqual({ kind: 'mixed' });
   });
 
+  it('reads a colour override the same way — same, mixed, or none set at all', () => {
+    const none = describeSelection([device('a'), device('b')]);
+    expect(none.iconColor).toEqual({ kind: 'same', value: undefined });
+
+    const same = describeSelection([
+      device('a', { style: { iconColor: '#ff0000' } }),
+      device('b', { style: { iconColor: '#ff0000' } }),
+    ]);
+    expect(same.iconColor).toEqual({ kind: 'same', value: '#ff0000' });
+
+    const mixed = describeSelection([
+      device('a', { style: { background: '#ff0000' } }),
+      device('b'),
+    ]);
+    expect(mixed.background).toEqual({ kind: 'mixed' });
+  });
+
   it('says nothing about a selection with no devices in it', () => {
     const s = describeSelection([note('n1'), note('n2')]);
     expect(s.deviceType).toEqual({ kind: 'none' });

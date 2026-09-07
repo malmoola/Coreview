@@ -30,6 +30,12 @@ export interface Selection {
   locked: Shared<boolean>;
   maintenance: Shared<boolean>;
   showDetails: Shared<boolean>;
+  /** A colour override, or "same" with value `undefined` when none of the
+   *  selection has one — every device then keeps drawing its own automatic
+   *  colour, same as before this existed (LT-102). */
+  iconColor: Shared<string | undefined>;
+  background: Shared<string | undefined>;
+  border: Shared<string | undefined>;
   /** Tags every selected device carries. Tags only some carry are not here:
    *  offering to remove a tag that half the selection lacks is confusing. */
   commonTags: string[];
@@ -85,6 +91,9 @@ export function describeSelection(nodes: TopoNode[]): Selection {
     locked: shared(data.map((d) => !!d.locked)),
     maintenance: shared(data.map((d) => !!d.maintenance)),
     showDetails: shared(data.map((d) => !!d.showDetails)),
+    iconColor: shared(data.map((d) => d.style?.iconColor)),
+    background: shared(data.map((d) => d.style?.background)),
+    border: shared(data.map((d) => d.style?.border)),
     commonTags: [...every].sort(),
     someTags: [...some].sort(),
   };
