@@ -54,7 +54,8 @@
     "linux": {
       "deb": {
         "depends": [
-          "iputils-ping"
+          "iputils-ping",
+          "traceroute"
         ]
       }
     },

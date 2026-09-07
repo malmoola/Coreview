@@ -300,6 +300,7 @@ textarea.cv-input { resize: vertical; }
 .cv-field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 9px; flex: 1; min-width: 0; }
 .cv-field-label { font-size: 11px; color: var(--text-dim); }
 .cv-field-hint { font-size: 10px; color: var(--text-faint); }
+.cv-field-hint.is-danger { color: var(--down); }
 /* Wraps rather than overflowing. A row of three controls in a 340px panel is
    two rows, not a row you have to scroll. */
 .cv-row { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -1407,6 +1408,17 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px;
 }
 .cv-help-row span { color: var(--text-dim); }
+
+.cv-tr-card { min-width: 420px; }
+.cv-tr-card h2 { display: flex; gap: 6px; align-items: baseline; }
+.cv-tr-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+.cv-tr-table th {
+  text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-faint); padding: 0 8px 4px 0; border-bottom: 1px solid var(--chrome-edge);
+}
+.cv-tr-table td { padding: 3px 8px 3px 0; vertical-align: top; border-bottom: 1px solid var(--chrome-edge); }
+.cv-tr-table tr:last-child td { border-bottom: none; }
+.cv-tr-table td:first-child { color: var(--text-dim); }
 
 /* What the panel filter matches, lit on the canvas. Everything else steps
    back rather than vanishing — the point is to find, not to hide. */

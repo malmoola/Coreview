@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use coreview_probe::engine::{run_once, EngineEvent, SessionState};
 use coreview_probe::sweep::{parse_sweepable_cidr, sweep_many, SweepEvent, SweepOptions, MAX_SWEEP_HOSTS};
-use coreview_probe::{Engine, ProbeConfig, ProbeResult, ProbeSnapshot};
+use coreview_probe::{run_traceroute, Engine, ProbeConfig, ProbeResult, ProbeSnapshot, TracerouteResult};
 use base64::Engine as _;
 use rusqlite::Connection;
 use tokio_util::sync::CancellationToken;
@@ -92,6 +92,15 @@ pub fn validate_target(target: String) -> CmdResult<String> {
     coreview_probe::parse_target(&target)
         .map(|t| t.as_str())
         .map_err(|e| e.to_string())
+}
+
+/// On-demand diagnostic (LT-090): the current path to a target, once — not a
+/// scheduled probe, and nothing is written to the event log. Useful mid-drill
+/// when something is not reaching the backup site and the question is where
+/// it is actually going, not whether it is up.
+#[tauri::command]
+pub async fn traceroute_now(target: String) -> CmdResult<TracerouteResult> {
+    run_traceroute(&target, 30_000).await
 }
 
 // ------------------------------------------------------------- validation

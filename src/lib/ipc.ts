@@ -58,6 +58,21 @@ export interface ProbeResultDto {
   errorMessage: string | null;
 }
 
+export interface TracerouteProbeDto {
+  host: string | null;
+  rttMs: number | null;
+}
+
+export interface TracerouteHopDto {
+  hop: number;
+  probes: TracerouteProbeDto[];
+}
+
+export interface TracerouteResultDto {
+  target: string;
+  hops: TracerouteHopDto[];
+}
+
 export interface SessionInfo {
   sessionId: string | null;
   projectId: string | null;
@@ -412,6 +427,12 @@ export const ipc = {
   async validateTarget(target: string): Promise<string> {
     if (!isDesktop) throw new BackendUnavailable('Target validation');
     return invoke<string>('validate_target', { target });
+  },
+
+  /** LT-090: an on-demand path snapshot, not a scheduled probe. */
+  async traceroute(target: string): Promise<TracerouteResultDto> {
+    if (!isDesktop) throw new BackendUnavailable('Traceroute');
+    return camel<TracerouteResultDto>(await invoke('traceroute_now', { target }));
   },
 
   async startValidation(

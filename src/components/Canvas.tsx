@@ -23,6 +23,7 @@ import { ContextMenu, type MenuItem } from './ContextMenu';
 import { FindBox } from './FindBox';
 import { ColourLegend } from './ColourLegend';
 import { ShortcutHelp } from './ShortcutHelp';
+import { TraceroutePanel } from './TraceroutePanel';
 import { Page } from './Page';
 import { effectivePage, pageForContent } from '../lib/pageRect';
 import { collapseView, groupIdOf, isCollapsed } from '../lib/collapse';
@@ -105,6 +106,7 @@ export function Canvas() {
 
   const [finding, setFinding] = useState(false);
   const [help, setHelp] = useState(false);
+  const [tracerouteTarget, setTracerouteTarget] = useState<string | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
   /** Space held: the pointer becomes a hand and drags the diagram. */
   const [panning, setPanning] = useState(false);
@@ -215,8 +217,16 @@ export function Canvas() {
     const maintenance = Boolean((node?.data as DeviceNodeData | undefined)?.maintenance);
     const members = store.groupMembers(nodeId);
     const selectedCount = doc.nodes.filter((n) => n.selected).length;
+    // The same target a device's own primary check is aimed at (LT-061), so
+    // "where is this actually going" traces the address being monitored,
+    // not just whichever address happens to be listed first.
+    const nodeProbes = doc.probes.filter((p) => p.objectId === nodeId);
+    const primaryTarget = (nodeProbes.find((p) => p.isPrimary) ?? nodeProbes[0])?.target.trim();
     return [
       { label: 'Edit properties', onSelect: () => store.select(nodeId, null) },
+      ...(primaryTarget
+        ? [{ label: 'Traceroute', onSelect: () => setTracerouteTarget(primaryTarget) }]
+        : []),
       {
         label: 'Duplicate',
         onSelect: () => {
@@ -1014,6 +1024,9 @@ export function Canvas() {
         />
       )}
       {help && <ShortcutHelp onClose={() => setHelp(false)} />}
+      {tracerouteTarget && (
+        <TraceroutePanel target={tracerouteTarget} onClose={() => setTracerouteTarget(null)} />
+      )}
       {finding && <FindBox onClose={() => setFinding(false)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>

@@ -99,6 +99,7 @@ fn main() {
             commands::set_project_archived,
             commands::test_probe_now,
             commands::validate_target,
+            commands::traceroute_now,
             commands::start_validation,
             commands::stop_validation,
             commands::update_validation,

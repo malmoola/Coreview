@@ -10,11 +10,13 @@ pub mod icmp;
 pub mod net;
 pub mod state;
 pub mod sweep;
+pub mod traceroute;
 pub mod types;
 pub mod validate;
 
 pub use engine::{Engine, EngineEvent, ProbeSnapshot, SessionState, DEFAULT_MAX_CONCURRENCY};
 pub use state::ProbeState;
 pub use sweep::{parse_cidr, parse_sweepable_cidr, parse_subnets, within_any, Cidr, CidrError, SweepEvent, SweepHit, SweepOptions};
+pub use traceroute::{run_traceroute, TracerouteHop, TracerouteProbe, TracerouteResult};
 pub use types::{HealthStatus, ObjectKind, Outcome, ProbeConfig, ProbeKind, ProbeResult, StatusTransition};
 pub use validate::{parse_target, validate_port, Target, ValidationError};

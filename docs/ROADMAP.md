@@ -17,19 +17,6 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
-### LT-090 — Traceroute, on demand
-**Source:** same message.
-**Why not a recurring probe:** traceroute has no pass/fail signal — it's a
-diagnostic snapshot of the current path, useful mid-drill when something
-isn't reaching the backup DC and you want to see where it's actually going.
-Building it as a scored, threshold-based probe would smuggle back the
-RTT-trend/metrics-history idea already declined in D-023.
-**Acceptance:** an on-demand action against a node (same shape as the
-existing "test now"), shelling out to the platform's own `traceroute` /
-`tracert.exe` and parsing its text output — the same privilege-free pattern
-`ping` already uses here, no raw sockets. Shows the hop list once, not
-logged or scored over time.
-
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -360,6 +347,37 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-090 — Traceroute, on demand — 2026-09-07
+**Source:** same 2026-09-06 message as LT-087/088/089.
+**Why not a recurring probe:** traceroute has no pass/fail signal — it's a
+diagnostic snapshot of the current path, useful mid-drill when something
+isn't reaching the backup DC and you want to see where it's actually going.
+Building it as a scored, threshold-based probe would smuggle back the
+RTT-trend/metrics-history idea already declined in D-023.
+**Built:** a "Traceroute" item on a node's context menu, aimed at the same
+address the node's own primary check is aimed at (LT-061), opening a panel
+that shells out to the platform's own `traceroute`/`tracert.exe` and parses
+its text output — the same privilege-free pattern `ping` already uses here,
+no raw sockets. Shows the hop list once; nothing is logged or scored.
+**Parser written against real captured output, not documentation** — the
+operator installed `traceroute` on request specifically so this could be
+verified against a real machine rather than assumed, per this project's own
+rule for parsers (`icmp.rs`'s own header comment). The captures found a real
+quirk no documentation mentions: on an ECMP path, a single hop's three
+probes can come back from two or three *different* routers, and
+`traceroute` only reprints the router's name when it changes between
+probes — handled and covered by two tests built from real captures of it
+(`preserves_a_mid_hop_router_change[_numeric]`).
+**Verified live, twice:** once at the Rust level (real loopback run, real
+run against the unreachable RFC 5737 range), and once through the actual
+running app under Xvfb — right-clicked a real node in the sample project,
+opened the real "Traceroute" panel, and watched it return and render a real
+result (`localhost (127.0.0.1)`, three real RTTs) end to end: menu → IPC →
+Rust command → process spawn → parse → React render. Also exercised the new
+HTTP/HTTPS/DNS probe-kind UI the same way — the type dropdown, the
+port/path/ignore-cert-errors fields, and a real "Test now" against HTTPS
+that surfaced a genuine TLS failure reason in the inspector.
 
 ### LT-087 — HTTP probing — 2026-09-06
 **Source:** asked 2026-09-06, alongside HTTPS/DNS/traceroute — a two-data-centre
