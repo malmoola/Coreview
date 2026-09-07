@@ -20,16 +20,23 @@ already finished, some literally titled "resolved". Flagged to the operator
 ### LT-094 — Pages, like Lucidchart
 **Source:** asked 2026-09-07 — "Lets also add pages just like how lucidchart
 does."
-**Open question before this is built:** the project already has a "Views"
-panel (`src/components/Layers.tsx`) — one shared canvas, one shared set of
-objects, where a view is a saved visibility/lock filter over it (physical
-vs. logical vs. a specific change). Lucidchart's Pages are a different
-thing: each page is its own independent canvas with its own object
-positions, navigated by tabs, more like a slide deck than a filter. Which
-one is wanted decides the whole design — whether pages share the device/link
-set (same object, different page-local position) or are fully independent
-diagrams inside one project file — so this needs an answer before work
-starts, not an assumption.
+**Resolved 2026-09-07:** asked directly whether this meant the existing
+"Views" panel (`src/components/Layers.tsx` — one shared canvas, one shared
+object set, a view is a saved visibility filter over it) or true Lucidchart
+pages (each an independent canvas with its own object positions). Answer:
+independent canvases.
+**Acceptance:** a project holds one or more pages, each its own canvas with
+its own devices/links/Views/grid/snap/colour settings. A tab strip switches
+between them (add/rename/duplicate/delete/reorder). A device's monitoring
+(probes, the Monitored Objects table, the validation session) stays
+project-wide regardless of which page it's drawn on — which page something
+is drawn on is not the same question as whether it's being checked. Opening
+a project saved before this feature existed shows everything on one page,
+unchanged.
+**Not in v1:** true multi-page export (one Visio page per Coreview page) —
+export works from the active page only for now; the CSV/Markdown data
+exports and the Monitored Objects table stay project-wide since they are
+inventories, not drawings.
 
 ### LT-095 — A hyperlink on an object
 **Source:** same message — "hyprlinks."
