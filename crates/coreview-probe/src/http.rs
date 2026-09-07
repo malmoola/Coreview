@@ -408,12 +408,17 @@ mod tests {
 
     #[tokio::test]
     async fn nothing_listening_is_refused_not_down_with_no_reason() {
-        // Bind and drop to get a port nothing is listening on.
+        // Bind and drop to get a port nothing is listening on. A short
+        // timeout here was flaky on Windows CI: freeing a loopback port
+        // does not deliver the OS-level refusal as fast there as it does
+        // on Linux, so a tight budget saw Timeout instead of Refused —
+        // 3s is comfortably past that without slowing the common (fast)
+        // case, since only the failure path ever waits that long.
         use tokio::net::TcpListener;
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         drop(listener);
-        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, 500, 0)
+        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, 3000, 0)
             .await;
         assert_eq!(result.outcome, Outcome::Refused);
     }

@@ -32,9 +32,9 @@ already finished, some literally titled "resolved". Flagged to the operator
 - Where a bug cannot be fixed, it says why in plain words rather than being
   quietly closed.
 
-**Known bugs, open:** none — as of 2026-09-04.
+**Known bugs, open:** none — as of 2026-09-07.
 **Known bugs, closed:** LT-030, LT-031, LT-003, LT-044, LT-004, LT-005,
-LT-082, LT-083, LT-084, LT-085.
+LT-082, LT-083, LT-084, LT-085, LT-091.
 
 ### LT-031 — **bug** Three CSS variables that were never defined — 2026-08-30
 **Source:** found while doing LT-001, not reported.
@@ -347,6 +347,39 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-091 — **bug** Two probe tests failed only on real Windows CI — 2026-09-07
+**Source:** found, not reported — CI's `windows-latest` run on the LT-090 commit
+failed `test (windows-latest)` while `test (ubuntu-latest)` was green. No
+Windows machine was available in this environment; the operator relayed the
+CI log by hand (three rounds of screenshots) since the log-download API
+returned 403 here.
+**Two independent bugs, one CI run:**
+1. `http::tests::nothing_listening_is_refused_not_down_with_no_reason`
+   expected `Refused`, got `Timeout`. The test's own 500 ms budget, chosen
+   without real justification, was too tight for how Windows tears down a
+   just-freed loopback port — Linux delivers the refusal essentially
+   instantly, Windows measurably slower. Not an app bug: the test itself was
+   flaky. Raised to 3000 ms, matching the budget the other tests already use.
+2. `traceroute::tests::a_real_loopback_run_succeeds` — a real loopback trace
+   came back with hops but not one probe carrying an RTT. `tracert.exe`
+   writes a sub-millisecond round trip as `<1`, which is not a bare number,
+   so `parse_hop_body` fell through to reading it as a hostname — the same
+   `<1ms` quirk `icmp.rs` already handles for `ping.exe`, missed when this
+   was written new. Fixed in `rtt_value`, same `0.5` convention `icmp.rs`
+   uses. While in there: `tracert.exe`'s classic layout prints a hop's RTTs
+   *before* its router name, the reverse of `traceroute`'s, which the
+   original parser had no way to attach a host to — fixed with a same-line
+   back-fill that is a no-op for `traceroute`'s own host-first lines.
+**Acceptance:** a bug is reproduced before it is fixed (D-020) — for #1, the
+reproduction *is* the CI failure itself, a real flake on real Windows, not
+worth re-inventing locally. For #2, a new test
+(`windows_sub_millisecond_loopback_hop_is_parsed`) reconstructs the failing
+line from `tracert.exe`'s documented classic format plus what the CI panic
+revealed was wrong — labelled in its own doc comment as reconstructed, not
+captured, since no real Windows machine was reachable here. Both fixes
+verified passing locally on Linux (68 probe-crate tests) and pushed for CI
+to confirm on the platform that actually found them.
 
 ### LT-090 — Traceroute, on demand — 2026-09-07
 **Source:** same 2026-09-06 message as LT-087/088/089.

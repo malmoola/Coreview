@@ -62,6 +62,20 @@ pub fn traceroute_args(target: &Target, wait_secs: u32) -> Vec<String> {
     }
 }
 
+/// An RTT token's value, handling both a plain number (`23.859`) and the
+/// sub-millisecond form every one of these tools writes as `<1` rather than
+/// `0.xxx` — the same convention (and the same `0.5` stand-in for "some
+/// amount under a millisecond") `icmp.rs` already uses for `ping`'s
+/// `time<1ms`. `None` when the token is not a number at all, so the caller
+/// can fall through to treating it as a hostname.
+fn rtt_value(token: &str) -> Option<f64> {
+    if let Some(rest) = token.strip_prefix('<') {
+        rest.parse::<f64>().ok().map(|v| 0.5_f64.min(v))
+    } else {
+        token.parse::<f64>().ok()
+    }
+}
+
 /// Parse one line's worth of probe tokens (everything after the leading hop
 /// number) into that hop's probes.
 ///
@@ -70,6 +84,16 @@ pub fn traceroute_args(target: &Target, wait_secs: u32) -> Vec<String> {
 /// changed, but *do* print a new host inline the moment an ECMP path
 /// switches which router answers — both captured in
 /// `preserves_a_mid_hop_router_change` and `preserves_a_mid_hop_router_change_numeric`.
+///
+/// `tracert.exe` was not available to capture directly (Windows was only
+/// reachable through CI), so its handling here is inferred from a real CI
+/// failure rather than a real capture: a loopback hop — always
+/// sub-millisecond — came back with every probe's `rtt_ms` unset, which is
+/// what `<1` being unparseable as a bare float, and so misread as a
+/// hostname, produces. `rtt_value` above fixes that half. The other half is
+/// the backfill below: `tracert.exe`'s classic layout prints RTTs before
+/// the router name on a hop line, the reverse of `traceroute`'s, so a
+/// probe can be pushed before any host token has been seen at all.
 fn parse_hop_body(body: &str) -> Vec<TracerouteProbe> {
     let tokens: Vec<&str> = body.split_whitespace().collect();
     let mut probes = Vec::new();
@@ -82,7 +106,7 @@ fn parse_hop_body(body: &str) -> Vec<TracerouteProbe> {
             i += 1;
             continue;
         }
-        if let Ok(rtt) = t.parse::<f64>() {
+        if let Some(rtt) = rtt_value(t) {
             // A bare number is an RTT only when "ms" follows; otherwise
             // (not seen in practice, but cheap to guard) treat it as a host
             // token instead of misreading it as a probe.
@@ -104,6 +128,18 @@ fn parse_hop_body(body: &str) -> Vec<TracerouteProbe> {
             }
         }
         current_host = Some(host);
+    }
+    // A hop whose only router name arrived after some probes were already
+    // pushed (tracert.exe's RTTs-then-router layout) leaves those probes
+    // with no host — back-fill them from whatever host the line did settle
+    // on. A no-op for traceroute's own host-before-RTTs lines, where every
+    // probe already got one inline.
+    if let Some(host) = &current_host {
+        for p in probes.iter_mut() {
+            if p.host.is_none() {
+                p.host = Some(host.clone());
+            }
+        }
     }
     probes
 }
@@ -194,6 +230,27 @@ mod tests {
         let args = traceroute_args(&t, 2);
         assert_eq!(args.last().unwrap(), "10.10.10.1");
         assert_eq!(args.iter().filter(|a| a.contains("10.10.10.1")).count(), 1);
+    }
+
+    /// Reconstructed, not captured: no Windows machine was available in
+    /// this environment, only a CI failure against the real thing —
+    /// `run_traceroute("127.0.0.1", ...)` on `windows-latest` came back
+    /// with hops but not one probe carrying an RTT, which is exactly what
+    /// an unparsed `<1` falling through to "must be a hostname" produces.
+    /// The line below is `tracert.exe`'s well-documented classic layout;
+    /// replace this with a real capture if one ever turns up.
+    #[test]
+    fn windows_sub_millisecond_loopback_hop_is_parsed() {
+        let out = "Tracing route to 127.0.0.1 over a maximum of 30 hops\n\n\
+  1     <1 ms    <1 ms    <1 ms  127.0.0.1\n";
+        let hops = parse_traceroute_output(out);
+        assert_eq!(hops.len(), 1);
+        let probes = &hops[0].probes;
+        assert_eq!(probes.len(), 3);
+        for p in probes {
+            assert_eq!(p.rtt_ms, Some(0.5), "{p:?}");
+            assert_eq!(p.host.as_deref(), Some("127.0.0.1"), "{p:?}");
+        }
     }
 
     /// Real output, `traceroute 127.0.0.1` on this machine.
