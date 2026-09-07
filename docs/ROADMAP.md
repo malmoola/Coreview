@@ -17,6 +17,44 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-097 — Drag a link's port labels along the link
+**Source:** asked 2026-09-07 — "I need to be able to drag the port lable."
+Screenshot shows the small tags near each end of a link (`Gi0/1`, `eth1`,
+`port24`...) — the port-end labels, not the link's own centre label, which
+LT-051 already made draggable this same way.
+**Acceptance:** each port label (source and target) can be dragged along
+its link the same way the centre label already works — takes the pointer,
+slides to the nearest point on the drawn path, cannot leave the link,
+position stored per-link and undoable. Likely the same mechanism as LT-051
+applied to two more anchor points rather than a new one.
+
+### LT-098 — More than 4 link connection points per shape
+**Source:** asked 2026-09-07 — "I need the connector to connect to the
+shapes at 360 so anywhere I move the link it moves not just 4 directions
+we should have more that the 4 points off connections." Today a device has
+exactly four fixed handles (top/right/bottom/left — `DeviceNode.tsx`'s four
+`<Handle>` elements). Read as: a link's endpoint should be able to land
+anywhere around a shape's perimeter, not snap to one of four fixed points.
+**Open question before this is built:** more fixed handles at finer angles
+(8, 12?) is a small, bounded change; a true floating/any-angle connection
+point that follows the nearest perimeter point as either end is dragged is
+a materially bigger one (affects routing, the resize/lock interaction, and
+probably the Visio/SVG export's notion of "which handle"). Needs a decision
+before work starts, not an assumption.
+
+### LT-099 — The status history strip: scrub it, and see more of it
+**Source:** asked 2026-09-07, alongside LT-097/098 — "for the status line I
+need a position line to drag and also I need to klick it and it enlarges
+so I can see more details about the status." Refers to the "Recent status"
+strip in the inspector (`StatusStrip` in
+`src/components/inspector/Inspector.tsx`) — the coloured history bar with
+15m/1h/6h window buttons.
+**Acceptance:** a draggable position marker on the strip that scrubs
+through its time window; clicking the strip opens an enlarged view with
+more detail than the small inline bar can show (exactly what detail is
+worth pinning down before building — likely per-event timestamps and
+durations, since the legend below it already gives status totals).
+
 ### LT-094 — Pages, like Lucidchart
 **Source:** asked 2026-09-07 — "Lets also add pages just like how lucidchart
 does."
