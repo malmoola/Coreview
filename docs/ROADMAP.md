@@ -17,6 +17,27 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-100 — Remove the Tripp Lite / rack stencils
+**Source:** asked 2026-09-07 — "remove all Tripp Lite / Racks 18 they are
+not useful at all." Reverses LT-086 (and its two follow-on bug fixes,
+LT-084/LT-085) — the 18 Tripp Lite SmartRack SVGs shipped as built-in
+stencils.
+**Acceptance:** the Tripp Lite/rack stencils no longer appear in the shape
+palette or installer; `stencils/tripp-lite/` and whatever wires it into the
+built-in icon set are removed. Recorded here rather than silently reverted,
+the same way LT-080's reversal got D-024 — this was real, requested,
+verified work, and its removal is a decision worth a record too.
+
+### LT-101 — **bug** "Send backward" does not move a node behind others
+**Source:** asked 2026-09-07 — "send backward isn't working," alongside a
+screenshot of the node context menu (Edit properties / Duplicate / Set
+maintenance / Lock / Bring forward / Send backward / Delete).
+**Not yet reproduced or fixed** — `reorder()` in `src/components/Canvas.tsx`
+swaps a node with its immediate neighbour in `doc.nodes`' array order,
+which is what stacking currently uses, so worth checking first whether an
+explicit z-index elsewhere (locked-node handling in the same file's `nodes`
+memo) overrides plain array order and makes the swap a no-op visually.
+
 ### LT-097 — Drag a link's port labels along the link
 **Source:** asked 2026-09-07 — "I need to be able to drag the port lable."
 Screenshot shows the small tags near each end of a link (`Gi0/1`, `eth1`,
@@ -91,7 +112,7 @@ inventories, not drawings.
 - Where a bug cannot be fixed, it says why in plain words rather than being
   quietly closed.
 
-**Known bugs, open:** none — as of 2026-09-07.
+**Known bugs, open:** LT-101 — as of 2026-09-07.
 **Known bugs, closed:** LT-030, LT-031, LT-003, LT-044, LT-004, LT-005,
 LT-082, LT-083, LT-084, LT-085, LT-091.
 
