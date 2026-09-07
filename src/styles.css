@@ -424,6 +424,10 @@ textarea.cv-input { resize: vertical; }
   border: 2px solid var(--bg);
 }
 .cv-lock { position: absolute; top: -8px; left: -8px; font-size: 10px; }
+.cv-node-link {
+  position: absolute; bottom: -8px; left: -8px; font-size: 10px;
+  cursor: pointer;
+}
 
 .cv-handle {
   width: 8px; height: 8px; background: var(--panel-2);
@@ -452,6 +456,7 @@ textarea.cv-input { resize: vertical; }
 .cv-note-body p, .cv-note-body li { margin: 2px 0; }
 .cv-note-body code { font-family: var(--mono); background: var(--code-bg); padding: 0 3px; border-radius: 3px; }
 .cv-note-check { display: flex; gap: 6px; align-items: flex-start; margin: 2px 0; }
+.cv-note-body a.cv-note-link { color: inherit; text-decoration: underline; cursor: pointer; }
 
 .cv-edge-label {
   /* Transparent to the pointer. A label sits on top of the line it describes,
@@ -953,6 +958,10 @@ textarea.cv-input { resize: vertical; }
   border: 2px solid var(--desk);
 }
 .cv-glyph-lock { position: absolute; top: -6px; left: -8px; font-size: 9px; }
+.cv-glyph-link {
+  position: absolute; bottom: -6px; left: -8px; font-size: 9px;
+  pointer-events: auto; cursor: pointer;
+}
 
 .cv-glyph-text {
   position: absolute; top: 100%; left: 50%; transform: translateX(-50%);

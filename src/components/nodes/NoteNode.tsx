@@ -3,9 +3,19 @@ import { NodeResizer, type NodeProps } from '@xyflow/react';
 
 import { useStore } from '../../state/store';
 import { canvasPalette, notePalette } from '../../theme';
+import { ipc } from '../../lib/ipc';
 import type { NoteNodeData } from '../../types/domain';
 
-/** Very small Markdown subset: headings, bullets, checkboxes, bold, code. */
+/** Every link — in body text or the note's own Link field — opens the same
+ *  way: through the one Rust command that actually leaves the app (LT-095).
+ *  There is no shell plugin here by design, so a plain `<a href>` must never
+ *  be allowed to navigate the webview itself. */
+function openLink(url: string) {
+  ipc.openExternalUrl(url).catch((err: unknown) => console.error(err));
+}
+
+/** Very small Markdown subset: headings, bullets, checkboxes, bold, code,
+ *  and `[text](url)` links (LT-096). */
 function renderBody(body: string) {
   return body.split('\n').map((line, i) => {
     const key = `${i}-${line.slice(0, 12)}`;
@@ -26,11 +36,32 @@ function renderBody(body: string) {
   });
 }
 
-function inline(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+/** Exported for direct testing (LT-096) — a JSX-returning parser is still a
+ *  pure function; no render/DOM needed to check its output shape. */
+export function inline(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g);
   return parts.map((p, i) => {
     if (p.startsWith('**') && p.endsWith('**')) return <strong key={i}>{p.slice(2, -2)}</strong>;
     if (p.startsWith('`') && p.endsWith('`')) return <code key={i}>{p.slice(1, -1)}</code>;
+    const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(p);
+    if (link) {
+      const label = link[1] ?? '';
+      const url = link[2] ?? '';
+      return (
+        <a
+          key={i}
+          href={url}
+          className="cv-note-link"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openLink(url);
+          }}
+        >
+          {label}
+        </a>
+      );
+    }
     return <span key={i}>{p}</span>;
   });
 }
@@ -59,6 +90,20 @@ function NoteNodeInner({ data, selected }: NodeProps) {
         handleClassName="cv-resize-handle"
       />
       {d.locked && <span className="cv-lock" title="Locked">🔒</span>}
+      {d.link && (
+        <span
+          className="cv-node-link nodrag nopan"
+          title={d.link}
+          aria-label={`Open ${d.link}`}
+          role="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openLink(d.link!);
+          }}
+        >
+          🔗
+        </span>
+      )}
       {d.title && <div className="cv-note-title">{d.title}</div>}
       <div className="cv-note-body">{renderBody(d.body)}</div>
     </div>

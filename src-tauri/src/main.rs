@@ -100,6 +100,7 @@ fn main() {
             commands::test_probe_now,
             commands::validate_target,
             commands::traceroute_now,
+            commands::open_external_url,
             commands::start_validation,
             commands::stop_validation,
             commands::update_validation,

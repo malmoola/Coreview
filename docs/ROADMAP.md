@@ -38,20 +38,6 @@ export works from the active page only for now; the CSV/Markdown data
 exports and the Monitored Objects table stay project-wide since they are
 inventories, not drawings.
 
-### LT-095 — A hyperlink on an object
-**Source:** same message — "hyprlinks."
-**Acceptance:** a device (or note) can carry a URL — a runbook, a vendor
-portal, a ticket — openable from the canvas without leaving the app context.
-No hyperlink field exists anywhere in the schema today (checked).
-
-### LT-096 — Notes support hyperlinks in their text
-**Source:** same message — "notes with hyperlinks."
-**Acceptance:** a note's body already renders a small inline markdown
-dialect (`# `/`## ` headings, `- ` bullets, `- [ ]` checkboxes, `**bold**`,
-`` `code` `` — see `NoteNode.tsx`'s `renderBody`/`inline`). This adds link
-syntax, most naturally `[text](url)`, to that same inline parser, rendered
-as a clickable link rather than plain text.
-
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -382,6 +368,46 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-095 — A hyperlink on an object — 2026-09-07
+**Source:** asked 2026-09-07 alongside pages and note hyperlinks —
+"hyprlinks."
+**Built:** an optional `link` field on a device and on a note, opened from a
+small badge on the canvas (bottom-left corner, next to where the lock badge
+already sits). This app deliberately ships with no shell/HTTP/filesystem
+plugin (`capabilities/default.json`: "the webview cannot name a path of its
+own") — adding `tauri-plugin-shell` would have contradicted that, so this is
+one small hand-written command, `open_external_url`, that checks the scheme
+is `http`/`https` before shelling out via the `open` crate. A link on a
+device or note can arrive inside an imported or shared project file, so the
+scheme check is enforced in Rust, not trusted from the frontend.
+**Verified:** three Rust tests confirm `file://`, `javascript:`, and a
+bare string with no scheme are all refused. Live under Xvfb: this
+environment turned out to have no emoji font installed at all (`fc-list`
+confirms — not something to fix here, a pre-existing gap in the test VM
+that equally affects the already-shipped 🔒 lock badge, not something this
+work introduced), so the 🔗 glyph itself couldn't be *seen* to render.
+Swapped it for a plain letter with a bright background as a temporary,
+reverted-before-commit diagnostic: confirmed the badge sits in exactly the
+right spot, only renders when a link is set, and a click is caught by the
+badge (`stopPropagation`) rather than falling through to node
+selection/drag. Reverted back to 🔗 immediately after.
+
+### LT-096 — Notes support hyperlinks in their text — 2026-09-07
+**Source:** same message — "notes with hyperlinks."
+**Built:** `NoteNode.tsx`'s existing small inline-markdown parser (bold,
+code, headings, checkboxes) gains `[text](url)` link syntax, opened through
+the same `open_external_url` command as LT-095 — a plain `<a href>` is never
+allowed to navigate the webview itself, since there is nothing for it to
+navigate to.
+**Verified:** three unit tests on the exported `inline()` parser (a link
+renders with the right href and text; unmatched brackets with no following
+`(url)` stay plain text, not a broken link; bold/code/link all still work
+together on one line). Live under Xvfb: typed `[the runbook](https://…)`
+into a real note's body in the sample project and watched it render as an
+underlined link (plain text, no emoji-font dependency, so this one *was*
+directly visible) — clicking it did not navigate the app away. Sample
+project's note content restored to its original text afterward.
 
 ### LT-092 — HTTP/HTTPS probing: match text in the response body — 2026-09-07
 **Source:** asked 2026-09-07, offered as an idea and accepted ("Do it") —

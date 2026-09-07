@@ -6,6 +6,7 @@ import { canvasPalette, deviceColor, statusColors } from '../../theme';
 import { colourForKey, keyForData } from '../../lib/tinting';
 import { useStore } from '../../state/store';
 import { timeAgo } from '../../lib/timeAgo';
+import { ipc } from '../../lib/ipc';
 import type { DeviceNodeData, HealthStatus, ProbeRuntime } from '../../types/domain';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 
@@ -195,6 +196,9 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const beginEditing = useStore((s) => s.beginEditing);
   const colourBy = useStore((s) => s.doc.canvas.colourBy ?? 'health');
   const rename = useStore((s) => s.updateNodeData);
+  const openLink = () => {
+    if (d.link) ipc.openExternalUrl(d.link).catch((err: unknown) => console.error(err));
+  };
 
   const Icon = ICONS[d.deviceType] ?? ICONS.generic;
   // Health when something is watching, otherwise what the device is. A
@@ -279,6 +283,20 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
             <span className="cv-sr">{STATUS_LABEL[status]}</span>
           </span>
           {d.locked && <span className="cv-glyph-lock" title="Locked" aria-label="Locked">🔒</span>}
+          {d.link && (
+            <span
+              className="cv-glyph-link nodrag nopan"
+              title={d.link}
+              aria-label={`Open ${d.link}`}
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openLink();
+              }}
+            >
+              🔗
+            </span>
+          )}
         </div>
 
         {/* Text sits under the glyph and is allowed to be wider than it, so
@@ -382,6 +400,20 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
       {d.locked && (
         <span className="cv-lock" title="Locked" aria-label="Locked">
           🔒
+        </span>
+      )}
+      {d.link && (
+        <span
+          className="cv-node-link nodrag nopan"
+          title={d.link}
+          aria-label={`Open ${d.link}`}
+          role="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openLink();
+          }}
+        >
+          🔗
         </span>
       )}
 

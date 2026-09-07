@@ -643,7 +643,18 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
             onChange={(e) => update(nodeId, { title: e.target.value })}
           />
         </Field>
-        <Field label="Body" hint="Supports # headings, - bullets, - [ ] checkboxes, **bold**, `code`">
+        <Field label="Link" hint="Opened in the OS browser — http(s) only">
+          <input
+            className="cv-input cv-mono"
+            placeholder="https://…"
+            value={d.link ?? ''}
+            onChange={(e) => update(nodeId, { link: e.target.value })}
+          />
+        </Field>
+        <Field
+          label="Body"
+          hint="Supports # headings, - bullets, - [ ] checkboxes, **bold**, `code`, [text](url)"
+        >
           <textarea
             className="cv-input cv-mono"
             rows={10}
@@ -803,6 +814,14 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           rows={3}
           value={d.notes ?? ''}
           onChange={(e) => update(nodeId, { notes: e.target.value })}
+        />
+      </Field>
+      <Field label="Link" hint="A runbook, a vendor portal, a ticket — opened in the OS browser">
+        <input
+          className="cv-input cv-mono"
+          placeholder="https://…"
+          value={d.link ?? ''}
+          onChange={(e) => update(nodeId, { link: e.target.value })}
         />
       </Field>
 

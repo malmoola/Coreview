@@ -103,6 +103,19 @@ pub async fn traceroute_now(target: String) -> CmdResult<TracerouteResult> {
     run_traceroute(&target, 30_000).await
 }
 
+/// Open a hyperlink on a device or note (LT-095) in the OS's own browser.
+/// There is no shell/HTTP plugin in this app by design (see
+/// `capabilities/default.json`), so this is the one narrow, explicit door:
+/// http(s) only, checked here rather than trusted from the frontend, since a
+/// link can arrive inside an imported or shared project file.
+#[tauri::command]
+pub fn open_external_url(url: String) -> CmdResult<()> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("only http:// and https:// links can be opened".into());
+    }
+    open::that(url).map_err(|e| e.to_string())
+}
+
 // ------------------------------------------------------------- validation
 
 #[derive(Serialize, Clone)]
@@ -382,6 +395,33 @@ mod export_tests {
         let path = std::env::temp_dir().join("coreview-no-such-dir").join("x.svg");
         let err = save_export(path.to_string_lossy().into_owned(), String::new()).unwrap_err();
         assert!(err.contains("Could not write"), "unexpected error: {err}");
+    }
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+
+    // Not a live-open assertion — nothing here can assume a browser is
+    // installed on CI. This tests the actual security boundary: a link on a
+    // device or note can arrive inside an imported or shared project file,
+    // and must never be trusted to name anything but a web page.
+    #[test]
+    fn rejects_a_file_url() {
+        let err = open_external_url("file:///etc/passwd".into()).unwrap_err();
+        assert!(err.contains("http"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn rejects_a_javascript_url() {
+        let err = open_external_url("javascript:alert(1)".into()).unwrap_err();
+        assert!(err.contains("http"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn rejects_a_bare_string_with_no_scheme() {
+        let err = open_external_url("not-a-url".into()).unwrap_err();
+        assert!(err.contains("http"), "unexpected error: {err}");
     }
 }
 

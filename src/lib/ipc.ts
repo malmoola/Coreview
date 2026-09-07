@@ -436,6 +436,13 @@ export const ipc = {
     return camel<TracerouteResultDto>(await invoke('traceroute_now', { target }));
   },
 
+  /** LT-095: opens a device/note link in the OS's own browser. There is no
+   *  shell plugin here by design — this is the one narrow door for it. */
+  async openExternalUrl(url: string): Promise<void> {
+    if (!isDesktop) throw new BackendUnavailable('Opening a link');
+    await invoke('open_external_url', { url });
+  },
+
   async startValidation(
     projectId: string,
     operator: string,

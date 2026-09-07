@@ -102,6 +102,9 @@ export interface DeviceNodeData extends Record<string, unknown> {
   site?: string;
   rack?: string;
   notes?: string;
+  /** A runbook, a vendor portal, a ticket — opened in the OS browser from the
+   *  canvas. http(s) only; enforced where it is actually opened, not here. */
+  link?: string;
   tags: string[];
   /** The VLAN this device sits in, when discovery learned it (LT-027).
    *  Used by colour-by-VLAN; a switch that trunks many has none. */
@@ -131,6 +134,8 @@ export interface NoteNodeData extends Record<string, unknown> {
   /** Which views this note appears on. Unset means every view. */
   layers?: string[];
   title?: string;
+  /** See DeviceNodeData.link. */
+  link?: string;
   body: string;
   /** Change-note styling for pre-check / rollback / risk annotations. */
   variant: 'plain' | 'change';
