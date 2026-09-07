@@ -1076,6 +1076,19 @@ function ProbeEditor({
             </div>
           )}
 
+          {(probe.kind === 'http' || probe.kind === 'https') && (
+            <div className="cv-row">
+              <Field label="Expected text in response">
+                <input
+                  className="cv-input cv-mono"
+                  value={probe.expectedBody ?? ''}
+                  placeholder="Application OK — blank checks the status code only"
+                  onChange={(e) => patch({ expectedBody: e.target.value || null })}
+                />
+              </Field>
+            </div>
+          )}
+
           {probe.kind === 'dns' && (
             <div className="cv-row">
               <Field label="Expected address">

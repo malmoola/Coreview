@@ -56,6 +56,30 @@ async fn read_status_line<S: AsyncRead + Unpin>(stream: &mut S) -> std::io::Resu
     Ok(String::from_utf8_lossy(&buf).into_owned())
 }
 
+/// Never read more of the response than this when a `LT-092` text check
+/// asks for it — enough for the vast majority of health/status pages
+/// without ever growing an unbounded buffer against a slow or endless
+/// response.
+const MAX_BODY_BYTES: usize = 65_536;
+
+/// Read whatever `stream` has left, up to `cap` bytes, stopping at EOF.
+/// Every request here sends `Connection: close`, so the server closing the
+/// socket after its response is exactly the "reading is done" signal —
+/// there is no `Content-Length`/chunked framing to parse for a check this
+/// simple.
+async fn read_capped<S: AsyncRead + Unpin>(stream: &mut S, cap: usize) -> std::io::Result<Vec<u8>> {
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 4096];
+    while buf.len() < cap {
+        let n = stream.read(&mut chunk).await?;
+        if n == 0 {
+            break;
+        }
+        buf.extend_from_slice(&chunk[..n]);
+    }
+    Ok(buf)
+}
+
 fn request_line(host: &str, path: &str) -> String {
     format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: Coreview\r\nConnection: close\r\n\r\n")
 }
@@ -66,6 +90,7 @@ pub async fn probe_http(
     raw_target: &str,
     port: Option<u32>,
     path: Option<&str>,
+    expected_body: Option<&str>,
     timeout_ms: u64,
     now_ms: i64,
 ) -> ProbeResult {
@@ -109,7 +134,8 @@ pub async fn probe_http(
         Ok(Ok(s)) => s,
     };
 
-    finish_http_exchange(probe_id, &mut stream, &host, &path, deadline, started, now_ms).await
+    finish_http_exchange(probe_id, &mut stream, &host, &path, expected_body, deadline, started, now_ms)
+        .await
 }
 
 /// Timeout-bounded HTTPS GET. `port` defaults to 443. `ignore_cert_errors`
@@ -118,11 +144,13 @@ pub async fn probe_http(
 /// application answers, not whether the certificate chains to a public
 /// root. Left off, a bad certificate is reported as `CertificateError`
 /// rather than folded into a generic connection failure.
+#[allow(clippy::too_many_arguments)]
 pub async fn probe_https(
     probe_id: &str,
     raw_target: &str,
     port: Option<u32>,
     path: Option<&str>,
+    expected_body: Option<&str>,
     ignore_cert_errors: bool,
     timeout_ms: u64,
     now_ms: i64,
@@ -195,17 +223,20 @@ pub async fn probe_https(
         Ok(Ok(s)) => s,
     };
 
-    finish_http_exchange(probe_id, &mut stream, &host, &path, deadline, started, now_ms).await
+    finish_http_exchange(probe_id, &mut stream, &host, &path, expected_body, deadline, started, now_ms)
+        .await
 }
 
 /// The part `probe_http` and `probe_https` share once they have a connected
 /// stream — plain or TLS-wrapped makes no difference from here on, since
 /// both implement `AsyncRead`/`AsyncWrite`.
+#[allow(clippy::too_many_arguments)]
 async fn finish_http_exchange<S>(
     probe_id: &str,
     stream: &mut S,
     host: &str,
     path: &str,
+    expected_body: Option<&str>,
     deadline: Duration,
     started: Instant,
     now_ms: i64,
@@ -240,19 +271,9 @@ where
         );
     };
 
-    let rtt = started.elapsed().as_secs_f64() * 1000.0;
-    if is_healthy_status(code) {
-        ProbeResult {
-            probe_id: probe_id.to_string(),
-            timestamp_ms: now_ms,
-            outcome: Outcome::Success,
-            rtt_ms: Some(rtt),
-            resolved: vec![],
-            summary: format!("HTTP {code}, {rtt:.0} ms"),
-            error_message: None,
-        }
-    } else {
-        ProbeResult {
+    if !is_healthy_status(code) {
+        let rtt = started.elapsed().as_secs_f64() * 1000.0;
+        return ProbeResult {
             probe_id: probe_id.to_string(),
             timestamp_ms: now_ms,
             outcome: Outcome::HttpError,
@@ -260,7 +281,62 @@ where
             resolved: vec![],
             summary: format!("HTTP {code}"),
             error_message: Some(format!("HTTP {code}")),
+        };
+    }
+
+    // LT-092: a healthy status is not proof the *application* answered — a
+    // maintenance page or a default web-server page returns 200 too. Only
+    // read the rest of the response (bounded) when a check was actually
+    // asked for; the common case stays exactly as light as it always was.
+    if let Some(want) = expected_body.filter(|w| !w.is_empty()) {
+        let rest = match timeout(deadline, read_capped(stream, MAX_BODY_BYTES)).await {
+            Err(_) => {
+                return ProbeResult::failed(
+                    probe_id,
+                    now_ms,
+                    Outcome::Timeout,
+                    "Reading the response body timed out",
+                )
+            }
+            Ok(Err(e)) => {
+                return ProbeResult::failed(probe_id, now_ms, Outcome::OsError, &e.to_string())
+            }
+            Ok(Ok(bytes)) => String::from_utf8_lossy(&bytes).into_owned(),
+        };
+        let rtt = started.elapsed().as_secs_f64() * 1000.0;
+        if !rest.contains(want) {
+            return ProbeResult {
+                probe_id: probe_id.to_string(),
+                timestamp_ms: now_ms,
+                outcome: Outcome::BodyMismatch,
+                rtt_ms: Some(rtt),
+                resolved: vec![],
+                summary: format!("HTTP {code}, but the expected text was not in the response"),
+                error_message: Some(format!(
+                    "HTTP {code}, but {want:?} was not found in the response"
+                )),
+            };
         }
+        return ProbeResult {
+            probe_id: probe_id.to_string(),
+            timestamp_ms: now_ms,
+            outcome: Outcome::Success,
+            rtt_ms: Some(rtt),
+            resolved: vec![],
+            summary: format!("HTTP {code}, {rtt:.0} ms, expected text found"),
+            error_message: None,
+        };
+    }
+
+    let rtt = started.elapsed().as_secs_f64() * 1000.0;
+    ProbeResult {
+        probe_id: probe_id.to_string(),
+        timestamp_ms: now_ms,
+        outcome: Outcome::Success,
+        rtt_ms: Some(rtt),
+        resolved: vec![],
+        summary: format!("HTTP {code}, {rtt:.0} ms"),
+        error_message: None,
     }
 }
 
@@ -381,7 +457,7 @@ mod tests {
                 .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
                 .await;
         });
-        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, 2000, 0)
+        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, None, 2000, 0)
             .await;
         assert_eq!(result.outcome, Outcome::Success);
         assert_eq!(result.summary, format!("HTTP 204, {:.0} ms", result.rtt_ms.unwrap()));
@@ -400,10 +476,65 @@ mod tests {
                 .write_all(b"HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n")
                 .await;
         });
-        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, 2000, 0)
+        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, None, 2000, 0)
             .await;
         assert_eq!(result.outcome, Outcome::HttpError);
         assert_eq!(result.summary, "HTTP 503");
+    }
+
+    /// LT-092: a 200 from a maintenance page or a default web-server page
+    /// must not read as healthy when the operator asked for proof the real
+    /// application answered.
+    #[tokio::test]
+    async fn a_200_missing_the_expected_text_is_a_body_mismatch() {
+        use tokio::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 1024];
+            let _ = sock.read(&mut buf).await;
+            let _ = sock
+                .write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n<h1>Under maintenance</h1>")
+                .await;
+        });
+        let result = probe_http(
+            "p1",
+            &addr.ip().to_string(),
+            Some(addr.port() as u32),
+            None,
+            Some("Application OK"),
+            2000,
+            0,
+        )
+        .await;
+        assert_eq!(result.outcome, Outcome::BodyMismatch);
+    }
+
+    #[tokio::test]
+    async fn a_200_with_the_expected_text_is_still_success() {
+        use tokio::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let mut buf = [0u8; 1024];
+            let _ = sock.read(&mut buf).await;
+            let _ = sock
+                .write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nApplication OK, v4.2")
+                .await;
+        });
+        let result = probe_http(
+            "p1",
+            &addr.ip().to_string(),
+            Some(addr.port() as u32),
+            None,
+            Some("Application OK"),
+            2000,
+            0,
+        )
+        .await;
+        assert_eq!(result.outcome, Outcome::Success);
     }
 
     #[tokio::test]
@@ -418,7 +549,7 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         drop(listener);
-        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, 3000, 0)
+        let result = probe_http("p1", &addr.ip().to_string(), Some(addr.port() as u32), None, None, 3000, 0)
             .await;
         assert_eq!(result.outcome, Outcome::Refused);
     }

@@ -234,6 +234,26 @@ The single most common failure here.
 - Where a node lands relative to the pointer depends on the zoom. Do not
   predict it — move, measure, correct, then release.
 
+### 6.7 Verifying the desktop app by hand under Xvfb
+
+- **Launching the raw `target/debug/coreview` binary loads the stale bundled
+  `dist/`, not your edits.** `devUrl` in `tauri.conf.json` is not consulted
+  just because the build is a debug build — only `tauri dev`'s own
+  orchestration (its `beforeDevCommand`, then a `cargo run` it launches
+  itself) wires the running app to the Vite dev server on `:5173`. A plain
+  `cargo build` + direct launch renders whatever `npm run build` last put in
+  `dist/`, silently and without error — the app looks fine, just wrong,
+  which is worse than a crash. If a feature you just wrote is not in a probe
+  type dropdown that the source clearly has, check `dist/`'s mtime before
+  suspecting the code. Always drive manual verification through
+  `xvfb-run -a npm run tauri dev` (with `PATH="$HOME/.cargo/bin:$PATH"` — see
+  §4), never the bare binary.
+- The WebKitGTK window can take several seconds to map after the process
+  starts (compiling probe/discover crates first); a screenshot taken too
+  early is just the Xvfb root background, not a bug. Poll `xwininfo -root
+  -tree` for a `"Coreview"` child window near your target size before
+  screenshotting.
+
 ---
 
 ## 7. The lab

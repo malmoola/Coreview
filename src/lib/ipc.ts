@@ -51,7 +51,8 @@ export interface ProbeResultDto {
     | 'invalid_target'
     | 'http_error'
     | 'certificate_error'
-    | 'address_mismatch';
+    | 'address_mismatch'
+    | 'body_mismatch';
   rttMs: number | null;
   resolved: string[];
   summary: string;

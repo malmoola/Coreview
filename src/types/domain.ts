@@ -75,6 +75,10 @@ export interface Probe {
   /** `dns` only: fail (as `address_mismatch`) if resolution does not include
    *  this address — proves a DNS/GSLB failover actually moved a name. */
   expectedAddress?: string | null;
+  /** `http`/`https` only: fail (as `body_mismatch`) if a healthy response
+   *  does not contain this text — catches a maintenance page or a default
+   *  web-server page answering in place of the real application. */
+  expectedBody?: string | null;
 }
 
 export const PROBE_DEFAULTS = {

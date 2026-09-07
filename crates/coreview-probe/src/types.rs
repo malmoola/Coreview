@@ -65,6 +65,13 @@ pub struct ProbeConfig {
     /// GSLB/DNS-based failover actually moved a name to the backup site.
     #[serde(default)]
     pub expected_address: Option<String>,
+    /// `Http`/`Https` only: text the response must contain. `None` keeps
+    /// the original behaviour (healthy on status code alone). Set, a
+    /// healthy status whose body does not contain this text is reported as
+    /// `BodyMismatch` — the way to catch a maintenance page or a default
+    /// web-server page answering in place of the real application.
+    #[serde(default)]
+    pub expected_body: Option<String>,
 }
 
 impl ProbeConfig {
@@ -88,6 +95,7 @@ impl ProbeConfig {
             http_path: None,
             ignore_cert_errors: false,
             expected_address: None,
+            expected_body: None,
         }
     }
 }
@@ -113,6 +121,9 @@ pub enum Outcome {
     /// `Dns` with `expected_address` set: resolution succeeded, but not to
     /// the expected address.
     AddressMismatch,
+    /// `Http`/`Https` with `expected_body` set: a healthy status came back,
+    /// but the expected text was not in the response.
+    BodyMismatch,
 }
 
 impl Outcome {

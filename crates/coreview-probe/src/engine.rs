@@ -404,6 +404,7 @@ pub async fn run_once(cfg: &ProbeConfig) -> ProbeResult {
                 &cfg.target,
                 cfg.tcp_port,
                 cfg.http_path.as_deref(),
+                cfg.expected_body.as_deref(),
                 cfg.timeout_ms,
                 t,
             )
@@ -415,6 +416,7 @@ pub async fn run_once(cfg: &ProbeConfig) -> ProbeResult {
                 &cfg.target,
                 cfg.tcp_port,
                 cfg.http_path.as_deref(),
+                cfg.expected_body.as_deref(),
                 cfg.ignore_cert_errors,
                 cfg.timeout_ms,
                 t,

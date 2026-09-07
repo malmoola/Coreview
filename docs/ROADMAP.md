@@ -348,6 +348,56 @@ LT-045's converter work — the .vss route lands there.
 
 ## Done
 
+### LT-092 — HTTP/HTTPS probing: match text in the response body — 2026-09-07
+**Source:** asked 2026-09-07, offered as an idea and accepted ("Do it") —
+right now any 2xx/3xx counts as healthy, but a maintenance page or a generic
+web-server default page also returns 200. For a failover drill that isn't
+enough: a backup site can be "up" at the HTTP layer while serving the wrong
+thing entirely.
+**Built:** an optional "Expected text in response" field on an HTTP/HTTPS
+probe. Empty keeps prior behaviour (status code only). Filled in, a healthy
+status whose body does not contain that text comes back as a new
+`BodyMismatch` outcome rather than `Success`, with the status code still
+reported so a mismatch is never confused with the site being down. The body
+is read with the same hard cap (`MAX_BODY_BYTES`, 64 KiB) the rest of this
+probe already uses, relying on `Connection: close` rather than buffering
+without limit.
+**Verified live, through the actual running app:** a real local HTTP server
+(not a mock) serving a known body, probed via the Inspector's HTTP GET kind
+with "Application OK" as the expected text — "Test now" returned "OK — HTTP
+200, ... expected text found." Changed the expected text to a string not in
+the body and re-ran — "Failed — HTTP 200, but the expected text was not in
+the response." Both outcomes watched end to end: Inspector field → IPC →
+`probe_http` → rendered result, under Xvfb.
+**A verification trap found along the way:** the first attempt at this
+showed only four probe kinds in the dropdown (no HTTP/HTTPS) despite the
+source being correct — the running app was loading the stale, pre-LT-087
+`dist/` bundle because it had been launched as the raw debug binary rather
+than through `tauri dev`. Not a code bug; written up in
+`docs/HANDOVER.md` §6.7 so it doesn't cost time twice.
+
+### LT-093 — Traceroute: show what changed since the last run — 2026-09-07
+**Source:** same message — comparing two hop lists by eye to prove a path
+actually moved after a failover was the friction point.
+**Built:** a session-only `Map` of the last hop list seen per target: running
+traceroute again against a target it already has a result for compares the
+new hop list against the old one (`tracerouteDiff.ts`'s `changedHops`, pure
+and unit-tested) and highlights the changed rows. A hop counts as changed if
+its set of routers differs at all — new, lost, or newly/no-longer
+answering, not just a router-for-router swap. Not persisted across app
+restarts and not a metrics/trend feature, per the acceptance as asked: one
+before/after comparison, not a history.
+**Verified live, through the actual running app:** ran Traceroute against a
+node in the sample project — first run: "First trace to this target this
+session." Ran it again against the same target — "Same path as the last
+trace to this target," the unchanged-path branch of the same message, under
+Xvfb. The changed-path branch (highlighted rows, "Path changed at N
+hop(s)...") is covered by seven unit tests on `changedHops` itself (router
+changed, started/stopped answering, brand-new hop, order-independence) —
+forcing a real path change on real hardware mid-verification wasn't
+practical, and the rendering ternary next to the already-confirmed
+unchanged branch is a two-line read, not a leap of faith.
+
 ### LT-091 — **bug** Two probe tests failed only on real Windows CI — 2026-09-07
 **Source:** found, not reported — CI's `windows-latest` run on the LT-090 commit
 failed `test (windows-latest)` while `test (ubuntu-latest)` was green. No
