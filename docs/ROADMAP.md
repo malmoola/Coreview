@@ -29,17 +29,20 @@ simply "the person using it," same as everywhere else here).
 applies it to the whole selection, the same bulk-edit pattern already used
 for other fields.
 
-### LT-103 — Add and remove shapes from the built-in palette
+### LT-103 — Remove an added-on stencil pack to free space
 **Source:** asked 2026-09-07 — "can we give the admin the ablity to
-delete shapes and add shapes." Today the palette's built-in categories
-(Compute and services, Sites and clouds, Shapes, etc.) are fixed in the
-app; only a user-pointed folder of SVGs (Icon library) or Visio-imported
-stencils are user-editable. This asks to edit the built-in palette itself.
-**Open question before this is built:** "add/remove" from a *built-in*
-list is a different thing from managing a *custom* list — removing a
-built-in shape either hides it (reversible, per-machine preference) or
-deletes it for good (not, and breaks any diagram already using it). Needs
-an answer before work starts.
+delete shapes and add shapes." **Resolved 2026-09-07** — not the core
+built-in palette (Router, Firewall, the generic network shapes): "just the
+ones we added like the cisco shapes," deleted permanently to free disk
+space, restored only by reinstalling the app. This is the same shape of
+change as LT-100 (removing the Tripp Lite pack) — a stencil pack bundled
+under `stencils/` (Cisco is the one that exists today) — but as a button
+in the app rather than something only done by hand in the repo.
+**Acceptance:** the app can remove a bundled stencil pack (Cisco today,
+whatever is added later) from the installed copy on disk, freeing the
+space it used; those shapes stop appearing in the palette; reinstalling
+the app brings the pack back, since it ships in the installer. The core
+built-in shapes (not part of any named pack) are not touched by this.
 
 ### LT-104 — Drag a shape from the canvas into the shape library
 **Source:** asked 2026-09-07 — "can we give admin the ablility to past
@@ -75,12 +78,11 @@ we should have more that the 4 points off connections." Today a device has
 exactly four fixed handles (top/right/bottom/left — `DeviceNode.tsx`'s four
 `<Handle>` elements). Read as: a link's endpoint should be able to land
 anywhere around a shape's perimeter, not snap to one of four fixed points.
-**Open question before this is built:** more fixed handles at finer angles
-(8, 12?) is a small, bounded change; a true floating/any-angle connection
-point that follows the nearest perimeter point as either end is dragged is
-a materially bigger one (affects routing, the resize/lock interaction, and
-probably the Visio/SVG export's notion of "which handle"). Needs a decision
-before work starts, not an assumption.
+**Resolved 2026-09-07:** the bigger option — a true floating/any-angle
+connection point that follows the nearest perimeter point as either end
+is dragged, not just more fixed handles at finer angles. Real work:
+touches routing, the resize/lock interaction, and the Visio/SVG export's
+notion of "which handle."
 
 ### LT-099 — The status history strip: scrub it, and see more of it
 **Source:** asked 2026-09-07, alongside LT-097/098 — "for the status line I
