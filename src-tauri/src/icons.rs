@@ -615,6 +615,109 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
     })
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StencilPack {
+    pub name: String,
+}
+
+/// The stencil packs bundled under the app's `stencils/` resource — each an
+/// immediate subdirectory, the same unit LT-100 removed by hand for the
+/// Tripp Lite pack. Lets a pack be removed from the app itself instead
+/// (LT-103). No bundled stencils in this build (dir missing) is an empty
+/// list, not an error — the browser build has nothing here at all.
+pub fn list_packs(dir: &str) -> Result<Vec<StencilPack>, String> {
+    let root = PathBuf::from(dir);
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut packs = Vec::new();
+    for entry in std::fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            if let Some(name) = entry.file_name().to_str() {
+                packs.push(StencilPack { name: name.to_string() });
+            }
+        }
+    }
+    packs.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(packs)
+}
+
+/// Removes one bundled stencil pack from disk (LT-103) — permanent, restored
+/// only by reinstalling the app. `name` must be a single path segment naming
+/// an existing immediate subdirectory of `dir`; a parent reference, a
+/// separator, or an unknown name is refused rather than resolved, so this
+/// can never be pointed outside the stencils folder.
+pub fn remove_pack(dir: &str, name: &str) -> Result<(), String> {
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name == "." || name == ".." {
+        return Err(format!("'{name}' is not a valid stencil pack name"));
+    }
+    let root = PathBuf::from(dir)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let target = root.join(name);
+    let target = target
+        .canonicalize()
+        .map_err(|_| format!("'{name}' does not exist"))?;
+    if !target.starts_with(&root) || !target.is_dir() {
+        return Err(format!("'{name}' is not a stencil pack"));
+    }
+    std::fs::remove_dir_all(&target).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod pack_tests {
+    use super::*;
+
+    #[test]
+    fn lists_each_immediate_subdirectory_as_a_pack() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(dir.path().join("cisco")).unwrap();
+        std::fs::create_dir(dir.path().join("aruba")).unwrap();
+        std::fs::write(dir.path().join("readme.txt"), "not a pack").unwrap();
+        let packs = list_packs(dir.path().to_str().unwrap()).unwrap();
+        assert_eq!(
+            packs.into_iter().map(|p| p.name).collect::<Vec<_>>(),
+            vec!["aruba", "cisco"],
+        );
+    }
+
+    #[test]
+    fn a_missing_stencils_dir_is_no_packs_not_an_error() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let missing = dir.path().join("does-not-exist");
+        assert_eq!(list_packs(missing.to_str().unwrap()).unwrap(), vec![]);
+    }
+
+    #[test]
+    fn removes_a_named_pack() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pack = dir.path().join("cisco");
+        std::fs::create_dir(&pack).unwrap();
+        std::fs::write(pack.join("router.svg"), "<svg/>").unwrap();
+        remove_pack(dir.path().to_str().unwrap(), "cisco").unwrap();
+        assert!(!pack.exists());
+    }
+
+    #[test]
+    fn refuses_a_name_that_tries_to_leave_the_stencils_folder() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        for bad in ["..", "../elsewhere", "a/b", "a\\b", ""] {
+            let err = remove_pack(dir.path().to_str().unwrap(), bad).unwrap_err();
+            assert!(!err.is_empty(), "expected an error for {bad:?}");
+        }
+    }
+
+    #[test]
+    fn refuses_a_name_that_is_not_an_existing_pack() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("notapack.txt"), "x").unwrap();
+        assert!(remove_pack(dir.path().to_str().unwrap(), "notapack.txt").is_err());
+        assert!(remove_pack(dir.path().to_str().unwrap(), "never-existed").is_err());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

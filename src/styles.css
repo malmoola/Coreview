@@ -340,6 +340,10 @@ textarea.cv-input { resize: vertical; }
 .cv-palette {
   background: var(--chrome); border-right: 1px solid var(--chrome-edge);
   padding: 10px; overflow-y: auto;
+  /* Reserves space for the scrollbar where the engine honours it (see
+     .cv-layers-list for the padding fix this app's WebKitGTK build needs
+     instead). */
+  scrollbar-gutter: stable;
 }
 .cv-palette-search { margin-bottom: 10px; }
 .cv-palette-group h3 {
@@ -1275,7 +1279,16 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
   font-size: 10px; font-weight: 400; letter-spacing: 0; text-transform: none;
   color: var(--warning);
 }
-.cv-layers-list { display: flex; flex-direction: column; gap: 3px; margin: 4px 0 8px; }
+.cv-layers-list {
+  display: flex; flex-direction: column; gap: 3px; margin: 4px 0 8px;
+  /* WebKitGTK's overlay scrollbar paints over the palette's right edge
+     without reserving layout space for it (confirmed live: offsetWidth and
+     clientWidth are equal, so `scrollbar-gutter: stable` has nothing to grab
+     and is a no-op here) — a button flush against that edge is under the
+     scrollbar, and elementFromPoint there resolves to the scrolling
+     ancestor, not the button, so it never receives the click. */
+  padding-right: 14px;
+}
 .cv-layer { display: flex; align-items: center; gap: 4px; }
 .cv-layer-name {
   flex: 1; min-width: 0; background: none; border: 1px solid transparent;

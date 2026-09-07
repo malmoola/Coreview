@@ -369,6 +369,19 @@ export const ipc = {
     return invoke<IconLibrary>('list_bundled_icons');
   },
 
+  /** The bundled stencil packs (LT-103) — Cisco today, whatever is added
+   *  later — each removable to free space. */
+  listStencilPacks(): Promise<{ name: string }[]> {
+    if (!isDesktop) return Promise.resolve([]);
+    return invoke<{ name: string }[]>('list_stencil_packs');
+  },
+
+  /** Permanent — restored only by reinstalling the app. */
+  removeStencilPack(name: string): Promise<void> {
+    if (!isDesktop) throw new BackendUnavailable('Removing a stencil pack');
+    return invoke<void>('remove_stencil_pack', { name });
+  },
+
   listIconLibrary(dir: string) {
     return invoke<IconLibrary>('list_icon_library', { dir });
   },

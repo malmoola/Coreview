@@ -29,21 +29,6 @@ simply "the person using it," same as everywhere else here).
 applies it to the whole selection, the same bulk-edit pattern already used
 for other fields.
 
-### LT-103 — Remove an added-on stencil pack to free space
-**Source:** asked 2026-09-07 — "can we give the admin the ablity to
-delete shapes and add shapes." **Resolved 2026-09-07** — not the core
-built-in palette (Router, Firewall, the generic network shapes): "just the
-ones we added like the cisco shapes," deleted permanently to free disk
-space, restored only by reinstalling the app. This is the same shape of
-change as LT-100 (removing the Tripp Lite pack) — a stencil pack bundled
-under `stencils/` (Cisco is the one that exists today) — but as a button
-in the app rather than something only done by hand in the repo.
-**Acceptance:** the app can remove a bundled stencil pack (Cisco today,
-whatever is added later) from the installed copy on disk, freeing the
-space it used; those shapes stop appearing in the palette; reinstalling
-the app brings the pack back, since it ships in the installer. The core
-built-in shapes (not part of any named pack) are not touched by this.
-
 ### LT-104 — Drag a shape from the canvas into the shape library
 **Source:** asked 2026-09-07 — "can we give admin the ablility to past
 shape into the diagram page then drag it to the shape library?" Read as:
@@ -427,6 +412,61 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-103 — Remove an added-on stencil pack to free space — 2026-09-07
+**Source:** asked 2026-09-07 — "can we give the admin the ablity to
+delete shapes and add shapes." **Resolved 2026-09-07** — not the core
+built-in palette (Router, Firewall, the generic network shapes): "just the
+ones we added like the cisco shapes," deleted permanently to free disk
+space, restored only by reinstalling the app. The same shape of change as
+LT-100 (removing the Tripp Lite pack), but as a button in the app rather
+than something only done by hand in the repo.
+**Built:** `src-tauri/src/icons.rs` gained `StencilPack`, `list_packs`
+(lists the immediate subdirectories of the stencils resource directory —
+a missing directory is no packs, not an error) and `remove_pack` (checks
+the name has no path separators and isn't `.`/`..`, canonicalizes both the
+stencils root and the target and confirms the target is really inside the
+root before `remove_dir_all` — the same boundary a path coming from the
+frontend always needs). Two new commands, `list_stencil_packs`/
+`remove_stencil_pack`, read the resource directory the same way
+`list_bundled_icons` already does. The palette gained a "Built-in stencil
+packs" section (`StencilPacksSection` in `Palette.tsx`) listing each pack
+with a "×", behind the same delete-confirmation modal pattern already used
+for deleting a project — removing re-loads both `bundledIcons` and
+`stencilPacks` so the palette updates without a restart.
+**A real bug found live, not caught by any of `tsc`/`eslint`/`vitest`/
+`cargo test`/`cargo clippy`, all of which were clean before this was
+found:** the remove "×" was unclickable — not flaky, reliably so, at
+every coordinate on the button. Reading the code found nothing wrong; the
+component was rendering exactly as written. Diagnosing it live (a
+temporary on-page overlay logging `document.elementFromPoint` at each
+button's own centre — see the method below, since this was not visible
+from a screenshot at all) showed the click was landing on
+`ASIDE.cv-palette`, the scrollable palette panel itself, not the button
+under it. WebKitGTK's scrollbar here is an overlay one — it does not
+reserve layout space (`offsetWidth` and `clientWidth` on the palette came
+back equal), so nothing about the layout suggested a problem — but it
+still paints on top of the rightmost ~15px of content when shown, and a
+click there hits the scrollbar, which resolves to the scrolling element,
+not whatever is under it. Every remove button in this panel sits flush
+against that exact edge, including the pre-existing Views panel's own
+eye/lock/remove row (`Layers.tsx`) — the same bug, just never noticed
+there before this.
+**Fixed:** `.cv-layers-list` (shared by both Views and stencil packs) gets
+`padding-right: 14px`, moving every button in it clear of the overlay
+strip; `.cv-palette` also gets `scrollbar-gutter: stable` for engines that
+do reserve gutter space (confirmed a no-op in this app's own WebKitGTK, so
+the padding is the fix that actually matters here, not a belt-and-braces
+extra).
+**Verified live, through the actual running app:** with the fix in place,
+the same `elementFromPoint` check against every remove button in both
+panels (Views' and stencil packs') resolved to the button itself, not the
+palette; clicking a real one (the stale `tripp-lite` pack left over from
+LT-100's by-hand deletion) opened the confirm modal, and "Remove
+permanently" deleted it — the palette's pack list and shape-library count
+both dropped immediately, no restart needed. `npx tsc --noEmit`, `npm run
+lint`, `npx vitest run` (493 tests), `cargo test` (97, including 5 new
+`pack_tests`) and `cargo clippy --all-targets -- -D warnings` all clean.
 
 ### LT-097 — Drag a link's port labels along the link — 2026-09-07
 **Source:** asked 2026-09-07 — "I need to be able to drag the port lable."

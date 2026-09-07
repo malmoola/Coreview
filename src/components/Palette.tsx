@@ -51,6 +51,8 @@ export function Palette() {
 
       <BundledShapesSection query={q} onDrag={drag} />
 
+      <StencilPacksSection />
+
       <IconLibrarySection query={q} onDrag={drag} />
 
       {PALETTE_GROUPS.map((group) => {
@@ -157,6 +159,78 @@ function BundledShapesSection({
           </details>
         ))}
       </details>
+    </div>
+  );
+}
+
+/** Removing a bundled stencil pack (LT-103) — Cisco today — frees the space
+ *  it takes on disk. Permanent: reinstalling the app is what brings it back,
+ *  the same trade as LT-100's by-hand removal of the Tripp Lite pack, now a
+ *  button instead of something only done in the repo. */
+function StencilPacksSection() {
+  const packs = useStore((s) => s.stencilPacks);
+  const removePack = useStore((s) => s.removeStencilPack);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (packs.length === 0) return null;
+
+  return (
+    <div className="cv-palette-group">
+      <details className="cv-layers">
+        <summary className="cv-palette-sub">
+          Built-in stencil packs <span className="cv-palette-count">{packs.length}</span>
+        </summary>
+        <div className="cv-layers-list">
+          {packs.map((p) => (
+            <div key={p.name} className="cv-layer">
+              <span className="cv-layer-name">{p.name}</span>
+              <button
+                type="button"
+                className="cv-layer-remove"
+                title={`Remove the ${p.name} pack — permanent, frees the space it uses`}
+                aria-label={`Remove the ${p.name} pack`}
+                onClick={() => setConfirming(p.name)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      {confirming && (
+        <div className="cv-modal-backdrop" role="presentation">
+          <div className="cv-modal" role="dialog" aria-label="Confirm remove">
+            <h2>Remove the “{confirming}” stencil pack?</h2>
+            <p>
+              Deletes it from disk to free the space it uses. Its shapes disappear from the
+              palette. Reinstalling the app is the only way to bring it back.
+            </p>
+            <div className="cv-modal-actions">
+              <button type="button" className="cv-btn" onClick={() => setConfirming(null)} disabled={busy}>
+                Keep it
+              </button>
+              <button
+                type="button"
+                className="cv-btn is-danger"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void removePack(confirming)
+                    .catch(() => undefined)
+                    .finally(() => {
+                      setBusy(false);
+                      setConfirming(null);
+                    });
+                }}
+              >
+                {busy ? 'Removing…' : 'Remove permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

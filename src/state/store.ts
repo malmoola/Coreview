@@ -161,6 +161,9 @@ interface Store {
   /** The shapes that ship inside the installer (D-022) — always there,
    *  untouched by loading or clearing the user's own folder. */
   bundledIcons: IconLibEntry[];
+  /** The bundled stencil packs (LT-103) each of those shapes came from —
+   *  Cisco today — each removable to free space. */
+  stencilPacks: { name: string }[];
   panelOpen: boolean;
   paletteOpen: boolean;
   inspectorOpen: boolean;
@@ -276,6 +279,10 @@ interface Store {
   loadIconLibrary: (dir: string) => Promise<void>;
   ensureNodeCheck: (id: string) => void;
   clearIconLibrary: () => Promise<void>;
+  /** Permanent — restored only by reinstalling the app (LT-103). Refreshes
+   *  the bundled shape list afterward, so the palette drops that pack's
+   *  shapes without needing a restart. */
+  removeStencilPack: (name: string) => Promise<void>;
   setCanvas: (patch: Partial<ProjectPage['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
@@ -468,6 +475,7 @@ export const useStore = create<Store>((set, get) => ({
   iconLibraryDir: null,
   iconLibraryError: null,
   bundledIcons: [],
+  stencilPacks: [],
   settings: {
     reduceMotion:
       typeof window !== 'undefined' &&
@@ -1384,6 +1392,20 @@ export const useStore = create<Store>((set, get) => ({
         /* no bundled set here */
       }
     }
+    try {
+      set({ stencilPacks: await ipc.listStencilPacks() });
+    } catch {
+      /* no packs to manage here */
+    }
+  },
+
+  async removeStencilPack(name) {
+    await ipc.removeStencilPack(name);
+    const [bundled, packs] = await Promise.all([
+      ipc.listBundledIcons(),
+      ipc.listStencilPacks(),
+    ]);
+    set({ bundledIcons: bundled.icons, stencilPacks: packs });
   },
 
   /** Opens the folder picker, checks the folder can actually be written to,

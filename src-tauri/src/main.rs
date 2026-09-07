@@ -111,6 +111,8 @@ fn main() {
             commands::app_info,
             commands::list_icon_library,
             commands::list_bundled_icons,
+            commands::list_stencil_packs,
+            commands::remove_stencil_pack,
             commands::diagram_pdf,
             commands::diagram_vsdx,
             commands::save_export,

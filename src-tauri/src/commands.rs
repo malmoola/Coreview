@@ -313,6 +313,33 @@ pub fn list_bundled_icons(app: AppHandle) -> CmdResult<crate::icons::IconLibrary
     crate::icons::scan(dir.to_str().ok_or("resource path is not unicode")?)
 }
 
+/// The bundled stencil packs (LT-103) — Cisco today, whatever is added
+/// later — each an immediate subdirectory of the same resource
+/// `list_bundled_icons` scans.
+#[tauri::command]
+pub fn list_stencil_packs(app: AppHandle) -> CmdResult<Vec<crate::icons::StencilPack>> {
+    use tauri::path::BaseDirectory;
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .resolve("stencils", BaseDirectory::Resource)
+        .map_err(|e| format!("no bundled stencils: {e}"))?;
+    crate::icons::list_packs(dir.to_str().ok_or("resource path is not unicode")?)
+}
+
+/// Removes one bundled stencil pack from disk to free space (LT-103) —
+/// permanent; restored only by reinstalling the app.
+#[tauri::command]
+pub fn remove_stencil_pack(app: AppHandle, name: String) -> CmdResult<()> {
+    use tauri::path::BaseDirectory;
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .resolve("stencils", BaseDirectory::Resource)
+        .map_err(|e| format!("no bundled stencils: {e}"))?;
+    crate::icons::remove_pack(dir.to_str().ok_or("resource path is not unicode")?, &name)
+}
+
 // ------------------------------------------------------------------ exports
 
 /// Writes an export to the path the user picked in the save dialog.
