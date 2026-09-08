@@ -241,9 +241,78 @@ a Firewall with model `ASA 5500`, read from the Visio master.
   An imported address becomes a monitoring target, so a wrong one is far
   worse than a missing one: it would check the wrong host and report green
   for a device that is down. A test asserts nothing is taken.
-**Still open:** the Lucidchart/geometric path (no `<Connect>` data at all),
-and the operator's own drawings are kept outside the repository — they are
-his files, so the test that reads one skips when it is absent.
+**Rebuilt 2026-09-08 after the operator tested it on his own drawing.** His
+verdict was blunt and correct: "the names are incorrect! and missing info /
+the diagram doesn't look the same as the visio / it needs a lot more work to
+make it useful." Five defects, each found by measuring against his file
+rather than by reading the code:
+
+1. **A port-pair caption was being used as a device name.** `could_be_a_name`
+   now rejects anything reading as a port or a port pair, so a router came
+   in as "Internet router lumin edge" instead of "Gi0/0/2 <> Gi1/0/13".
+2. **Connectors glued at only one end were dropped.** Two thirds of the
+   connectors in his drawing are glued at one end, four at neither. Each end
+   now resolves independently — glue where it exists, nearest device where it
+   does not — which recovered the AT&T uplinks he named specifically:
+   `Gi0/0/1`/`Gi0/0/2` on the router, `Gi2/0/24`/`Gi1/0/24` on the switch.
+3. **Rack-mounted equipment was being read as lines.** This was the big one.
+   Cisco's rack-unit stencils are *1-D shapes* — a `N9K-C93180YC-EX Front`
+   carries `BeginX`/`EndX` so it snaps into a rack frame, exactly as a
+   connector does. Asking only "does it have begin/end?" threw away fourteen
+   devices: all four Nexus 9000s, both Catalyst 4500Xs, both N2K fabric
+   extenders, the UCS chassis, the HyperFlex node, both fabric interconnects
+   and two storage arrays. What actually separates them is what the box
+   *means*: on a connector Visio writes `Width` as the formula
+   `GUARD(EndX-BeginX)`, so the box **is** the run. That plus a master named
+   "connector" identifies all seventy connectors and misses none of the
+   thirty-seven devices. Glue is a third signal but needs care — a `6324 FI`
+   is glued into its own chassis at both ends, so only glue joining two
+   *different* shapes counts.
+4. **Devices that were never a connector endpoint were not imported at all.**
+   Any shape from a named master that is not a connector and not a text block
+   is now a device, joined or not.
+5. **One caption could name two devices.** Assigning per device in id order
+   let a device take a caption that belonged to its neighbour. Every
+   candidate pairing is now ordered by distance and taken shortest-first, and
+   distance is measured to the shape's *box* rather than its centre — a rack
+   unit is two inches wide, so its own caption is nowhere near its middle.
+
+**Measured on his drawing, before → after:** 34 devices → **37** (which is
+exactly how many device shapes the file contains), 54 links → **70** (exactly
+how many `Dynamic connector` shapes it contains), 51 → **62** with a port.
+`-CORE-01`, `-Leaf201`, `-Leaf202`, `Main-dist01-vss`, `EMC` and `Rubrik` all
+arrive now and did not before.
+
+**Layout fidelity**, the other half of "doesn't look the same"
+(`src/lib/visioLayout.ts`): Visio's pin is the shape's *centre*, not its
+top-left, and shapes are not all one size. Placement now uses the centre and
+the drawing's own width and height, and the scale is taken from the drawing
+rather than fixed at 96 px to the inch — enough that its flattest shape stays
+legible, so four switches stacked 0.185in apart in a rack come out stacked
+rather than piled.
+
+**Three things the operator asked for while this was being built,** all
+built: the preview is now **editable** — rename a device, correct an address,
+change its type, fix which devices a link joins, correct a port, remove what
+does not belong, add what the drawing left out — because a preview you can
+only accept or reject is not much of a decision, and some of what is read out
+of a picture will be wrong however carefully it is read. **Line colours are
+imported**: his drawing uses six, and an operator who drew the carrier
+circuits orange meant something by it. And the port pair is written on the
+line as a **centre label** (`Gi0/1 <> Eth1/4`) as well as being split across
+the two ends.
+
+**Verified live, end to end:** imported into a clean project in the running
+app — 37 devices, 70 links, 107 monitored objects, coloured lines, port
+labels at each end and the pair on the line, and the rack at the foot of the
+drawing sitting where the drawing puts it.
+
+**Still open:** the Lucidchart/geometric path (no `<Connect>` data at all);
+eight devices still fall back to their master name because his drawing never
+captions them; and `Main vpn0110.0.1.50` keeps its run-together address for
+the reason above. The operator's own drawings are kept outside the
+repository — they are his files, so the test that reads one skips when it is
+absent.
 
 ### LT-108 — **bug** The canvas and the export disagree about `callout`
 **Source:** found while doing LT-107, not reported. `DeviceNode.tsx` and

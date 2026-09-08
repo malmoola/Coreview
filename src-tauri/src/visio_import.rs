@@ -54,8 +54,15 @@ pub struct ImportedDevice {
     pub model: String,
     /// Anything the drawing carried as Shape Data, kept as-is.
     pub properties: HashMap<String, String>,
+    /// The shape's pin — its centre — in inches from the page's bottom-left.
     pub x: f64,
     pub y: f64,
+    /// The shape's own size in inches, where the drawing states one. A rack
+    /// unit is two inches by a fifth of an inch and a router icon is roughly
+    /// square; drawing them both the same size is a large part of why an
+    /// import does not look like the drawing it came from.
+    pub width: f64,
+    pub height: f64,
 }
 
 /// One link read out of a drawing.
@@ -71,6 +78,32 @@ pub struct ImportedLink {
     /// the link was inferred from geometry and should be reviewed, never
     /// presented as fact.
     pub glued: bool,
+    /// The colour the line was drawn in, as `#rrggbb`, or empty where the
+    /// drawing left it to the theme. Operators colour their drawings on
+    /// purpose — a carrier circuit in one colour, a fibre run in another — and
+    /// an import that repaints everything the same has thrown that away.
+    pub color: String,
+}
+
+/// Visio's colour, as `#rrggbb`.
+///
+/// Usually written straight out (`#0070c0`). Where it is an index instead, it
+/// indexes the standard palette, whose first eight entries are fixed and are
+/// what a hand-drawn line actually uses. An index beyond those is left alone
+/// rather than guessed at: the wrong colour asserted confidently is worse than
+/// the diagram's own default.
+pub fn line_colour(v: &str) -> String {
+    let v = v.trim();
+    if v.starts_with('#') && (v.len() == 7 || v.len() == 4) {
+        return v.to_ascii_lowercase();
+    }
+    const PALETTE: &[&str] = &[
+        "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff",
+    ];
+    match v.parse::<usize>() {
+        Ok(i) => PALETTE.get(i).map(|s| (*s).to_string()).unwrap_or_default(),
+        Err(_) => String::new(),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -131,12 +164,24 @@ struct RawShape {
     x: Option<f64>,
     y: Option<f64>,
     props: HashMap<String, String>,
-    /// A connector has begin/end geometry; a device does not.
+    /// Begin/end geometry. Necessary for a connector but not sufficient: a
+    /// rack-mounted device shape has it too. See `is_connector`.
     has_ends: bool,
     /// Where a connector starts and finishes, used to find the port label
     /// sitting beside each end.
     begin: Option<(f64, f64)>,
     end: Option<(f64, f64)>,
+    /// The shape's own box, when it states one. Used to measure a caption's
+    /// distance to the shape rather than to its centre — a rack unit is two
+    /// inches wide, so its caption is far from the middle and near the edge.
+    width: Option<f64>,
+    height: Option<f64>,
+    /// Visio's own marker that this shape's box *is* its begin-to-end run:
+    /// `Width` carries the formula `GUARD(EndX-BeginX)`. Only a connector is
+    /// defined that way, which is what tells one apart from a 1-D device.
+    spans_its_ends: bool,
+    /// The colour the shape's line is drawn in, as `#rrggbb`.
+    line_colour: String,
 }
 
 /// Maps a Visio master name onto a Coreview device type.
@@ -166,7 +211,19 @@ pub fn device_type_for(master: &str) -> &'static str {
         ("internet", "internet"),
         ("cloud", "internet"),
         ("server", "server"),
+        // Cisco UCS: the chassis and its blades are servers, the fabric
+        // interconnect that fronts them is a switch. All three appear in the
+        // operator's drawing as rack-unit stencils.
+        ("fabric interconnect", "core-switch"),
+        ("ucs", "server"),
+        ("hxaf", "server"),
+        ("hyperflex", "server"),
+        ("blade", "server"),
         ("storage", "storage"),
+        ("array", "storage"),
+        ("centera", "storage"),
+        ("isilon", "storage"),
+        ("netapp", "storage"),
         ("printer", "printer"),
         ("camera", "camera"),
         ("phone", "endpoint"),
@@ -184,8 +241,17 @@ pub fn device_type_for(master: &str) -> &'static str {
     if m.starts_with("n9k") || m.starts_with("n5k") || m.starts_with("n7k") {
         return "core-switch";
     }
+    // A 4500X or a 6500 is a chassis switch doing distribution or core work; a
+    // 2960 or a 3560 is an access switch. Both are `WS-C`.
+    if m.starts_with("ws-c4") || m.starts_with("ws-c6") || m.starts_with("ws-c9") {
+        return "core-switch";
+    }
     if m.starts_with("n2k") || m.starts_with("ws-c") || m.starts_with("c9") || m.starts_with("ms") {
         return "access-switch";
+    }
+    // `6324 FI` — a UCS fabric interconnect named only by its part number.
+    if m.ends_with(" fi") {
+        return "core-switch";
     }
     "generic"
 }
@@ -291,6 +357,15 @@ fn cell(node: roxmltree::Node, name: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// A cell's formula rather than its value.
+fn cell_formula(node: roxmltree::Node, name: &str) -> Option<String> {
+    node.children()
+        .filter(|c| c.has_tag_name("Cell"))
+        .find(|c| c.attribute("N") == Some(name))
+        .and_then(|c| c.attribute("F"))
+        .map(|s| s.to_string())
+}
+
 fn shape_text(node: roxmltree::Node) -> String {
     let Some(t) = node.children().find(|c| c.has_tag_name("Text")) else {
         return String::new();
@@ -366,6 +441,11 @@ fn collect_shapes(node: roxmltree::Node, out: &mut Vec<RawShape>) {
                 has_ends: bx.is_some() && ex.is_some(),
                 begin: bx.zip(by),
                 end: ex.zip(ey),
+                width: num("Width"),
+                height: num("Height"),
+                line_colour: cell(shape, "LineColor").map(|v| line_colour(&v)).unwrap_or_default(),
+                spans_its_ends: cell_formula(shape, "Width")
+                    .is_some_and(|f| f.replace(' ', "").contains("EndX-BeginX")),
             });
         }
         // Groups hold their members in a nested <Shapes>.
@@ -373,6 +453,35 @@ fn collect_shapes(node: roxmltree::Node, out: &mut Vec<RawShape>) {
             collect_shapes(inner, out);
         }
     }
+}
+
+/// Whether a shape is a connector rather than a device.
+///
+/// The first version asked only whether the shape had begin/end geometry, and
+/// that was wrong in a way that cost the operator the most important devices in
+/// his drawing. **Rack-mounted equipment is 1-D too.** A `N9K-C93180YC-EX
+/// Front`, a `WS-C4500X-16SFP+ Front`, a `UCS 5108 Rear` — every Cisco rack-unit
+/// stencil carries `BeginX`/`EndX` so it snaps into a rack frame. Fourteen
+/// devices, including all four Nexus 9000s and both Catalyst 4500Xs, were being
+/// read as lines and thrown away, and the links that should have landed on them
+/// went somewhere else.
+///
+/// What actually separates the two is what the box *means*. On a connector the
+/// box is the run: Visio writes `Width` as the formula `GUARD(EndX-BeginX)`. On
+/// a rack unit the width is the equipment's own, inherited from its master.
+/// That formula, plus a master that says "connector" outright, identifies all
+/// seventy connectors in the drawing and misses none of the thirty-seven
+/// devices.
+///
+/// Glue is the third signal, and it needs the same care: a `6324 FI` fabric
+/// interconnect is glued *into* its UCS chassis at both ends, so appearing in
+/// `<Connects>` is not on its own a sign of being a connector. Only glue that
+/// joins two *different* shapes counts.
+fn is_connector(s: &RawShape, joins_two_shapes: bool) -> bool {
+    s.has_ends
+        && (s.spans_its_ends
+            || s.master.to_ascii_lowercase().contains("connector")
+            || joins_two_shapes)
 }
 
 /// The nearest text that reads like a name rather than a port.
@@ -430,25 +539,19 @@ pub fn could_be_a_name(text: &str) -> bool {
     !t.is_empty() && !is_port_label(t) && split_port_pair(t).is_none()
 }
 
-fn caption_near(target: &RawShape, shapes: &[RawShape]) -> String {
-    let (Some(tx), Some(ty)) = (target.x, target.y) else {
-        return String::new();
-    };
-    // Inches. Beyond roughly this, the text belongs to a different icon.
-    let mut best = String::new();
-    let mut best_d = 1.5_f64;
-    for s in shapes {
-        if s.id == target.id || s.has_ends || !could_be_a_name(&s.text) {
-            continue;
-        }
-        let (Some(sx), Some(sy)) = (s.x, s.y) else { continue };
-        let d = ((sx - tx).powi(2) + (sy - ty).powi(2)).sqrt();
-        if d < best_d {
-            best_d = d;
-            best = s.text.clone();
-        }
-    }
-    best
+/// How far a point is from a shape's box, rather than from its centre.
+///
+/// A rack unit is two inches wide and a fifth of an inch tall. Measured to the
+/// centre, its own caption sits further away than a neighbour's does; measured
+/// to the box, it does not. Shapes that state no size fall back to their pin,
+/// which is what centre-distance already did.
+fn distance_to_shape(px: f64, py: f64, s: &RawShape) -> Option<f64> {
+    let (sx, sy) = (s.x?, s.y?);
+    let hw = s.width.unwrap_or(0.0).abs() / 2.0;
+    let hh = s.height.unwrap_or(0.0).abs() / 2.0;
+    let dx = (sx - px).abs() - hw;
+    let dy = (sy - py).abs() - hh;
+    Some((dx.max(0.0).powi(2) + dy.max(0.0).powi(2)).sqrt())
 }
 
 /// Splits `Gi1/2 <> Eth1/4` into the two ports it names.
@@ -573,6 +676,24 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
         }
     }
 
+    // Glue counts towards "this is a connector" only when it joins two
+    // different shapes; a rack unit glued into its own chassis at both ends is
+    // still a device.
+    let joins_two: std::collections::HashSet<&str> = ends
+        .iter()
+        .filter(|(_, (a, b))| match (a, b) {
+            (Some(a), Some(b)) => a != b,
+            _ => true,
+        })
+        .map(|(id, _)| id.as_str())
+        .collect();
+    let connectors: std::collections::HashSet<String> = shapes
+        .iter()
+        .filter(|s| is_connector(s, joins_two.contains(s.id.as_str())))
+        .map(|s| s.id.clone())
+        .collect();
+    let connector = |s: &RawShape| connectors.contains(&s.id);
+
     let by_id: HashMap<&str, &RawShape> = shapes.iter().map(|s| (s.id.as_str(), s)).collect();
     let mut warnings = Vec::new();
     let mut links = Vec::new();
@@ -583,7 +704,7 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
     // floating text blocks that hold captions and port labels.
     let device_like: Vec<&RawShape> = shapes
         .iter()
-        .filter(|s| !s.has_ends && s.x.is_some() && !looks_like_a_text_block(s))
+        .filter(|s| !connector(s) && s.x.is_some() && !looks_like_a_text_block(s))
         .collect();
 
     // Every connector *shape*, not only those listed in `<Connects>`.
@@ -596,7 +717,7 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
     // is resolved to the nearest device shape and the link marked not-glued, so
     // it can be reviewed rather than being either lost or asserted as fact.
     let no_glue = (None, None);
-    for c in shapes.iter().filter(|s| s.has_ends) {
+    for c in shapes.iter().filter(|s| connector(s)) {
         let g = ends.get(&c.id).unwrap_or(&no_glue);
         let resolve = |glued: &Option<String>, at: Option<(f64, f64)>, other: &str| match glued {
             Some(id) => Some((id.clone(), true)),
@@ -675,24 +796,71 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
             source_port: sp,
             target_port: tp,
             glued,
+            color: c.line_colour.clone(),
         });
     }
 
-    // A device is a shape a link lands on. Shapes that are only decoration —
-    // titles, legends, the text blocks used as captions — are not imported as
-    // devices, because a diagram full of empty boxes is not a topology.
+    // What counts as a device.
+    //
+    // A link endpoint is one, as before. But so is any shape drawn from a named
+    // master that is not a connector and not a text block — a device the
+    // operator drew and never joined to anything is still equipment he expects
+    // to see, and leaving it out is how a nineteen-device drawing arrives with
+    // fifteen. Decoration is still excluded: it has no master worth the name.
+    let mut wanted: Vec<String> = endpoint_ids.clone();
+    for s in &shapes {
+        if !connector(s) && s.x.is_some() && !s.master.is_empty() && !looks_like_a_text_block(s) {
+            wanted.push(s.id.clone());
+        }
+    }
+    wanted.sort();
+    wanted.dedup();
+
+    // One caption belongs to one device, and the closest pairing wins.
+    //
+    // Assigning per device in id order let a caption be taken by a device it
+    // merely sat near, leaving the device it actually belonged to named after
+    // its master. Ordering every candidate pairing by distance and taking them
+    // shortest-first gives each caption to the device it is nearest to.
+    let mut pairings: Vec<(f64, String, String)> = Vec::new();
+    for id in &wanted {
+        let Some(t) = by_id.get(id.as_str()) else { continue };
+        if could_be_a_name(&t.text) {
+            continue;
+        }
+        for s in &shapes {
+            if s.id == t.id || s.has_ends || !could_be_a_name(&s.text) {
+                continue;
+            }
+            let (Some(sx), Some(sy)) = (s.x, s.y) else { continue };
+            let Some(d) = distance_to_shape(sx, sy, t) else { continue };
+            if d < 1.5 {
+                pairings.push((d, id.clone(), s.id.clone()));
+            }
+        }
+    }
+    pairings.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)).then_with(|| a.2.cmp(&b.2)));
+    let mut caption_for: HashMap<&str, &str> = HashMap::new();
+    let mut caption_used: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for (_, dev, cap) in &pairings {
+        if caption_for.contains_key(dev.as_str()) || caption_used.contains(cap.as_str()) {
+            continue;
+        }
+        caption_for.insert(dev.as_str(), cap.as_str());
+        caption_used.insert(cap.as_str());
+    }
+
     let mut devices = Vec::new();
-    for id in {
-        let mut seen: Vec<String> = endpoint_ids.clone();
-        seen.sort();
-        seen.dedup();
-        seen
-    } {
+    for id in wanted {
         let Some(s) = by_id.get(id.as_str()) else { continue };
         let caption = if could_be_a_name(&s.text) {
             s.text.clone()
         } else {
-            caption_near(s, &shapes)
+            caption_for
+                .get(id.as_str())
+                .and_then(|c| by_id.get(*c))
+                .map(|c| c.text.clone())
+                .unwrap_or_default()
         };
         let label = if caption.is_empty() {
             s.master.clone()
@@ -708,10 +876,12 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
             properties: s.props.clone(),
             x: s.x.unwrap_or(0.0),
             y: s.y.unwrap_or(0.0),
+            width: s.width.unwrap_or(0.0).abs(),
+            height: s.height.unwrap_or(0.0).abs(),
         });
     }
 
-    if devices.is_empty() && !shapes.is_empty() {
+    if links.is_empty() && !shapes.is_empty() {
         warnings.push(format!(
             "{page_name}: {} shapes, but nothing is glued to anything — this drawing carries no link information (a Lucidchart export does this), so its connections cannot be read.",
             shapes.len()
@@ -894,10 +1064,118 @@ mod tests {
         assert_eq!(device_type_for("Cloud"), "internet");
         // Cisco part numbers, which is what these drawings are full of.
         assert_eq!(device_type_for("N9K-C93180YC-EX Front"), "core-switch");
-        assert_eq!(device_type_for("WS-C4500X-16SFP+ Front"), "access-switch");
+        // A 4500X is a chassis switch, a 2960 is a wiring-closet one, and both
+        // are `WS-C`. Reading them the same way put the operator's Catalysts in
+        // the wrong tier.
+        assert_eq!(device_type_for("WS-C4500X-16SFP+ Front"), "core-switch");
+        assert_eq!(device_type_for("WS-C2960X-48FPD-L"), "access-switch");
+        assert_eq!(device_type_for("N2K-C2348TQ Port Side"), "access-switch");
+        // UCS: chassis and blades are servers, the fabric interconnect is not.
+        assert_eq!(device_type_for("UCS 5108 Rear"), "server");
+        assert_eq!(device_type_for("HXAF240c M4 Rear"), "server");
+        assert_eq!(device_type_for("6324 FI"), "core-switch");
+        assert_eq!(device_type_for("AllFlash Array back"), "storage");
+        // `FirePower` contains the same two letters as a fabric interconnect
+        // and must stay a firewall.
+        assert_eq!(device_type_for("Cisco FirePower 2110 Firewall"), "firewall");
         assert_eq!(device_type_for("Something nobody has heard of"), "generic");
         // Order matters: the coarser word must not win.
         assert_eq!(device_type_for("Wireless Controller"), "wireless-controller");
+    }
+
+    #[test]
+    fn a_line_keeps_the_colour_it_was_drawn_in() {
+        assert_eq!(line_colour("#0070c0"), "#0070c0");
+        assert_eq!(line_colour("#EA700D"), "#ea700d");
+        // Index into Visio's standard palette, which is what a line drawn in
+        // plain black carries instead of a hex value.
+        assert_eq!(line_colour("0"), "#000000");
+        assert_eq!(line_colour("2"), "#ff0000");
+        // Beyond the fixed entries the palette is the document's own, so
+        // nothing is claimed and the diagram's default style applies.
+        assert_eq!(line_colour("41"), "");
+        assert_eq!(line_colour("Themed"), "");
+    }
+
+    #[test]
+    fn a_connector_carries_its_colour_onto_the_link() {
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='1' NameU='Router'><Cell N='PinX' V='1'/><Cell N='PinY' V='5'/><Text>A</Text></Shape>
+            <Shape ID='2' NameU='Router'><Cell N='PinX' V='4'/><Cell N='PinY' V='5'/><Text>B</Text></Shape>
+            <Shape ID='3' NameU='Dynamic connector'><Cell N='BeginX' V='1'/><Cell N='BeginY' V='5'/><Cell N='EndX' V='4'/><Cell N='EndY' V='5'/><Cell N='LineColor' V='#ea700d'/></Shape>
+        </Shapes>
+        <Connects>
+            <Connect FromSheet='3' FromCell='BeginX' ToSheet='1'/>
+            <Connect FromSheet='3' FromCell='EndX' ToSheet='2'/>
+        </Connects></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        assert_eq!(page.links[0].color, "#ea700d");
+    }
+
+    #[test]
+    fn a_rack_mounted_switch_is_a_device_and_not_a_line() {
+        // Cisco's rack-unit stencils are 1-D: they carry BeginX/EndX so they
+        // snap into a rack. Reading begin/end as "this is a connector" lost
+        // the operator every Nexus and every Catalyst in his drawing.
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='1' NameU='N9K-C93180YC-EX Front' Type='Group'>
+              <Cell N='PinX' V='16.7'/><Cell N='PinY' V='17'/>
+              <Cell N='Width' V='2.06' F='Inh'/><Cell N='Height' V='0.185' F='Inh'/>
+              <Cell N='BeginX' V='15.67'/><Cell N='BeginY' V='17'/>
+              <Cell N='EndX' V='17.73'/><Cell N='EndY' V='17'/>
+            </Shape>
+            <Shape ID='2' NameU='Plain'><Cell N='PinX' V='16.7'/><Cell N='PinY' V='16.8'/><Text>-CORE-01 10.255.1.100</Text></Shape>
+        </Shapes></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        assert_eq!(page.links.len(), 0, "a rack unit is not a link");
+        assert_eq!(page.devices.len(), 1);
+        let d = &page.devices[0];
+        assert_eq!(d.label, "-CORE-01");
+        assert_eq!(d.addresses, vec!["10.255.1.100"]);
+        assert_eq!(d.device_type, "core-switch");
+        // And its real shape comes with it: wide and flat, not a square icon.
+        assert!((d.width - 2.06).abs() < 1e-9);
+        assert!((d.height - 0.185).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_blade_glued_into_its_own_chassis_is_not_a_link() {
+        // A `6324 FI` is glued to the UCS chassis at *both* ends: it is
+        // mounted in it, not cabled to it. Treating glue alone as proof of
+        // being a connector turned two fabric interconnects into lines.
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='79' NameU='UCS 5108 Rear' Type='Group'><Cell N='PinX' V='10'/><Cell N='PinY' V='10'/><Cell N='Width' V='2' F='Inh'/><Cell N='Height' V='0.5' F='Inh'/><Cell N='BeginX' V='9'/><Cell N='EndX' V='11'/></Shape>
+            <Shape ID='81' NameU='6324 FI' Type='Group'><Cell N='PinX' V='10'/><Cell N='PinY' V='9.8'/><Cell N='Width' V='1' F='Inh'/><Cell N='Height' V='0.2' F='Inh'/><Cell N='BeginX' V='9.5'/><Cell N='EndX' V='10.5'/></Shape>
+        </Shapes>
+        <Connects>
+            <Connect FromSheet='81' FromCell='BeginX' ToSheet='79'/>
+            <Connect FromSheet='81' FromCell='EndX' ToSheet='79'/>
+        </Connects></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        assert_eq!(page.links.len(), 0);
+        let mut labels: Vec<&str> = page.devices.iter().map(|d| d.label.as_str()).collect();
+        labels.sort_unstable();
+        assert_eq!(labels, vec!["6324 FI", "UCS 5108 Rear"]);
+    }
+
+    #[test]
+    fn one_caption_names_one_device_and_the_nearest_pairing_wins() {
+        // Two routers drawn close together, each with its own caption below
+        // it. Assigning per device in id order let the first take the caption
+        // nearest *it*, leaving the second one named after its master — which
+        // is how the operator ended up with names on the wrong devices.
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='1' NameU='Router'><Cell N='PinX' V='5'/><Cell N='PinY' V='5'/></Shape>
+            <Shape ID='2' NameU='Router'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.4'/></Shape>
+            <Shape ID='3' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.9'/><Text>P2P-01 10.255.1.18</Text></Shape>
+            <Shape ID='4' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.3'/><Text>P2P-02 10.255.1.19</Text></Shape>
+        </Shapes></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        let named = |id: &str| {
+            page.devices.iter().find(|d| d.id == id).map(|d| d.label.clone()).unwrap_or_default()
+        };
+        assert_eq!(named("1"), "P2P-01");
+        assert_eq!(named("2"), "P2P-02");
     }
 
     #[test]
@@ -908,11 +1186,14 @@ mod tests {
             <Shape ID='2' NameU='com.lucidchart.Line'><Cell N='BeginX' V='1'/><Cell N='EndX' V='2'/></Shape>
         </Shapes></PageContents>"#;
         let (page, warnings) = parse_page(xml, "Page-1").unwrap();
-        assert!(page.links.is_empty());
-        assert!(page.devices.is_empty());
+        assert!(page.links.is_empty(), "no glue, so no link may be asserted");
+        // The switch is still a switch the operator drew, and arrives as one.
+        // Only the *connections* are missing, and the warning says so.
+        assert_eq!(page.devices.len(), 1);
+        assert_eq!(page.devices[0].id, "1");
         assert!(
             warnings.iter().any(|w| w.contains("glued")),
-            "should say why nothing came out: {warnings:?}"
+            "should say why the links are missing: {warnings:?}"
         );
     }
 
@@ -998,7 +1279,7 @@ mod tests {
         eprintln!("pages={} devices={devices} links={links}", out.pages.len());
         eprintln!("  named {named}/{devices}, addressed {addressed}/{devices}, with a port {ported}/{links}");
         for p in &out.pages {
-            for d in p.devices.iter().take(12) {
+            for d in p.devices.iter() {
                 eprintln!("  DEV {:28} {:16} {:?}", d.label, d.device_type, d.addresses);
             }
             let name = |id: &str| {

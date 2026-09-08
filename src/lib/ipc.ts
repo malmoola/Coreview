@@ -137,8 +137,13 @@ export type ImportedDevice = {
   deviceType: string;
   model: string;
   properties: Record<string, string>;
+  /** The shape's centre, in inches from the drawing's bottom-left. */
   x: number;
   y: number;
+  /** The shape's own size in inches, or 0 where the drawing left it to the
+   *  master. A rack unit and a router icon are nothing like the same shape. */
+  width: number;
+  height: number;
 };
 export type ImportedLink = {
   source: string;
@@ -148,6 +153,9 @@ export type ImportedLink = {
   targetPort: string;
   /** False means the link was inferred, not stated by the drawing. */
   glued: boolean;
+  /** The colour the line was drawn in, as `#rrggbb`, or empty where the
+   *  drawing left it to the theme. */
+  color: string;
 };
 export type ImportedPage = { name: string; devices: ImportedDevice[]; links: ImportedLink[] };
 export type VisioImport = { pages: ImportedPage[]; warnings: string[] };

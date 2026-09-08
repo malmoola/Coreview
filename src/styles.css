@@ -929,6 +929,20 @@ textarea.cv-input { resize: vertical; }
 .cv-import-vault { border: 1px solid var(--warning); border-radius: var(--radius); padding: 12px 14px; }
 .cv-import-vault h2 { margin-top: 0; }
 
+/* The Visio preview (LT-110). Every cell is editable, so the rows are tighter
+   than a reading table's and the inputs sit flush in them — a grid of boxes
+   with padding around each one is unreadable at forty rows. Hovering must not
+   look like a click target here: these rows are edited in place, not opened. */
+.cv-import-table td { padding: 2px 6px; }
+.cv-import-table tbody tr:hover { cursor: default; }
+.cv-import-table .cv-input { width: 100%; min-width: 84px; padding: 3px 6px; }
+.cv-import-table .cv-btn { padding: 2px 8px; font-size: 11px; }
+/* A link the drawing did not glue: worked out from where the line was drawn,
+   and marked so it can be checked rather than trusted. */
+.cv-import-table tr.cv-row-inferred td:first-child { border-left: 2px solid var(--warning); }
+.cv-import-colour { width: 34px; height: 22px; padding: 0; border: 1px solid var(--line);
+  border-radius: 3px; background: none; }
+
 /* Glyph nodes: the icon with its name beneath it and no box.
    A network diagram is drawn as symbols with labels, not as a wall of
    bordered cards — and a card grows every time an address or a status line is
