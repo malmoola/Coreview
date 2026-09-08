@@ -15,6 +15,8 @@ import { zoneDeltas } from '../lib/zones';
 import { alignTo, distribute } from '../lib/alignment';
 import { copySelection, pasteClipping, type Clipping } from '../lib/clipboard';
 import { layersOf, withNewLayer, withoutLayer, type Layer } from '../lib/layers';
+import { svgForDevice } from '../lib/customShapes';
+import { deviceColor as computeDeviceColor } from '../theme';
 import {
   activePage,
   allEdges,
@@ -103,6 +105,10 @@ export interface ProjectDocument {
    *  drawn on (LT-094) — which page something is drawn on is not the same
    *  question as whether it is being checked. */
   probes: Probe[];
+  /** Shapes captured from a device already on the canvas (LT-104), kept
+   *  with this project rather than a shared library. Optional — absent on
+   *  every project saved before this existed, same as `canvas.layers`. */
+  customShapes?: IconLibEntry[];
 }
 
 export interface AppSettings {
@@ -132,6 +138,7 @@ interface HistoryEntry {
   pages: ProjectPage[];
   activePageId: string;
   probes: Probe[];
+  customShapes?: IconLibEntry[];
 }
 
 interface Store {
@@ -283,6 +290,13 @@ interface Store {
    *  the bundled shape list afterward, so the palette drops that pack's
    *  shapes without needing a restart. */
   removeStencilPack: (name: string) => Promise<void>;
+  /** Captures a device already on the canvas as a new shape in this
+   *  project's own library (LT-104), so it can be dragged onto the canvas
+   *  again — customisation and all — without repeating it. */
+  saveCustomShape: (nodeId: string, name: string) => void;
+  /** Only from this project's own library — undoable, unlike removing a
+   *  stencil pack, since nothing was deleted from disk. */
+  removeCustomShape: (id: string) => void;
   setCanvas: (patch: Partial<ProjectPage['canvas']>) => void;
   setPanelOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
@@ -457,6 +471,7 @@ function snapshot(doc: ProjectDocument): HistoryEntry {
     pages: JSON.parse(JSON.stringify(doc.pages)),
     activePageId: doc.activePageId,
     probes: JSON.parse(JSON.stringify(doc.probes)),
+    customShapes: doc.customShapes && JSON.parse(JSON.stringify(doc.customShapes)),
   };
 }
 
@@ -1406,6 +1421,34 @@ export const useStore = create<Store>((set, get) => ({
       ipc.listStencilPacks(),
     ]);
     set({ bundledIcons: bundled.icons, stencilPacks: packs });
+  },
+
+  saveCustomShape(nodeId, name) {
+    const node = allNodes(get().doc).find((n) => n.id === nodeId);
+    if (!node || node.type !== 'device') return;
+    const d = node.data as DeviceNodeData;
+    const status = get().nodeStatus(nodeId);
+    const auto = computeDeviceColor(d.deviceType, status, get().settings.ground);
+    const svg = svgForDevice(d, auto);
+    get().commit('Save shape');
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        customShapes: [
+          ...(s.doc.customShapes ?? []),
+          { id: uid(), name: name.trim() || d.label, category: 'Custom', svg },
+        ],
+      },
+      dirty: true,
+    }));
+  },
+
+  removeCustomShape(id) {
+    get().commit('Remove shape');
+    set((s) => ({
+      doc: { ...s.doc, customShapes: (s.doc.customShapes ?? []).filter((c) => c.id !== id) },
+      dirty: true,
+    }));
   },
 
   /** Opens the folder picker, checks the folder can actually be written to,

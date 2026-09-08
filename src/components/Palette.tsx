@@ -49,6 +49,8 @@ export function Palette() {
         </div>
       </div>
 
+      <CustomShapesSection query={q} onDrag={drag} />
+
       <BundledShapesSection query={q} onDrag={drag} />
 
       <StencilPacksSection />
@@ -92,6 +94,65 @@ export function Palette() {
       })}
       <p className="cv-palette-hint">Drag an item on to the canvas to place it.</p>
     </aside>
+  );
+}
+
+/** Shapes captured from a device already on the canvas (LT-104) — kept with
+ *  this project, not a shared library, so they drag onto the canvas again
+ *  the same way any other shape does. Removing one is a normal undoable
+ *  edit, unlike a stencil pack's permanent disk deletion: nothing left this
+ *  machine, so there is nothing here a confirm modal needs to guard. */
+function CustomShapesSection({
+  query,
+  onDrag,
+}: {
+  query: string;
+  onDrag: (e: React.DragEvent, payload: string) => void;
+}) {
+  // Read the possibly-undefined field itself, not `?? []` inline: that
+  // fallback would build a new array every time Zustand's snapshot check
+  // calls this selector, which it does more than once per render — a
+  // reference that never compares equal to itself is exactly what sent the
+  // palette into the infinite-update loop this comment now warns about.
+  const rawShapes = useStore((s) => s.doc.customShapes);
+  const removeShape = useStore((s) => s.removeCustomShape);
+  const shapes = rawShapes ?? [];
+  const shown = shapes.filter((s) => !query || s.name.toLowerCase().includes(query));
+  if (shapes.length === 0) return null;
+  return (
+    <div className="cv-palette-group">
+      <h3>Your shapes</h3>
+      <div className="cv-palette-grid">
+        {shown.map((shape) => (
+          <div key={shape.id} className="cv-palette-item-wrap">
+            <button
+              type="button"
+              className="cv-palette-item"
+              draggable
+              onDragStart={(e) => onDrag(e, `icon:${shape.id}`)}
+              title={`Drag ${shape.name} on to the canvas`}
+            >
+              <img
+                className="cv-palette-icon"
+                alt=""
+                src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(shape.svg)))}`}
+              />
+              {shape.name}
+            </button>
+            <button
+              type="button"
+              className="cv-palette-item-remove"
+              title={`Remove ${shape.name} from this project's shapes`}
+              aria-label={`Remove ${shape.name}`}
+              onClick={() => removeShape(shape.id)}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      {shown.length === 0 && <p className="cv-muted cv-palette-note">No shape matches that search.</p>}
+    </div>
   );
 }
 

@@ -17,16 +17,6 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
-### LT-104 — Drag a shape from the canvas into the shape library
-**Source:** asked 2026-09-07 — "can we give admin the ablility to past
-shape into the diagram page then drag it to the shape library?" Read as:
-place/customise a shape on the canvas, then drag it onto the palette to
-save it as a new reusable stencil — turning a one-off customisation into
-something reachable again without repeating the customisation.
-**Acceptance:** dragging a shape from the canvas onto the shape library
-(or a dedicated drop target in it) adds it there for reuse, with whatever
-customisation (colour, icon) it already had on the canvas.
-
 ### LT-105 — Cisco shapes as real (vector) shapes, not embedded pictures
 **Source:** asked 2026-09-07 — "can we turn all the cisco shapes to real
 shapes not just pictures?" Checked, and this is a real, specific gap, not
@@ -400,6 +390,67 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-104 — Save a canvas shape back into the shape library — 2026-09-07
+**Source:** asked 2026-09-07 — "can we give admin the ablility to past
+shape into the diagram page then drag it to the shape library?" Read as:
+place/customise a shape on the canvas, then get it back into the palette
+as a new reusable stencil — turning a one-off customisation into something
+reachable again without repeating it.
+**Resolved 2026-09-07,** two scoping questions asked directly rather than
+guessed, since both were real forks with a meaningfully larger option on
+one side: **where the shape lives** — this project's own document (chosen)
+versus a shared library available everywhere, which would have needed a
+whole new persistent store, not just this project's own already-opaque
+JSON (D-002); and **how it gets there** — a "Save to shape library" item on
+the existing right-click menu (chosen) versus true drag-and-drop off the
+canvas, which would fight React Flow's own pointer-based node dragging for
+the same gesture and — per this project's own established knowledge,
+`paletteDrop.ts`'s header comment — can only ever be verified by hand,
+never by an automated test.
+**Built:** `ProjectDocument.customShapes?: IconLibEntry[]` — reusing the
+icon library's own entry shape rather than inventing a new one, so a
+captured shape drops into the palette's existing `icon:<id>` drag payload
+alongside bundled and library shapes with no change to how a drop is
+resolved (`nodeForDrop`, already generic over "some list of entries").
+Capturing one (`src/lib/customShapes.ts`, `svgForDevice`) takes either
+path a device's appearance can come from: a built-in glyph (re-rendered as
+raw SVG via a new shared `glyphMarkup`, factored out of `diagram.ts`'s own
+icon export so both use the same tinting logic instead of two copies of
+it) tinted with its actual override or automatic colour, or an already-
+inlined library/import icon (its `imageDataUrl`, decoded straight back to
+the raw markup it was built from — a new `base64ToUtf8`, the other
+direction of the base64 helper `svgToDataUrl` already used). A new palette
+section, "Your shapes," lists what this project has captured, draggable
+onto the canvas the same as any other shape, each with a small "×" — a
+normal undoable edit here, not the permanent, confirm-modal-guarded
+deletion LT-103's stencil-pack removal is, since nothing left disk.
+**A real bug found live, not caught by `tsc`/`eslint`/`vitest`, all clean
+beforehand:** the whole shape palette crashed — "Maximum update depth
+exceeded" — the moment "Your shapes" existed as a section, with an actual
+device on the canvas or not. Cause: its store selector read
+`s.doc.customShapes ?? []`, and that fallback built a *new* empty array
+every time Zustand's snapshot check called the selector — which happens
+more than once per render — so the selected value never compared equal to
+itself, and React's external-store consistency check spun forever. Fixed
+by selecting the field itself (stable — the same reference every call
+unless the state actually changes) and applying `?? []` outside the
+selector, in the render body, where a fresh array each render is normal
+and harmless.
+**Verified live, through the actual running app:** right-clicked a device,
+chose "Save to shape library," watched it appear in a new "Your shapes"
+section with its actual on-canvas icon and colour; removed it with its
+"×" and confirmed the section disappeared with it (empty); Undo brought
+it straight back, proving the capture and the removal both went through
+this project's normal history rather than sitting outside it. **Not
+verified, and cannot be with the tools available here:** actually dragging
+the resulting tile onto the canvas — confirmed by hand that this
+limitation is not specific to the new code (the same true of every
+existing built-in palette shape in this exact environment) — so this
+rests on `nodeForDrop`'s own existing, already-passing test coverage,
+which does not care which list an `icon:<id>` entry came from. `npx tsc
+--noEmit`, `npm run lint`, and `npx vitest run` (497 tests, 3 new) all
+clean.
 
 ### LT-102 — Recolour a whole selection of shapes at once — 2026-09-07
 **Source:** asked 2026-09-07 — "is it possibel to give admin the ablitity

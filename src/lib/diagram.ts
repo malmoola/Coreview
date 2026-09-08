@@ -26,9 +26,7 @@ import {
   statusColors,
   type Ground,
 } from '../theme';
-import { renderToStaticMarkup } from 'react-dom/server';
-
-import { ICONS } from '../components/icons';
+import { glyphMarkup } from './glyphSvg';
 import { capPath, capsFor, dashFor } from './linkStyle';
 import { fitOnSheet } from './paper';
 import type { TopoEdge, TopoNode } from '../state/store';
@@ -155,13 +153,12 @@ function pathFor(type: LinkData['pathType'], p: Parameters<typeof getBezierPath>
 
 /** The device glyph, as markup, tinted and placed. */
 function iconMarkup(type: DeviceNodeData['deviceType'], color: string, x: number, y: number, size: number): string {
-  const Icon = ICONS[type] ?? ICONS.generic;
-  const raw = renderToStaticMarkup(Icon({}));
   // The glyphs are authored on a 24x24 grid with stroke="currentColor"; a
   // nested <svg> scales one without touching its paths.
-  return raw
-    .replace('<svg ', `<svg x="${x}" y="${y}" width="${size}" height="${size}" `)
-    .replaceAll('currentColor', color);
+  return glyphMarkup(type, color).replace(
+    '<svg ',
+    `<svg x="${x}" y="${y}" width="${size}" height="${size}" `,
+  );
 }
 
 function nodeMarkup(

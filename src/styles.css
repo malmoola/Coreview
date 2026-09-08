@@ -362,6 +362,18 @@ textarea.cv-input { resize: vertical; }
 .cv-palette-icon { width: 22px; height: 22px; color: var(--accent); }
 .cv-palette-glyph { font-size: 18px; color: var(--accent); line-height: 22px; }
 .cv-palette-hint { color: var(--text-faint); font-size: 10px; margin-top: 14px; }
+/* A captured shape (LT-104) — its own remove "×", pinned to the corner of
+   the draggable tile rather than nested inside it (a button in a button is
+   invalid markup, and a nested one is exactly the kind of element the
+   overlay-scrollbar bug (LT-103) showed cannot be trusted flush against an
+   edge — this one sits inset from every edge instead). */
+.cv-palette-item-wrap { position: relative; }
+.cv-palette-item-remove {
+  position: absolute; top: 3px; right: 3px; z-index: 1;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px;
+  color: var(--text-dim); font-size: 11px; line-height: 1; padding: 1px 4px; cursor: pointer;
+}
+.cv-palette-item-remove:hover { color: var(--down); border-color: var(--down); }
 
 /* ---------------------------------------------------------------- canvas */
 

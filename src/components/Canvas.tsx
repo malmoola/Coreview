@@ -192,8 +192,9 @@ export function Canvas() {
         makeDeviceNode,
         makeNote,
         // The user's own folder first, so an id clash resolves to their
-        // icon; the bundled set (D-022) backs it.
-        iconLibrary: [...store.iconLibrary, ...store.bundledIcons],
+        // icon; the bundled set (D-022) backs it, then whatever this
+        // project has captured from its own canvas (LT-104).
+        iconLibrary: [...store.iconLibrary, ...store.bundledIcons, ...(store.doc.customShapes ?? [])],
       });
       if (node) store.addNode(node);
     },
@@ -243,6 +244,17 @@ export function Canvas() {
           } as TopoNode);
         },
       },
+      ...(node?.type === 'device'
+        ? [
+            {
+              label: 'Save to shape library',
+              onSelect: () => {
+                const d = node.data as DeviceNodeData;
+                store.saveCustomShape(nodeId, d.label || DEVICE_LABEL[d.deviceType]);
+              },
+            },
+          ]
+        : []),
       {
         label: maintenance ? 'Clear maintenance' : 'Set maintenance',
         onSelect: () => store.updateNodeData(nodeId, { maintenance: !maintenance }),
