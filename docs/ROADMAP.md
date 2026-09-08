@@ -34,19 +34,6 @@ affected, which could be a small correction or a large undertaking
 depending on how many of the shipped Cisco shapes are actually
 bitmap-backed. Counting that is the first step, before promising a fix.
 
-### LT-099 — The status history strip: scrub it, and see more of it
-**Source:** asked 2026-09-07, alongside LT-097/098 — "for the status line I
-need a position line to drag and also I need to klick it and it enlarges
-so I can see more details about the status." Refers to the "Recent status"
-strip in the inspector (`StatusStrip` in
-`src/components/inspector/Inspector.tsx`) — the coloured history bar with
-15m/1h/6h window buttons.
-**Acceptance:** a draggable position marker on the strip that scrubs
-through its time window; clicking the strip opens an enlarged view with
-more detail than the small inline bar can show (exactly what detail is
-worth pinning down before building — likely per-event timestamps and
-durations, since the legend below it already gives status totals).
-
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -377,6 +364,34 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-099 — The status history strip: scrub it, and see more of it — 2026-09-07
+**Source:** asked 2026-09-07, alongside LT-097/098 — "for the status line I
+need a position line to drag and also I need to klick it and it enlarges
+so I can see more details about the status." The "Recent status" strip in
+the inspector (`StatusStrip` in `src/components/inspector/Inspector.tsx`)
+— the coloured history bar with 15m/1h/6h window buttons.
+**Built:** the strip tracks the pointer — no click-and-hold needed, since
+a horizontal timeline reads its position from where the cursor already is
+— with a thin line at that exact spot and a line underneath reading out
+the real time and status there, formatted the same way the transition log
+below it already is, a finer answer than the coarse,
+per-segment native tooltip the bars already had. Clicking the strip
+toggles it to a taller, easier-to-read version of itself (12px to 40px)
+and, together with it, the transition log already underneath (LT-074)
+both shows more entries (12 to 40) and grows the scrollable area they sit
+in (148px to 360px) — answering "see more detail" with more of the actual
+data the strip already has behind it, not just a bigger picture of the
+same dozen pixels.
+**Verified live, through the actual running app:** moved the pointer
+across the strip and watched the scrub line and its time/status readout
+track it continuously; clicked the strip and watched it grow taller in
+place, with the readout still tracking; clicked again and watched it
+collapse back. Transient UI state only — nothing here is saved with the
+project, so there was nothing to clean up afterward. `npx tsc --noEmit`,
+`npm run lint`, and `npx vitest run` (510 tests, unchanged — this is
+inspector-only presentation, nothing new to unit-test beyond what the
+existing timeline/formatting libraries already cover) all clean.
 
 ### LT-098 — More than 4 link connection points per shape — 2026-09-07
 **Source:** asked 2026-09-07 — "I need the connector to connect to the

@@ -1196,8 +1196,17 @@ textarea.cv-input { resize: vertical; }
 .cv-history-strip {
   display: flex; height: 12px; border-radius: 3px; overflow: hidden;
   border: 1px solid var(--line); background: var(--panel-2);
+  position: relative; cursor: pointer;
 }
 .cv-history-strip span { display: block; height: 100%; min-width: 1px; }
+/* LT-099: click the strip to read it more closely. */
+.cv-history-strip.is-expanded { height: 40px; }
+/* The scrub line — follows the pointer, read out in the line below. */
+.cv-history-scrub {
+  position: absolute; top: 0; bottom: 0; width: 1px;
+  background: var(--text); pointer-events: none; opacity: 0.8;
+}
+.cv-history-scrub-readout { margin: 0; font-variant-numeric: tabular-nums; }
 .cv-history-legend { display: flex; flex-wrap: wrap; gap: 10px; }
 .cv-history-key {
   display: inline-flex; align-items: center; gap: 5px;
@@ -1669,6 +1678,10 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
   list-style: none; margin: 6px 0 0; padding: 0;
   font-size: 11px; max-height: 148px; overflow: auto;
 }
+/* LT-099: the strip's own click-to-enlarge shows more of the log behind it
+   too — a taller strip with the same 12 lines below it answered "more
+   detail" with a bigger picture of the same thing, not actually more. */
+.cv-history-log.is-expanded { max-height: 360px; }
 .cv-history-log li {
   display: grid; grid-template-columns: auto 1fr auto; gap: 8px;
   align-items: baseline; padding: 2px 0;

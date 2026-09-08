@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULTS, deviceColor } from '../../theme';
 
 import { useStore } from '../../state/store';
@@ -463,6 +463,27 @@ function StatusStrip({ nodeId }: { nodeId: string }) {
   const summary = useMemo(() => totals(spans), [spans]);
   const span = Math.max(1, windowMs);
 
+  // LT-099: a scrub line follows the pointer across the strip rather than
+  // only offering the coarse, per-segment native tooltip — and clicking
+  // the strip enlarges it, since 12px tall is plenty to glance at but not
+  // enough to read closely.
+  const [expanded, setExpanded] = useState(false);
+  const [scrubAt, setScrubAt] = useState<number | null>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  const scrubbed = useMemo(() => {
+    if (scrubAt === null) return null;
+    const atMs = now - windowMs + scrubAt * windowMs;
+    const hit = spans.find((s) => atMs >= s.fromMs && atMs <= s.toMs) ?? spans[spans.length - 1];
+    return hit ? { atMs, status: hit.status } : null;
+  }, [scrubAt, now, windowMs, spans]);
+
+  const scrubTo = (clientX: number) => {
+    const rect = stripRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return;
+    setScrubAt(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)));
+  };
+
   return (
     <div className="cv-history">
       <div className="cv-history-head">
@@ -482,11 +503,16 @@ function StatusStrip({ nodeId }: { nodeId: string }) {
       </div>
 
       <div
-        className="cv-history-strip"
+        ref={stripRef}
+        className={`cv-history-strip${expanded ? ' is-expanded' : ''}`}
         role="img"
         aria-label={summary
           .map((t) => `${STATUS_LABEL[t.status]} ${shortDuration(t.ms)}`)
           .join(', ')}
+        title="Click to enlarge"
+        onClick={() => setExpanded((e) => !e)}
+        onPointerMove={(e) => scrubTo(e.clientX)}
+        onPointerLeave={() => setScrubAt(null)}
       >
         {spans.map((s) => (
           <span
@@ -498,7 +524,15 @@ function StatusStrip({ nodeId }: { nodeId: string }) {
             title={`${STATUS_LABEL[s.status]} — ${shortDuration(s.toMs - s.fromMs)}`}
           />
         ))}
+        {scrubAt !== null && (
+          <i className="cv-history-scrub" style={{ left: `${scrubAt * 100}%` }} />
+        )}
       </div>
+      <p className="cv-field-hint cv-history-scrub-readout">
+        {scrubbed
+          ? `${formatTime(scrubbed.atMs, timeFormat)} — ${STATUS_LABEL[scrubbed.status]}`
+          : 'Point at the strip for the exact time and status there.'}
+      </p>
 
       <div className="cv-history-legend">
         {summary.length === 0 ? (
@@ -522,11 +556,11 @@ function StatusStrip({ nodeId }: { nodeId: string }) {
         </p>
       )}
       {spans.length > 1 && (
-        <ul className="cv-history-log">
+        <ul className={`cv-history-log${expanded ? ' is-expanded' : ''}`}>
           {spans
             .slice()
             .reverse()
-            .slice(0, 12)
+            .slice(0, expanded ? 40 : 12)
             .map((s) => (
               <li key={`${s.fromMs}-${s.status}`}>
                 <span className="cv-mono cv-history-dtg" title={new Date(s.fromMs).toISOString()}>
