@@ -32,11 +32,13 @@ use crate::validate::{parse_target, ValidationError};
 ///
 /// Two things this has to get right:
 ///
-/// **An address with no PTR record is not a name.** `getnameinfo` falls back
-/// to the numeric form rather than failing, so an unresolvable host comes back
-/// claiming to be called "10.10.10.24". Returning that would put the IP in the
-/// hostname column and label every device with the number the sweep was meant
-/// to replace — the feature would look like it worked while doing nothing.
+/// **An address with no PTR record is not a name.** `dns_lookup::lookup_addr`
+/// passes `NI_NAMEREQD`, so `getnameinfo` errors rather than falling back to
+/// the numeric form, and that case already arrives here as `None`. The guard
+/// in `usable_name` is belt-and-braces against that flag changing — without
+/// it, an unresolvable host would come back claiming to be called
+/// "10.10.10.24", which would put the IP in the hostname column and label
+/// every device with the number the sweep was meant to replace.
 ///
 /// **A slow resolver must not hold up the sweep.** The lookup is blocking, so
 /// it runs on the blocking pool under the sweep's own timeout. If it does not
@@ -703,10 +705,11 @@ mod tests {
 
     #[test]
     fn the_address_repeated_back_is_not_a_name() {
-        // The trap this exists for: getnameinfo does not fail when there is no
-        // PTR record, it hands back the numeric form. Taking that as a
-        // hostname would label every device with the number the sweep was
-        // supposed to replace, and the feature would look like it worked.
+        // `getnameinfo` without NI_NAMEREQD hands back the numeric form rather
+        // than failing, and taking that as a hostname would label every device
+        // with the number the sweep was supposed to replace. `lookup_addr`
+        // does pass NI_NAMEREQD, so this is a guard against that changing
+        // rather than the thing currently holding the line.
         assert_eq!(usable_name("10.10.10.24", ip("10.10.10.24")), None);
         assert_eq!(usable_name("192.0.2.1", ip("192.0.2.1")), None);
     }

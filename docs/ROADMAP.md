@@ -98,11 +98,16 @@ permit as the ping, so it adds no second pass. One new dependency,
 `getnameinfo` call Rust's std does not expose. The results table gained a
 **Name** column, and `DiscoverPanel` now labels an added device
 `hostname ?? ip`, keeping the address as the probe target either way.
-**The trap, and the test for it:** `getnameinfo` does not fail when there is
-no PTR record — it hands back the numeric form. Taken at face value that
-would have set every hostname to the address, put the IP in the Name column
-and labelled every device with the number the sweep was meant to replace:
-the feature would have looked like it worked while doing nothing. The
+**The trap, and the test for it — corrected 2026-09-08 after being asked how
+the name is resolved without `-a`:** the claim first written here was that
+`getnameinfo` returns the numeric form instead of failing when there is no
+PTR record, and that `usable_name()` was what stopped every device being
+labelled with its own address. Reading the crate rather than assuming:
+`dns_lookup::lookup_addr` passes `NI_NAMEREQD`, which makes `getnameinfo`
+error instead of falling back, so that case was already handled a layer
+down. The guard is real but defensive — it earns its place on the
+trailing-root-dot form (`host.example.com.`), on empty answers, and against
+that flag changing — not as the thing holding the line. The
 decision is split into a pure `usable_name()` so it could be tested without
 depending on what a given machine's resolver answers — including that a name
 which merely *contains* the address (`10-0-0-5.static.example.net`, common on
@@ -112,6 +117,54 @@ has a PTR record on this machine. The Name column showed `localhost`, and
 "Add 1 to diagram" produced a device labelled **localhost** with `127.0.0.1`
 kept as its address — not a device called `127.0.0.1`. 974 tests pass, 7 of
 them new. The test device was removed from the sample afterwards.
+
+### LT-110 — Import a Visio drawing as a topology, not as pictures
+**Source:** asked 2026-09-08 — "do I have the option to import .vsdx
+diagrams? would it be possible to import and fully utilize the already on
+the diagrams line ip address, ports devices names and fill that on coreview
+fileds? how do we make that working at 100% I have enought digrams to import
+and test."
+**Where it stands today:** no. Import accepts `.coreview`/`.json` and `.csv`
+only. A Visio file *can* be read, but only through `shapeconv`'s libvisio
+path, which renders it to SVG — the drawing arrives as **artwork for the
+shape library**, with every device, address and port flattened into a
+picture. Nothing reads a `.vsdx` into devices and links.
+**Why it is tractable:** `.vsdx` is OPC — plain XML in a ZIP, and `zip` is
+already a dependency. Confirmed by unpacking `fixtures/blue-box.vsdx`:
+`visio/pages/page1.xml` holds `<Shape ID=…>` with `<Cell N='PinX'…>`
+geometry in readable XML. More to the point, this app's own Visio *exporter*
+already writes the exact structure an importer has to read — `<Text>` on
+shapes for the device name, `<Text>` on connectors for the port label, and a
+`<Connects>` section gluing `FromSheet`/`ToSheet` — with tests asserting all
+three. The importer is close to the inverse of code that already exists.
+**Where the real work is — mapping text to fields.** The structure gives
+devices and which-connects-to-what; it does not say which string is an
+address and which is an interface. Planned in order of reliability:
+1. **Shape Data** (`<Section N='Property'>`) — if the diagrams carry
+   properties, this is exact rather than guessed, and is the first thing to
+   look for in the operator's real files.
+2. **IPv4 regex** — reliable.
+3. **Interface names** (`Gi1/0/1`, `Te1/0/48`, `Po10`, `xe-0/0/0`) — the app
+   already recognises these in `coreview-discover` for LLDP/CDP, so the
+   knowledge exists and should be reused rather than rewritten.
+4. **Whatever is left** → device name.
+**Why "100%" is not a promise anyone can make**, and what it depends on:
+- **Glued vs drawn-near connectors.** A glued connector produces a
+  `<Connect>` entry and the link is certain. A line merely lying near two
+  shapes produces nothing, and the link has to be inferred from geometry —
+  a guess, and one that should be shown as a guess rather than asserted.
+- **`.vsdx` vs `.vsd`.** `.vsdx` is XML and fully parseable. `.vsd` is the
+  pre-2013 binary format; libvisio can only render it to SVG, which loses
+  exactly the structure this needs. Old drawings may have to be re-saved.
+- **House style.** How a team writes an address next to a port is a
+  convention, not a standard.
+So the honest target is not "100% of any Visio file" but "100% of the
+operator's own diagrams, whose conventions can be read off real examples and
+fitted" — with anything uncertain surfaced for review rather than quietly
+drawn, the same rule `ChangeReport` already applies to a re-crawl.
+**Blocked on:** two or three real `.vsdx` files. The skeleton can be built
+blind; the field mapping cannot, and guessing at conventions is how the
+first attempt at LT-098 went wrong.
 
 ### LT-108 — **bug** The canvas and the export disagree about `callout`
 **Source:** found while doing LT-107, not reported. `DeviceNode.tsx` and
