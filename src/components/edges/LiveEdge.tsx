@@ -6,6 +6,7 @@ import {
   getBezierPath,
   getSmoothStepPath,
   getStraightPath,
+  Position,
   type EdgeProps,
 } from '@xyflow/react';
 
@@ -19,6 +20,7 @@ import { jumpsFor, withJumps } from '../../lib/lineJumps';
 import { segmentMidpoints, waypointRoute } from '../../lib/waypointRoute';
 import { activePage } from '../../lib/pages';
 import { bezierPath, type Side } from '../../lib/bezierPath';
+import { anchorPoint, nearestAnchorOnBox, nearestSide, SIDE_TO_POSITION } from '../../lib/floatingAnchor';
 import { dragSegment, pathVertices, segmentGrips } from '../../lib/elbowRoute';
 import {
   MAX_EDGES_FOR_JUMPS,
@@ -187,8 +189,18 @@ function pathFor(
 }
 
 function LiveEdgeInner(props: EdgeProps) {
-  const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected } =
-    props;
+  const {
+    id,
+    source,
+    target,
+    sourceX: rawSourceX,
+    sourceY: rawSourceY,
+    targetX: rawTargetX,
+    targetY: rawTargetY,
+    sourcePosition: rawSourcePosition,
+    targetPosition: rawTargetPosition,
+    selected,
+  } = props;
   const data = (props.data ?? {}) as LinkData;
   // Live while the curve handle is dragged (LT-072); the store learns the
   // final value on release.
@@ -198,6 +210,49 @@ function LiveEdgeInner(props: EdgeProps) {
   const runtime = useStore((s) => s.runtime);
   const reduceMotion = useStore((s) => s.settings.reduceMotion);
   const linkStatusOf = useStore((s) => s.linkStatus);
+
+  // A floating anchor (LT-098) overrides where this end leaves its device —
+  // anywhere around its bounding box, not one of the 4 fixed handles React
+  // Flow measured for us. Shadowing the plain names here, rather than
+  // threading a differently-named point through the rest of the component,
+  // is what keeps every line below — path, port labels, the corner drag —
+  // unaware anything about the source of these numbers ever changed.
+  const pageNodes = activePage(doc).nodes;
+  const floatingEnd = (
+    nodeId: string,
+    a: LinkData['sourceAnchor'],
+    fx: number,
+    fy: number,
+    fPos: Position | undefined,
+  ) => {
+    if (!a) return { x: fx, y: fy, position: fPos };
+    const n = pageNodes.find((node) => node.id === nodeId);
+    if (!n) return { x: fx, y: fy, position: fPos };
+    const box = {
+      x: n.position.x,
+      y: n.position.y,
+      w: n.width ?? n.measured?.width ?? 176,
+      h: n.height ?? n.measured?.height ?? 96,
+    };
+    const p = anchorPoint(box, a);
+    return { x: p.x, y: p.y, position: SIDE_TO_POSITION[nearestSide(a)] };
+  };
+  const sourceEnd = floatingEnd(source, data.sourceAnchor, rawSourceX, rawSourceY, rawSourcePosition);
+  const targetEnd = floatingEnd(target, data.targetAnchor, rawTargetX, rawTargetY, rawTargetPosition);
+  // While an end is actively being dragged (see dragAnchorEnd below), it
+  // follows the cursor exactly rather than jumping to its nearest perimeter
+  // point on every frame — that snap happens once, on release, which is what
+  // makes the drag itself feel like it is going somewhere rather than
+  // fighting the shape it is leaving.
+  const [anchorDrag, setAnchorDrag] = useState<{ which: 'source' | 'target'; x: number; y: number } | null>(
+    null,
+  );
+  const sourceX = anchorDrag?.which === 'source' ? anchorDrag.x : sourceEnd.x;
+  const sourceY = anchorDrag?.which === 'source' ? anchorDrag.y : sourceEnd.y;
+  const targetX = anchorDrag?.which === 'target' ? anchorDrag.x : targetEnd.x;
+  const targetY = anchorDrag?.which === 'target' ? anchorDrag.y : targetEnd.y;
+  const sourcePosition = sourceEnd.position;
+  const targetPosition = targetEnd.position;
 
   // Through the store rather than calling the evaluator here, so the diagram
   // export resolves link status the same way the canvas does.
@@ -336,6 +391,47 @@ function LiveEdgeInner(props: EdgeProps) {
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
     };
+
+  // LT-098: dragging either end of the link off its device's own bounding
+  // box anywhere around it, rather than snapping between the 4 fixed sides.
+  // A ref alongside the state a plain closure over `anchorDrag` would go
+  // stale on — `up` runs long after the render that created it.
+  const anchorDragRef = useRef(anchorDrag);
+  anchorDragRef.current = anchorDrag;
+  const dragAnchorEnd = (which: 'source' | 'target') => (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const move = (ev: PointerEvent) => {
+      const f = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY });
+      setAnchorDrag({ which, x: f.x, y: f.y });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      const final = anchorDragRef.current;
+      setAnchorDrag(null);
+      if (!final) return;
+      const nodeId = which === 'source' ? source : target;
+      const n = pageNodes.find((node) => node.id === nodeId);
+      if (!n) return;
+      const box = {
+        x: n.position.x,
+        y: n.position.y,
+        w: n.width ?? n.measured?.width ?? 176,
+        h: n.height ?? n.measured?.height ?? 96,
+      };
+      const a = nearestAnchorOnBox(box, { x: final.x, y: final.y });
+      const store = useStore.getState();
+      store.commit();
+      store.updateEdgeData(
+        id,
+        which === 'source' ? { sourceAnchor: a, pinnedSides: true } : { targetAnchor: a, pinnedSides: true },
+      );
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   // LT-069: a step link's segment grip. Dragging slides the run orthogonally
   // (dragSegment keeps every corner at 90°); a press-and-hold that never moves
@@ -763,6 +859,44 @@ function LiveEdgeInner(props: EdgeProps) {
               }}
             />
           ))}
+
+        {/* LT-098: drag either end anywhere around its own device's
+            perimeter. Double-click puts that one end back on automatic —
+            the other end's own anchor, if it has one, is untouched. */}
+        {selected && (
+          <>
+            <div
+              className="cv-edge-endpoint nodrag nopan"
+              title="Drag to attach this end anywhere around the shape"
+              style={{ transform: `translate(-50%, -50%) translate(${sourceX}px, ${sourceY}px)` }}
+              onPointerDown={dragAnchorEnd('source')}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                const store = useStore.getState();
+                store.commit();
+                store.updateEdgeData(id, {
+                  sourceAnchor: undefined,
+                  pinnedSides: data.targetAnchor ? true : undefined,
+                });
+              }}
+            />
+            <div
+              className="cv-edge-endpoint nodrag nopan"
+              title="Drag to attach this end anywhere around the shape"
+              style={{ transform: `translate(-50%, -50%) translate(${targetX}px, ${targetY}px)` }}
+              onPointerDown={dragAnchorEnd('target')}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                const store = useStore.getState();
+                store.commit();
+                store.updateEdgeData(id, {
+                  targetAnchor: undefined,
+                  pinnedSides: data.sourceAnchor ? true : undefined,
+                });
+              }}
+            />
+          </>
+        )}
 
         {data.targetPortLabel ? (
           <div

@@ -29,6 +29,12 @@ import {
 import { glyphMarkup } from './glyphSvg';
 import { capPath, capsFor, dashFor } from './linkStyle';
 import { fitOnSheet } from './paper';
+import {
+  anchorPoint,
+  nearestSide,
+  SIDE_TO_POSITION,
+  type Anchor as FloatingAnchorPoint,
+} from './floatingAnchor';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type {
   DeviceNodeData,
@@ -121,9 +127,19 @@ function sizeOf(n: TopoNode): { w: number; h: number } {
 }
 
 /** Where a handle sits on a node, and which way an edge leaves it. */
-function anchor(n: TopoNode, handle: string | null | undefined, fallback: Position) {
+function anchor(
+  n: TopoNode,
+  handle: string | null | undefined,
+  fallback: Position,
+  floating?: FloatingAnchorPoint,
+) {
   const { w, h } = sizeOf(n);
   const { x, y } = n.position;
+  if (floating) {
+    const side = SIDE_TO_POSITION[nearestSide(floating)];
+    const p = anchorPoint({ x, y, w, h }, floating);
+    return { x: p.x, y: p.y, side };
+  }
   const side =
     handle === 't' ? Position.Top
     : handle === 'b' ? Position.Bottom
@@ -355,8 +371,8 @@ function edgeMarkup(
   const data = (e.data ?? {}) as LinkData;
   // Without explicit handles React Flow uses right-to-left; matching that keeps
   // the export's routing the same as the screen's.
-  const a = anchor(s, e.sourceHandle, Position.Right);
-  const b = anchor(t, e.targetHandle, Position.Left);
+  const a = anchor(s, e.sourceHandle, Position.Right, data.sourceAnchor);
+  const b = anchor(t, e.targetHandle, Position.Left, data.targetAnchor);
   const [path, labelX, labelY] = pathFor(data.pathType ?? 'smoothstep', {
     sourceX: a.x, sourceY: a.y, targetX: b.x, targetY: b.y,
     sourcePosition: a.side, targetPosition: b.side,

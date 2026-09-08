@@ -233,6 +233,15 @@ export interface LinkData extends Record<string, unknown> {
    *  the bottom of a device after that device has been moved above its
    *  neighbour is drawn wrong, and nobody wants to correct that by hand. */
   pinnedSides?: boolean;
+  /** Where this end leaves its device, as a point on the device's own
+   *  bounding box rather than one of the 4 fixed handles (LT-098) — `x`/`y`
+   *  each 0..1, always with one of them pinned to 0 or 1 so the point sits
+   *  on the perimeter, not inside it. Unset keeps today's 4-side behaviour;
+   *  set by dragging the link's end anywhere around the shape. Surviving a
+   *  resize for free is the whole reason this is normalized rather than a
+   *  fixed pixel offset. */
+  sourceAnchor?: { x: number; y: number };
+  targetAnchor?: { x: number; y: number };
 }
 
 export interface ProjectMeta {

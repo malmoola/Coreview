@@ -34,19 +34,6 @@ affected, which could be a small correction or a large undertaking
 depending on how many of the shipped Cisco shapes are actually
 bitmap-backed. Counting that is the first step, before promising a fix.
 
-### LT-098 — More than 4 link connection points per shape
-**Source:** asked 2026-09-07 — "I need the connector to connect to the
-shapes at 360 so anywhere I move the link it moves not just 4 directions
-we should have more that the 4 points off connections." Today a device has
-exactly four fixed handles (top/right/bottom/left — `DeviceNode.tsx`'s four
-`<Handle>` elements). Read as: a link's endpoint should be able to land
-anywhere around a shape's perimeter, not snap to one of four fixed points.
-**Resolved 2026-09-07:** the bigger option — a true floating/any-angle
-connection point that follows the nearest perimeter point as either end
-is dragged, not just more fixed handles at finer angles. Real work:
-touches routing, the resize/lock interaction, and the Visio/SVG export's
-notion of "which handle."
-
 ### LT-099 — The status history strip: scrub it, and see more of it
 **Source:** asked 2026-09-07, alongside LT-097/098 — "for the status line I
 need a position line to drag and also I need to klick it and it enlarges
@@ -390,6 +377,55 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-098 — More than 4 link connection points per shape — 2026-09-07
+**Source:** asked 2026-09-07 — "I need the connector to connect to the
+shapes at 360 so anywhere I move the link it moves not just 4 directions
+we should have more that the 4 points off connections." A device had
+exactly four fixed handles — top/right/bottom/left, `DeviceNode.tsx`'s four
+`<Handle>` elements.
+**Resolved 2026-09-07:** the bigger option over more fixed handles at finer
+angles — a link's end lands anywhere on its device's perimeter, dragged
+there directly, and stays exactly there (not a point that keeps re-homing
+itself to wherever is nearest as the *other* end moves — dragging sets a
+fixed spot on this one device, the same idea as diagrams.net's fixed
+connection points, not a "floating edge" that recomputes on every move of
+the far end).
+**Built:** `LinkData` gained `sourceAnchor`/`targetAnchor` — a point
+normalized to the device's own bounding box (`x`/`y` each 0..1, one of
+them always pinned to 0 or 1 so it sits on the perimeter) rather than a
+fixed pixel offset, so a resize just recomputes the same relative point
+for free instead of stranding it. The geometry is one new pure module,
+`src/lib/floatingAnchor.ts` (`anchorPoint`, `nearestAnchorOnBox`,
+`nearestSide`), shared by both places a link's endpoint gets computed: the
+live canvas (`LiveEdge.tsx`, which now shadows the plain `sourceX`/
+`sourceY`/etc. names it already threaded through path, port-label and
+corner-drag logic, so nothing downstream needed to change) and the SVG/PDF
+export (`diagram.ts`'s `anchor()`). Each end gets a new drag handle — a
+small ring right at the connection point, visible whenever the link is
+selected — that follows the cursor while held and snaps to the nearest
+point on that device's box on release; double-click puts that one end
+back on automatic without touching the other. Reuses the already-existing
+`pinnedSides` flag (it stops a link swinging to a different side as
+devices move) rather than inventing a second one, since a link with an
+explicit anchor obviously should not auto-reswing either. The one explicit
+"Route links" action, which forces every link back to its computed
+default regardless of `pinnedSides`, now also clears any anchor it
+overrides — otherwise a re-routed link would keep quietly ignoring its own
+new side.
+**Scoped out, deliberately:** the Visio export (`visio.rs`) still glues to
+one of the 4 sides — carrying a normalized bounding-box point into Visio's
+own connection model is real, separate work, and every other export path
+(SVG, PNG, PDF, all of which share `diagram.ts`) already reflects the
+true point.
+**Verified live, through the actual running app:** selected a link,
+dragged its source end from the bottom of a device to its left side and
+watched the line visually reroute there immediately; saved, fully reloaded
+the app, reopened the project, and confirmed the same custom attachment
+point survived (not just an in-memory drag); double-clicked the handle
+and watched it snap back to the original fixed-side position. `npx tsc
+--noEmit`, `npm run lint`, and `npx vitest run` (510 tests, 13 new — 12 for
+the geometry module, 1 for the export path) all clean.
 
 ### LT-104 — Save a canvas shape back into the shape library — 2026-09-07
 **Source:** asked 2026-09-07 — "can we give admin the ablility to past

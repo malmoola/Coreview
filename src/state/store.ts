@@ -800,9 +800,20 @@ export const useStore = create<Store>((set, get) => ({
       doc: withPage(state.doc, {
         edges: activePage(state.doc).edges.map((e) => {
           const want = byId.get(e.id);
-          return want
-            ? { ...e, sourceHandle: want.sourceHandle, targetHandle: want.targetHandle }
-            : e;
+          if (!want) return e;
+          // A floating anchor (LT-098) is exactly the kind of "not the
+          // computed default" this action exists to undo — leaving one in
+          // place would have the link silently ignore its own new side.
+          const data = { ...(e.data as LinkData) };
+          delete data.sourceAnchor;
+          delete data.targetAnchor;
+          delete data.pinnedSides;
+          return {
+            ...e,
+            sourceHandle: want.sourceHandle,
+            targetHandle: want.targetHandle,
+            data,
+          } as TopoEdge;
         }),
       }),
       dirty: true,

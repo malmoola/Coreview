@@ -1640,6 +1640,18 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
 }
 .cv-edge-curve:active { cursor: grabbing; }
 
+/* --- LT-098: the handle at each end of a link, right where it meets its
+   device — drag anywhere around that shape's own edge; double-click to put
+   it back on automatic. A ring rather than a filled dot, so it reads
+   distinctly from the waypoint handles a step or curved link also shows. --- */
+.cv-edge-endpoint {
+  position: absolute; width: 13px; height: 13px; border-radius: 50%;
+  background: transparent; border: 2px solid var(--canvas-accent);
+  pointer-events: auto; cursor: grab; z-index: 7; opacity: 0.85;
+}
+.cv-edge-endpoint:hover { opacity: 1; background: var(--page); }
+.cv-edge-endpoint:active { cursor: grabbing; }
+
 /* --- LT-073: what a broken panel looks like, instead of an empty window. --- */
 .cv-boundary {
   margin: 12px; padding: 12px 14px;

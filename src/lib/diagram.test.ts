@@ -115,6 +115,18 @@ describe('renderDiagramSvg', () => {
     expect(svg).not.toContain('<edge>');
   });
 
+  it('draws a link from a floating anchor point instead of the fixed side (LT-098)', () => {
+    // n2 sits at x=400, 176x96 — the default left-middle anchor is (400, 48);
+    // a floating anchor at the box's top-left corner is (400, 0) instead.
+    const anchored: TopoEdge = {
+      ...link,
+      data: { ...link.data, pathType: 'straight', targetAnchor: { x: 0, y: 0 } },
+    } as TopoEdge;
+    const svg = render([device('n1', 0, 0), device('n2', 400, 0)], [anchored]);
+    expect(svg).toContain('400,0');
+    expect(svg).not.toContain('400,48');
+  });
+
   it('keeps port labels clear of the link label on a short link', () => {
     // Two devices stacked with a small gap: placing the port label a fraction
     // along the line put it under the link label, which is drawn after and
