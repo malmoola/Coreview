@@ -11,6 +11,8 @@ import {
 } from '@xyflow/react';
 
 import type { DeviceNodeData, HealthStatus, LinkData } from '../../types/domain';
+import { SHAPE_DEVICE_TYPES } from '../../types/domain';
+import type { TopoNode } from '../../state/store';
 import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 import { useStore } from '../../state/store';
 import { describeRule, shouldAnimate } from '../../health/evaluate';
@@ -20,7 +22,14 @@ import { jumpsFor, withJumps } from '../../lib/lineJumps';
 import { segmentMidpoints, waypointRoute } from '../../lib/waypointRoute';
 import { activePage } from '../../lib/pages';
 import { bezierPath, type Side } from '../../lib/bezierPath';
-import { anchorPoint, nearestAnchorOnBox, nearestSide, SIDE_TO_POSITION } from '../../lib/floatingAnchor';
+import {
+  anchorPoint,
+  bearingAnchor,
+  centreOf,
+  nearestAnchorOnBox,
+  nearestSide,
+  SIDE_TO_POSITION,
+} from '../../lib/floatingAnchor';
 import { dragSegment, pathVertices, segmentGrips } from '../../lib/elbowRoute';
 import {
   MAX_EDGES_FOR_JUMPS,
@@ -211,34 +220,64 @@ function LiveEdgeInner(props: EdgeProps) {
   const reduceMotion = useStore((s) => s.settings.reduceMotion);
   const linkStatusOf = useStore((s) => s.linkStatus);
 
-  // A floating anchor (LT-098) overrides where this end leaves its device —
-  // anywhere around its bounding box, not one of the 4 fixed handles React
-  // Flow measured for us. Shadowing the plain names here, rather than
-  // threading a differently-named point through the rest of the component,
-  // is what keeps every line below — path, port labels, the corner drag —
-  // unaware anything about the source of these numbers ever changed.
+  // Where each end actually meets its device. Three answers, in order:
+  //
+  //   1. a hand-placed anchor (LT-098), if this link has one — someone said
+  //      exactly where they wanted it and nothing should argue;
+  //   2. the fixed handle React Flow measured, if the link is pinned — that
+  //      is what `pinnedSides` has always meant, an explicit "stop moving";
+  //   3. otherwise the bearing to the device at the other end (LT-107), so a
+  //      link leaves pointing at where it is going, at any angle round the
+  //      shape, and keeps doing so as either end moves.
+  //
+  // (3) is the default because four fixed handles was the complaint: a device
+  // below and to the left was met sideways out of the left handle and then
+  // turned a corner. Shadowing the plain `sourceX`/`sourceY` names below,
+  // rather than threading differently-named points through the rest of the
+  // component, is what keeps every line after this — path, port labels, the
+  // corner drag — unaware of where the numbers came from.
   const pageNodes = activePage(doc).nodes;
-  const floatingEnd = (
-    nodeId: string,
+  const nodeStyle = activePage(doc).canvas.nodeStyle ?? 'glyph';
+  const boxOf = (n: TopoNode) => ({
+    x: n.position.x,
+    y: n.position.y,
+    w: n.width ?? n.measured?.width ?? 176,
+    h: n.height ?? n.measured?.height ?? 96,
+  });
+  // A glyph device is drawn as a round icon — its own selection ring is a
+  // circle — so a diagonal link measured against the box would attach out at
+  // a corner, visibly off the artwork. A card, a note or a drawn rectangle is
+  // a box and wants the box.
+  const isRound = (n: TopoNode) =>
+    nodeStyle === 'glyph' &&
+    n.type === 'device' &&
+    !SHAPE_DEVICE_TYPES.has((n.data as DeviceNodeData).deviceType);
+
+  const sourceNode = pageNodes.find((n) => n.id === source);
+  const targetNode = pageNodes.find((n) => n.id === target);
+
+  const endOf = (
+    self: TopoNode | undefined,
+    other: TopoNode | undefined,
     a: LinkData['sourceAnchor'],
     fx: number,
     fy: number,
     fPos: Position | undefined,
   ) => {
-    if (!a) return { x: fx, y: fy, position: fPos };
-    const n = pageNodes.find((node) => node.id === nodeId);
-    if (!n) return { x: fx, y: fy, position: fPos };
-    const box = {
-      x: n.position.x,
-      y: n.position.y,
-      w: n.width ?? n.measured?.width ?? 176,
-      h: n.height ?? n.measured?.height ?? 96,
-    };
-    const p = anchorPoint(box, a);
-    return { x: p.x, y: p.y, position: SIDE_TO_POSITION[nearestSide(a)] };
+    if (!self) return { x: fx, y: fy, position: fPos };
+    const box = boxOf(self);
+    if (a) {
+      const p = anchorPoint(box, a);
+      return { x: p.x, y: p.y, position: SIDE_TO_POSITION[nearestSide(a)] };
+    }
+    if (data.pinnedSides || !other) return { x: fx, y: fy, position: fPos };
+    const bearing = bearingAnchor(box, centreOf(boxOf(other)), isRound(self));
+    const p = anchorPoint(box, bearing);
+    return { x: p.x, y: p.y, position: SIDE_TO_POSITION[nearestSide(bearing)] };
   };
-  const sourceEnd = floatingEnd(source, data.sourceAnchor, rawSourceX, rawSourceY, rawSourcePosition);
-  const targetEnd = floatingEnd(target, data.targetAnchor, rawTargetX, rawTargetY, rawTargetPosition);
+
+  const sourceEnd = endOf(sourceNode, targetNode, data.sourceAnchor, rawSourceX, rawSourceY, rawSourcePosition);
+  const targetEnd = endOf(targetNode, sourceNode, data.targetAnchor, rawTargetX, rawTargetY, rawTargetPosition);
   // While an end is actively being dragged (see dragAnchorEnd below), it
   // follows the cursor exactly rather than jumping to its nearest perimeter
   // point on every frame — that snap happens once, on release, which is what

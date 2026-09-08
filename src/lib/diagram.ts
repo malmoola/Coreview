@@ -31,6 +31,8 @@ import { capPath, capsFor, dashFor } from './linkStyle';
 import { fitOnSheet } from './paper';
 import {
   anchorPoint,
+  bearingAnchor,
+  centreOf,
   nearestSide,
   SIDE_TO_POSITION,
   type Anchor as FloatingAnchorPoint,
@@ -43,7 +45,7 @@ import type {
   NoteNodeData,
   ProjectMeta,
 } from '../types/domain';
-import { STATUS_GLYPH, STATUS_LABEL } from '../types/domain';
+import { SHAPE_DEVICE_TYPES, STATUS_GLYPH, STATUS_LABEL } from '../types/domain';
 
 /** Default node box, matching what the palette and samples create. */
 const NODE_W = 176;
@@ -126,12 +128,23 @@ function sizeOf(n: TopoNode): { w: number; h: number } {
   };
 }
 
+/** Whether a node is drawn as a round glyph rather than a box — the same
+ *  test `LiveEdge` makes, so an exported link meets a shape exactly where the
+ *  canvas draws it meeting it (LT-107). */
+function drawnRound(n: TopoNode, nodeStyle: 'glyph' | 'card'): boolean {
+  if (nodeStyle !== 'glyph' || n.type !== 'device') return false;
+  return !SHAPE_DEVICE_TYPES.has((n.data as DeviceNodeData).deviceType);
+}
+
 /** Where a handle sits on a node, and which way an edge leaves it. */
 function anchor(
   n: TopoNode,
   handle: string | null | undefined,
   fallback: Position,
   floating?: FloatingAnchorPoint,
+  /** The node at the other end, and how nodes are drawn: with both, the edge
+   *  leaves on the bearing to that node instead of a fixed side (LT-107). */
+  toward?: { other: TopoNode; nodeStyle: 'glyph' | 'card'; pinned: boolean },
 ) {
   const { w, h } = sizeOf(n);
   const { x, y } = n.position;
@@ -139,6 +152,16 @@ function anchor(
     const side = SIDE_TO_POSITION[nearestSide(floating)];
     const p = anchorPoint({ x, y, w, h }, floating);
     return { x: p.x, y: p.y, side };
+  }
+  if (toward && !toward.pinned) {
+    const o = sizeOf(toward.other);
+    const bearing = bearingAnchor(
+      { x, y, w, h },
+      centreOf({ x: toward.other.position.x, y: toward.other.position.y, w: o.w, h: o.h }),
+      drawnRound(n, toward.nodeStyle),
+    );
+    const p = anchorPoint({ x, y, w, h }, bearing);
+    return { x: p.x, y: p.y, side: SIDE_TO_POSITION[nearestSide(bearing)] };
   }
   const side =
     handle === 't' ? Position.Top
@@ -363,6 +386,7 @@ function edgeMarkup(
   nodes: Map<string, TopoNode>,
   status: HealthStatus,
   sheet: Sheet,
+  nodeStyle: 'glyph' | 'card',
 ): string {
   const s = nodes.get(e.source);
   const t = nodes.get(e.target);
@@ -371,8 +395,17 @@ function edgeMarkup(
   const data = (e.data ?? {}) as LinkData;
   // Without explicit handles React Flow uses right-to-left; matching that keeps
   // the export's routing the same as the screen's.
-  const a = anchor(s, e.sourceHandle, Position.Right, data.sourceAnchor);
-  const b = anchor(t, e.targetHandle, Position.Left, data.targetAnchor);
+  const pinned = Boolean(data.pinnedSides);
+  const a = anchor(s, e.sourceHandle, Position.Right, data.sourceAnchor, {
+    other: t,
+    nodeStyle,
+    pinned,
+  });
+  const b = anchor(t, e.targetHandle, Position.Left, data.targetAnchor, {
+    other: s,
+    nodeStyle,
+    pinned,
+  });
   const [path, labelX, labelY] = pathFor(data.pathType ?? 'smoothstep', {
     sourceX: a.x, sourceY: a.y, targetX: b.x, targetY: b.y,
     sourcePosition: a.side, targetPosition: b.side,
@@ -542,7 +575,9 @@ export function renderDiagramSvg(input: DiagramInput): string {
     n.type === 'device' && (n.data as DeviceNodeData).deviceType === 'zone';
   const body =
     nodes.filter(isSection).map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph', sheet)).join('') +
-    edges.map((e) => edgeMarkup(e, byId, input.linkStatus(e.id), sheet)).join('') +
+    edges
+      .map((e) => edgeMarkup(e, byId, input.linkStatus(e.id), sheet, input.nodeStyle ?? 'glyph'))
+      .join('') +
     nodes
       .filter((n) => !isSection(n))
       .map((n) => nodeMarkup(n, input.nodeStatus(n.id), input.nodeStyle ?? 'glyph', sheet))

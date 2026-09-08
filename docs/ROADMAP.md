@@ -17,6 +17,74 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-107 — **bug** Links still leave a shape from only 4 points
+**Source:** re-reported 2026-09-08, in the same words as LT-098 and with a
+screenshot of HOME-MAIN-SW — "I need the connector to connect to the shapes
+at 360 so anywhere I move the link it moves not just 4 directions we should
+have more that the 4 points off connections **this is still not done**."
+**Reproduced 2026-09-08** in the Branch office sample, before changing
+anything: the Core switch's link to Access switch 1 — which sits down and
+to the *left* — does not run diagonally. It leaves the fixed left handle
+sideways, turns a right angle, and drops down. Same on the right for the
+Wireless controller. Every link is funnelled through one of four points.
+**What LT-098 got wrong:** it read "anywhere I move the link it moves" as
+*I drag the endpoint and it stays put*, and shipped a hand-dragged fixed
+anchor. Re-read against the screenshot, it means the link should attach at
+the **true bearing** to the device at the other end, anywhere around the
+full 360°, and keep doing so as things move — without anyone dragging
+anything. The LT-098 anchor is still useful as a manual override; it was
+just never the thing that was asked for.
+**Acceptance:** a link leaves each shape pointing at the device it actually
+goes to, at any angle, and follows as either end is moved — with no
+per-link dragging.
+**Fixed 2026-09-08 — deliberately still open, pending the operator's own
+confirmation.** LT-098 was moved to Done on my verification alone and was
+wrong; the same claim is not worth making twice. What was built: one new
+pure function, `bearingAnchor` in `src/lib/floatingAnchor.ts`, giving the
+point where a ray from a shape's centre towards the device at the other end
+crosses its outline. Each end now resolves in three steps — a hand-placed
+LT-098 anchor if there is one, then the fixed handle if the link is
+`pinnedSides` (that flag has always meant "stop moving"), and otherwise the
+bearing. Wired into both places an endpoint is computed, so the export
+still matches the screen (D-001): `LiveEdge.tsx` and `diagram.ts`'s
+`anchor()`.
+**The detail that decides whether it looks right:** a glyph device is drawn
+as a *round* icon — its selection ring is a literal `border-radius: 50%` —
+so measured against the bounding box a diagonal link would attach at the
+box's corner, visibly off the artwork and floating in the gap. `round`
+shapes are met on the inscribed ellipse; cards, notes and drawn rectangles
+on the box. This is also why the node's own box is the right thing to
+measure at all: `.cv-glyph-art` is `width/height: 100%` — "the artwork owns
+every pixel of the node" since LT-053 — so the label underneath overflows
+rather than inflating the box.
+**Verified, live, before and after:** reproduced first in the Branch office
+sample (the Core switch leaving sideways out of its left handle and turning
+a corner to reach a device that is down and to the left), then confirmed
+the links now leave the lower-left and lower-right at the true angle. Then
+dragged Access switch 1 up above the switch and watched that link's
+attachment travel round the icon from lower-left to upper-left — the
+"anywhere I move the link it moves" half, which no static screenshot of the
+end state would have shown. 520 tests pass, 10 of them new: 7 on the
+geometry (including that it lands *on* the outline, that a non-square box
+does not distort the bearing, and that concentric shapes do not divide by
+zero) and 3 on the export.
+
+### LT-108 — **bug** The canvas and the export disagree about `callout`
+**Source:** found while doing LT-107, not reported. `DeviceNode.tsx` and
+`diagram.ts` each keep their own copy of the "drawn as a plain shape rather
+than a device glyph" list, and the copies differ: the canvas includes
+`callout`, the export does not. So a callout is drawn as a shape on screen
+and as a device glyph in an exported SVG or PDF — the export does not show
+what the canvas shows, which is the one thing an export has to do (D-001).
+**Not fixed here.** LT-107 needed the same list and added one shared
+definition — `SHAPE_DEVICE_TYPES` in `src/types/domain.ts`, matching the
+canvas — but both old copies were deliberately left where they are:
+changing the export's list changes exported output for callout nodes, and
+that wants its own before-and-after check rather than being smuggled in
+under a link-routing fix.
+**Acceptance:** one list, used by both, and a callout exports as the shape
+it is drawn as.
+
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -32,7 +100,8 @@ already finished, some literally titled "resolved". Flagged to the operator
 - Where a bug cannot be fixed, it says why in plain words rather than being
   quietly closed.
 
-**Known bugs, open:** none — as of 2026-09-07.
+**Known bugs, open:** LT-107 (fixed 2026-09-08, held open until the
+operator confirms it on his own diagram), LT-108.
 **Known bugs, closed:** LT-030, LT-031, LT-003, LT-044, LT-004, LT-005,
 LT-082, LT-083, LT-084, LT-085, LT-091, LT-101.
 
@@ -450,6 +519,13 @@ inspector-only presentation, nothing new to unit-test beyond what the
 existing timeline/formatting libraries already cover) all clean.
 
 ### LT-098 — More than 4 link connection points per shape — 2026-09-07
+> **Reopened 2026-09-08 as LT-107 — this did not do what was asked.** The
+> operator re-reported it in the same words, with a screenshot: "this is
+> still not done". What shipped below is a hand-dragged fixed anchor; what
+> was wanted is the link *automatically* meeting the shape at the true
+> bearing to the other device. Kept here as the record of what was built
+> and misread; the correction is LT-107.
+
 **Source:** asked 2026-09-07 — "I need the connector to connect to the
 shapes at 360 so anywhere I move the link it moves not just 4 directions
 we should have more that the 4 points off connections." A device had

@@ -127,6 +127,38 @@ describe('renderDiagramSvg', () => {
     expect(svg).not.toContain('400,48');
   });
 
+  it('leaves a shape on the bearing to the other device, not a fixed side (LT-107)', () => {
+    // n1 is 176x96 at the origin, so its centre is (88,48); n2 is down and to
+    // the right. The old fixed right-hand handle was (176,48) — a link that
+    // left sideways and then turned a corner. The bearing crosses the box's
+    // bottom edge at (136,96) instead.
+    const diagonal: TopoEdge = { ...link, data: { ...link.data, pathType: 'straight' } } as TopoEdge;
+    const svg = render([device('n1', 0, 0), device('n2', 400, 400)], [diagonal]);
+    expect(svg).toContain('136,96');
+    expect(svg).not.toContain('176,48');
+  });
+
+  it('meets a round glyph on its circle rather than out at the box corner (LT-107)', () => {
+    // Same two devices, drawn as glyphs: the outline is the circle the icon
+    // actually is, so the link lands nearer the centre than the box edge.
+    const diagonal: TopoEdge = { ...link, data: { ...link.data, pathType: 'straight' } } as TopoEdge;
+    const nodes = [device('n1', 0, 0), device('n2', 400, 400)];
+    const asCard = render(nodes, [diagonal], 'healthy', 'card');
+    const asGlyph = render(nodes, [diagonal], 'healthy', 'glyph');
+    expect(asCard).toContain('136,96');
+    expect(asGlyph).not.toContain('136,96');
+  });
+
+  it('a hand-placed anchor still wins over the bearing (LT-098 kept)', () => {
+    const pinned: TopoEdge = {
+      ...link,
+      data: { ...link.data, pathType: 'straight', sourceAnchor: { x: 0, y: 0 } },
+    } as TopoEdge;
+    const svg = render([device('n1', 0, 0), device('n2', 400, 400)], [pinned]);
+    // The top-left corner the anchor names, not the bearing's (136,96).
+    expect(svg).toContain('M0,0');
+  });
+
   it('keeps port labels clear of the link label on a short link', () => {
     // Two devices stacked with a small gap: placing the port label a fraction
     // along the line put it under the link label, which is drawn after and

@@ -41,6 +41,24 @@ export type DeviceType =
   | 'cloud'
   | 'text';
 
+/** The device types that are drawn as a plain shape rather than as a device
+ *  glyph — a rectangle drawn as a glyph is not a rectangle. Matters to
+ *  anything that has to know what outline a node actually has: LT-107 meets a
+ *  glyph on its circle and one of these on its box.
+ *
+ *  `DeviceNode.tsx` and `diagram.ts` each still keep their own copy of this
+ *  list, and they do not agree — see LT-108. */
+export const SHAPE_DEVICE_TYPES: ReadonlySet<string> = new Set([
+  'rectangle',
+  'rounded',
+  'circle',
+  'diamond',
+  'cloud',
+  'text',
+  'zone',
+  'callout',
+]);
+
 export interface NodeAddress {
   id: string;
   /** Friendly label, e.g. "Management", "Loopback0", "WAN1". */
