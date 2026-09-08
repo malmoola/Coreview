@@ -295,6 +295,26 @@ body {
 }
 .cv-input:focus { border-color: var(--accent); outline: none; }
 textarea.cv-input { resize: vertical; }
+
+/* A dropdown is a control the engine would rather paint itself.
+   WebKitGTK ignores the background and colour above and draws its own light
+   control, which put pale grey text on near-white and made every dropdown in
+   the app hard to read — worst in a table of them, where it is the only thing
+   in the row you cannot make out. `appearance: none` takes the painting back;
+   the arrow has to be redrawn by hand because removing the appearance removes
+   that too. The options themselves open in a native popup, so they get the
+   same two colours stated explicitly rather than inherited. */
+select.cv-input {
+  appearance: none; -webkit-appearance: none;
+  background-color: var(--page); color: var(--ink);
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 13px center, right 8px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 24px;
+}
+select.cv-input option { background: var(--page); color: var(--ink); }
 .cv-color { width: 100%; height: 28px; background: none; border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 1px; }
 
 .cv-field { display: flex; flex-direction: column; gap: 3px; margin-bottom: 9px; flex: 1; min-width: 0; }
@@ -936,6 +956,9 @@ textarea.cv-input { resize: vertical; }
 .cv-import-table td { padding: 2px 6px; }
 .cv-import-table tbody tr:hover { cursor: default; }
 .cv-import-table .cv-input { width: 100%; min-width: 84px; padding: 3px 6px; }
+/* A tighter cell than the panels this class was written for, but the arrow
+   still needs its corner: without this the type name runs under it. */
+.cv-import-table select.cv-input { padding-right: 22px; }
 .cv-import-table .cv-btn { padding: 2px 8px; font-size: 11px; }
 /* A link the drawing did not glue: worked out from where the line was drawn,
    and marked so it can be checked rather than trusted. */
