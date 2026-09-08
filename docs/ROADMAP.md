@@ -17,23 +17,6 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
-### LT-105 — Cisco shapes as real (vector) shapes, not embedded pictures
-**Source:** asked 2026-09-07 — "can we turn all the cisco shapes to real
-shapes not just pictures?" Checked, and this is a real, specific gap, not
-a misunderstanding: `src-tauri/src/icons.rs`'s own test
-`keeps_embedded_bitmaps_but_not_fetching_ones` (line 668) confirms the
-icon pipeline deliberately preserves an embedded raster image inside the
-SVG wrapper rather than converting it to vector paths — which is exactly
-what several official Cisco Visio stencils are made of. Those render fine
-but cannot be recoloured or edited as a shape the way a drawn vector icon
-can.
-**Not yet scoped.** Turning an embedded bitmap into an editable vector
-shape is not a format conversion — it is redrawing the artwork (by hand,
-or with a vector-tracer of some quality) for however many Cisco shapes are
-affected, which could be a small correction or a large undertaking
-depending on how many of the shipped Cisco shapes are actually
-bitmap-backed. Counting that is the first step, before promising a fix.
-
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -364,6 +347,34 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-105 — Cisco shapes as real (vector) shapes, not embedded pictures — 2026-09-07
+**Source:** asked 2026-09-07 — "can we turn all the cisco shapes to real
+shapes not just pictures?" `src-tauri/src/icons.rs`'s own test
+`keeps_embedded_bitmaps_but_not_fetching_ones` confirmed the icon pipeline
+does deliberately preserve an embedded raster image where a source stencil
+has one rather than converting it to vector paths — a real, specific gap,
+not a misunderstanding. Left unscoped rather than promising a fix sight
+unseen, since redrawing artwork by hand for an unknown number of shapes
+could have been a small correction or a large undertaking.
+**Scoped 2026-09-07:** counted it. Of 217 SVGs under `stencils/cisco/`,
+only 12 contain an embedded `<image>` at all — the other 205 already draw
+with real vector paths (`stroke="currentColor"`) and are already fully
+recolourable today, which is most of what "all the cisco shapes" was
+worried about. Of those 12, 10 live under a `3-rd-party` folder with
+generic names (`image196.svg` etc.) — rendered, one turned out to be the
+VMware vCenter logo: bundled third-party vendor logos, not Cisco shapes,
+and not reasonable to recolour even if they were vector (that would
+misrepresent someone else's brand mark). The remaining 2 —
+`lan-switching/6500-vss.svg` (a VSS switch icon) and
+`wifi-indicator/3g-4g-indicator.svg` — are genuinely Cisco shapes that are
+entirely one embedded picture apiece (each file has exactly one `<image>`
+and exactly one `<path>`, and that path is only the outer border). The
+real scope was 2 icons out of 217, not "all" of them.
+**Resolved 2026-09-07, given that count:** left as-is. 2 icons out of 217
+was judged not worth hand-redrawing for how little it would change; the
+icon pipeline's existing bitmap-preserving behaviour is intentional
+elsewhere and stays exactly as it is.
 
 ### LT-099 — The status history strip: scrub it, and see more of it — 2026-09-07
 **Source:** asked 2026-09-07, alongside LT-097/098 — "for the status line I
