@@ -254,6 +254,39 @@ The single most common failure here.
   -tree` for a `"Coreview"` child window near your target size before
   screenshotting.
 
+### 6.8 The macOS build says the app is "damaged". It is not.
+
+The `.dmg` from CI (LT-106) is **unsigned and un-notarised** — there is no
+Apple Developer certificate configured, the way there is for Windows. macOS
+attaches a quarantine flag to anything downloaded from the internet, and for
+an unsigned app Gatekeeper reports that as:
+
+> "Coreview" is damaged and can't be opened. You should move it to the Bin.
+
+That message is wrong in a specific and unhelpful way: nothing is damaged and
+there is nothing to fix in the build. It is Gatekeeper refusing an app whose
+developer it cannot verify. Clear the flag after dragging the app to
+Applications:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Coreview.app
+```
+
+Right-click → Open (rather than double-clicking) works on some macOS versions
+and not on others; the `xattr` line works on all of them, which is why it is
+the one written here.
+
+The real fix is an Apple Developer Program membership (~$99/year) plus
+signing and notarisation in CI — the same shape as the existing
+`.github/actions/sign-windows`. Worth doing before the app is handed to
+anyone who did not build it; overkill while the operator is the only Mac
+user.
+
+**Nothing about the macOS bundle can be built or tested from this repo's
+Linux development machine** — Tauri cannot cross-compile it and `.dmg`
+creation needs `hdiutil`. Verification ends at "CI produced the artifact";
+only a Mac can finish it.
+
 ---
 
 ## 7. The lab

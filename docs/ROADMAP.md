@@ -17,6 +17,21 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-106 — A macOS build, as a .dmg
+**Source:** asked 2026-09-08 — "but can we make a macOS version? i think dmg
+file" / "so i can run the app on my mac book pro." The goal is the app
+running on the operator's own MacBook Pro, not merely a file that exists.
+**The constraint that shapes this:** Tauri cannot cross-compile a macOS
+bundle from Linux — the same reason `build.yml`'s own header gives for
+Windows — and `.dmg` creation needs `hdiutil`, which only exists on macOS.
+So this cannot be built or run on the machine this repo is developed on;
+it has to be a `macos-latest` CI job, and the operator is the only one who
+can confirm it actually launches.
+**Acceptance:** a `.dmg` downloadable from a CI run that installs and
+opens on an Apple Silicon *or* Intel Mac, with whatever Gatekeeper step
+an unsigned build needs written down plainly rather than left to be
+discovered.
+
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.

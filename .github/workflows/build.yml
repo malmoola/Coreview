@@ -1,8 +1,9 @@
 name: build
 
-# Tauri does not support cross-compiling Windows bundles from Linux, so each
-# platform is built on its own runner. Linux produces .deb and AppImage;
-# Windows produces the NSIS .exe and the MSI.
+# Tauri does not support cross-compiling bundles between platforms, so each
+# one is built on its own runner. Linux produces .deb and AppImage; Windows
+# produces the NSIS .exe and the MSI; macOS produces a universal .dmg that
+# runs on both Apple Silicon and Intel.
 
 on:
   push:
@@ -214,6 +215,53 @@ jobs:
           path: |
             target/release/bundle/nsis/*.exe
             target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+  # macOS, for the same reason Windows has its own runner: Tauri cannot
+  # cross-compile a macOS bundle, and building a .dmg needs `hdiutil`, which
+  # exists nowhere but macOS. So nothing about this job can be reproduced on
+  # the Linux machine this repo is developed on — the CI run is the only place
+  # it is ever built, and only a Mac can confirm it opens.
+  #
+  # Universal rather than the runner's own Apple Silicon: an Intel Mac cannot
+  # run an arm64 build at all, and "which Mac is it" is not a question a
+  # download gets to ask. It costs a second compile of the same code.
+  #
+  # Unsigned, because there is no Apple Developer certificate to sign with
+  # (unlike Windows, which has one). macOS quarantines a downloaded app that
+  # nobody has notarised and calls it "damaged", which it is not — the step
+  # that clears it is written down in docs/HANDOVER.md rather than left to be
+  # discovered.
+  #
+  # Its own job, like the offline installer above, so a platform that cannot
+  # be tested from here can never fail the bundles that can.
+  bundle-macos:
+    name: bundle (macOS, universal .dmg)
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+
+      - name: Build bundles
+        run: npm run tauri build -- --target universal-apple-darwin
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coreview-macos
+          path: target/universal-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
   # Does the AppImage carry WebKit, or does it quietly rely on the build host
