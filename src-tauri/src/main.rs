@@ -5,6 +5,7 @@ mod icons;
 mod pdf;
 mod shapeconv;
 mod visio;
+mod visio_import;
 mod commands;
 mod discovery;
 mod vault_commands;
@@ -117,6 +118,7 @@ fn main() {
             commands::diagram_vsdx,
             commands::save_export,
             commands::read_import,
+            commands::import_visio,
             commands::get_settings,
             commands::set_setting,
             commands::check_folder_writable,

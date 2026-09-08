@@ -129,6 +129,29 @@ function snake(value: unknown): unknown {
   return value;
 }
 
+/** What a Visio drawing yielded (LT-110). Mirrors `visio_import.rs`. */
+export type ImportedDevice = {
+  id: string;
+  label: string;
+  addresses: string[];
+  deviceType: string;
+  model: string;
+  properties: Record<string, string>;
+  x: number;
+  y: number;
+};
+export type ImportedLink = {
+  source: string;
+  target: string;
+  label: string;
+  sourcePort: string;
+  targetPort: string;
+  /** False means the link was inferred, not stated by the drawing. */
+  glued: boolean;
+};
+export type ImportedPage = { name: string; devices: ImportedDevice[]; links: ImportedLink[] };
+export type VisioImport = { pages: ImportedPage[]; warnings: string[] };
+
 export type SubnetInfo = { network: string; broadcast: string; prefix: number; hosts: number };
 export type SweepOptions = { timeoutMs: number; concurrency: number };
 /** `hostname` is what reverse DNS calls the address (LT-109) — null where it
@@ -661,6 +684,23 @@ export const ipc = {
   /** Reads a file the user chose in the open dialog. */
   readImport(path: string) {
     return invoke<string>('read_import', { path });
+  },
+
+  /** Native open dialog for a Visio drawing (LT-110). Null if cancelled. */
+  async pickVisioFile(): Promise<string | null> {
+    if (!isDesktop) throw new BackendUnavailable('Choosing a file');
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const picked = await open({
+      multiple: false,
+      title: 'Import a Visio drawing',
+      filters: [{ name: 'Visio drawing', extensions: ['vsdx', 'VSDX'] }],
+    });
+    return typeof picked === 'string' ? picked : null;
+  },
+
+  /** Reads a Visio drawing as devices and links. */
+  importVisio(path: string) {
+    return invoke<VisioImport>('import_visio', { path });
   },
 
   /** Devices with backups on disk. */

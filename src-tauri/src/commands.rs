@@ -369,6 +369,28 @@ pub fn save_export(path: String, contents_b64: String) -> CmdResult<()> {
 /// unusable on Linux — WebKitGTK turns the `accept` list into a filter that
 /// matches nothing when the extension has no registered MIME type, so the
 /// dialog showed an empty folder and Open stayed greyed out.
+/// Reads a Visio drawing as a topology (LT-110).
+///
+/// A `.vsdx` is far larger than a Coreview project — the sample drawings run
+/// to several MB of embedded artwork — so this gets its own, bigger limit
+/// rather than borrowing the one below, which exists to reject a file that is
+/// obviously not a project.
+#[tauri::command]
+pub fn import_visio(path: String) -> CmdResult<crate::visio_import::VisioImport> {
+    const MAX: u64 = 128 * 1024 * 1024;
+    let size = std::fs::metadata(&path)
+        .map_err(|e| format!("Could not read {path}: {e}"))?
+        .len();
+    if size > MAX {
+        return Err(format!(
+            "{path} is {} MB, which is larger than any drawing this can read.",
+            size / (1024 * 1024)
+        ));
+    }
+    let bytes = std::fs::read(&path).map_err(|e| format!("Could not read {path}: {e}"))?;
+    crate::visio_import::import_vsdx(&bytes)
+}
+
 #[tauri::command]
 pub fn read_import(path: String) -> CmdResult<String> {
     const MAX: u64 = 64 * 1024 * 1024;

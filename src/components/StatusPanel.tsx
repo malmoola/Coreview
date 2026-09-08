@@ -6,6 +6,7 @@ import { useStore } from '../state/store';
 import { DiscoverPanel } from './DiscoverPanel';
 import { CrawlPanel } from './CrawlPanel';
 import { BackupPanel } from './BackupPanel';
+import { VisioImportPanel } from './VisioImportPanel';
 import { CsvImportPanel } from './CsvImportPanel';
 import { STATUS_COLOR } from './edges/LiveEdge';
 import { linkStatus } from '../health/evaluate';
@@ -75,7 +76,7 @@ export function StatusPanel() {
   const nodeStatusOf = useStore((s) => s.nodeStatus);
   const select = useStore((s) => s.select);
 
-  const [tab, setTab] = useState<'objects' | 'events' | 'discover' | 'crawl' | 'backup' | 'csv'>('objects');
+  const [tab, setTab] = useState<'objects' | 'events' | 'discover' | 'crawl' | 'backup' | 'csv' | 'visio'>('objects');
   // Devices handed over from a crawl, so a discovery can go straight to a
   // backup without being drawn first.
   const [handedOver, setHandedOver] = useState<{ address: string; name: string }[]>([]);
@@ -225,7 +226,7 @@ export function StatusPanel() {
   }
 
   return (
-    <div className={`cv-panel${tab === "crawl" || tab === "discover" || tab === "backup" || tab === "csv" ? " is-tall" : ""}`}>
+    <div className={`cv-panel${tab === "crawl" || tab === "discover" || tab === "backup" || tab === "csv" || tab === "visio" ? " is-tall" : ""}`}>
       <div className="cv-panel-head">
         <div className="cv-tabs">
           <button
@@ -270,9 +271,16 @@ export function StatusPanel() {
           >
             From CSV
           </button>
+          <button
+            type="button"
+            className={tab === 'visio' ? 'is-active' : ''}
+            onClick={() => setTab('visio')}
+          >
+            From Visio
+          </button>
         </div>
 
-        {tab !== 'discover' && tab !== 'crawl' && tab !== 'backup' && tab !== 'csv' && (
+        {tab !== 'discover' && tab !== 'crawl' && tab !== 'backup' && tab !== 'csv' && tab !== 'visio' && (
           <>
             <input
               className="cv-input cv-panel-search"
@@ -317,6 +325,8 @@ export function StatusPanel() {
           <BackupPanel fromCrawl={handedOver} onConsumed={() => setHandedOver([])} />
         ) : tab === 'csv' ? (
           <CsvImportPanel />
+        ) : tab === 'visio' ? (
+          <VisioImportPanel />
         ) : tab === 'objects' ? (
           <table className="cv-table">
             <thead>

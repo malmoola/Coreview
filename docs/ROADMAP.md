@@ -217,6 +217,33 @@ proximity trick that fixed captions applies, it just was not written yet.
 **Acceptance, restated honestly:** near-complete for glued Visio-native
 drawings; best-effort with everything uncertain flagged for review for
 Lucidchart exports, which carry no link data to be complete *from*.
+**Built 2026-09-08 — glued Visio-native path, end to end.**
+`src-tauri/src/visio_import.rs` reads the ZIP directly with `roxmltree`
+(already in the tree, so no new download), an `import_visio` command wraps
+it, and a **From Visio** tab beside From CSV previews the result before
+anything is drawn — the same rule the crawl follows, since an import that
+quietly gets an address wrong is worse than one that says what it is unsure
+about. Adding puts one Coreview page per Visio page, converts Visio's
+bottom-left inches to top-left pixels, and optionally creates a check per
+addressed device. Shape Data is carried across: Manufacturer to vendor,
+Room to rack, the rest to notes.
+**Measured on the operator's own drawing, in the running app:** 34 devices
+and 54 links, 28 named, 18 with an address, **51 of 54 links with a port**
+(from 7 before the pair-label matching was written). `Main-fw01` arrives as
+a Firewall with model `ASA 5500`, read from the Visio master.
+**Two decisions worth keeping:**
+- *Port pairs are matched by distance to the connector's line, not to its
+  midpoint.* The label belongs to the run, and a long connector can carry
+  its label near one end. This one change took ports from 40/54 to 51/54.
+- *An address jammed against a name is not read.* `Main vpn0110.0.1.50` is
+  ambiguous — `vpn01`+`10.0.1.50`, `vpn0`+`110.0.1.50` and
+  `vpn011`+`0.0.1.50` are all readings, and nothing decides between them.
+  An imported address becomes a monitoring target, so a wrong one is far
+  worse than a missing one: it would check the wrong host and report green
+  for a device that is down. A test asserts nothing is taken.
+**Still open:** the Lucidchart/geometric path (no `<Connect>` data at all),
+and the operator's own drawings are kept outside the repository — they are
+his files, so the test that reads one skips when it is absent.
 
 ### LT-108 — **bug** The canvas and the export disagree about `callout`
 **Source:** found while doing LT-107, not reported. `DeviceNode.tsx` and
