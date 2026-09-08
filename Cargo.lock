@@ -848,6 +848,7 @@ dependencies = [
 name = "coreview-probe"
 version = "0.2.0"
 dependencies = [
+ "dns-lookup",
  "rustls",
  "rustls-pki-types",
  "serde",
@@ -1299,6 +1300,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "dns-lookup"
+version = "4.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6120e7e5dcd1c90098e349def389e2797377cdbe6b465ad8fdd115c0c99d5cf2"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "socket2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

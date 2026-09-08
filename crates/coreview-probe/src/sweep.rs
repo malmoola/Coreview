@@ -11,14 +11,63 @@
 //! are generated from a parsed CIDR rather than typed by a person, so that is
 //! belt and braces, but the sweep must not be the one place that bypasses it.
 
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::sync::{mpsc, Semaphore};
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use crate::icmp::ping_once;
 use crate::validate::{parse_target, ValidationError};
+
+/// The name behind an address, the way `ping -a` shows one (LT-109).
+///
+/// `ping -a` is a Windows spelling: on Linux and macOS `-a` is *audible* ping,
+/// and even on Windows the name would have to be scraped out of `Pinging
+/// <name> [addr]`, a localized string. What the flag actually does is a
+/// reverse (PTR) lookup, so this asks the resolver directly and gets the same
+/// answer on all three platforms, structured rather than parsed.
+///
+/// Two things this has to get right:
+///
+/// **An address with no PTR record is not a name.** `getnameinfo` falls back
+/// to the numeric form rather than failing, so an unresolvable host comes back
+/// claiming to be called "10.10.10.24". Returning that would put the IP in the
+/// hostname column and label every device with the number the sweep was meant
+/// to replace — the feature would look like it worked while doing nothing.
+///
+/// **A slow resolver must not hold up the sweep.** The lookup is blocking, so
+/// it runs on the blocking pool under the sweep's own timeout. If it does not
+/// answer in time the host is still reported, just without a name: a sweep
+/// that stalls on reverse DNS is worse than one that shows an address.
+async fn reverse_name(ip: IpAddr, timeout_ms: u64) -> Option<String> {
+    let looked_up = timeout(
+        Duration::from_millis(timeout_ms),
+        tokio::task::spawn_blocking(move || dns_lookup::lookup_addr(&ip).ok()),
+    )
+    .await;
+
+    match looked_up {
+        Ok(Ok(Some(name))) => usable_name(&name, ip),
+        // Timed out, the blocking task panicked, or the resolver said no.
+        _ => None,
+    }
+}
+
+/// Whether what the resolver handed back is a name or just the address again.
+///
+/// Split out from the lookup so the decision can be tested without a resolver:
+/// what a given machine's DNS answers is not something a test should depend
+/// on, but this rule is.
+fn usable_name(raw: &str, ip: IpAddr) -> Option<String> {
+    let name = raw.trim().trim_end_matches('.').trim();
+    if name.is_empty() || name.eq_ignore_ascii_case(&ip.to_string()) {
+        return None;
+    }
+    Some(name.to_string())
+}
 
 /// Largest sweep we will start, in host addresses.
 ///
@@ -183,6 +232,10 @@ impl SweepOptions {
 pub struct SweepHit {
     pub ip: String,
     pub rtt_ms: Option<f64>,
+    /// What reverse DNS calls this address, where it has a PTR record
+    /// (LT-109) — `None` when it has none, not the address repeated back.
+    #[serde(default)]
+    pub hostname: Option<String>,
 }
 
 /// Progress and results, streamed as the sweep runs.
@@ -298,12 +351,12 @@ async fn scan_one(
         tasks.spawn(async move {
             let _permit = permit;
             if cancel.is_cancelled() {
-                return (ip, None);
+                return (ip, None, None);
             }
             // Generated from a parsed CIDR, but routed through the validator
             // anyway so this is not the one path into `ping` that skips it.
             let Ok(target) = parse_target(&ip.to_string()) else {
-                return (ip, None);
+                return (ip, None, None);
             };
             let hit = tokio::select! {
                 _ = cancel.cancelled() => None,
@@ -312,7 +365,20 @@ async fn scan_one(
                     _ => None,
                 },
             };
-            (ip, hit)
+            // Only for addresses that answered — a /24 is 254 reverse lookups
+            // if you do it for everything, almost all of them for hosts that
+            // are not there. Inside the task, so it runs under the same
+            // concurrency permit as the ping rather than as a second pass.
+            let name = match hit {
+                Some(_) => {
+                    tokio::select! {
+                        _ = cancel.cancelled() => None,
+                        n = reverse_name(IpAddr::V4(ip), timeout_ms) => n,
+                    }
+                }
+                None => None,
+            };
+            (ip, hit, name)
         });
     }
 
@@ -320,10 +386,11 @@ async fn scan_one(
     let mut done = 0u32;
     while let Some(joined) = tasks.join_next().await {
         done += 1;
-        if let Ok((ip, Some(rtt_ms))) = joined {
+        if let Ok((ip, Some(rtt_ms), hostname)) = joined {
             let hit = SweepHit {
                 ip: ip.to_string(),
                 rtt_ms,
+                hostname,
             };
             alive.push(hit.clone());
             let _ = events.send(SweepEvent::Alive(hit)).await;
@@ -485,8 +552,9 @@ mod tests {
             json(&SweepEvent::Alive(SweepHit {
                 ip: "10.0.0.1".into(),
                 rtt_ms: Some(1.5),
+                hostname: Some("csdc.comsol.root".into()),
             })),
-            r#"{"kind":"alive","ip":"10.0.0.1","rttMs":1.5}"#
+            r#"{"kind":"alive","ip":"10.0.0.1","rttMs":1.5,"hostname":"csdc.comsol.root"}"#
         );
         assert_eq!(
             json(&SweepEvent::Progress { done: 7, total: 254 }),
@@ -501,9 +569,16 @@ mod tests {
             r#"{"kind":"finished","alive":3,"scanned":254,"cancelled":false}"#
         );
         // A host that answered without a parseable time still counts as alive.
+        // An address with no PTR record sends `hostname: null` rather than
+        // omitting the field, so the UI never has to tell "no name" apart from
+        // "older backend" (LT-109).
         assert_eq!(
-            json(&SweepEvent::Alive(SweepHit { ip: "10.0.0.2".into(), rtt_ms: None })),
-            r#"{"kind":"alive","ip":"10.0.0.2","rttMs":null}"#
+            json(&SweepEvent::Alive(SweepHit {
+                ip: "10.0.0.2".into(),
+                rtt_ms: None,
+                hostname: None,
+            })),
+            r#"{"kind":"alive","ip":"10.0.0.2","rttMs":null,"hostname":null}"#
         );
     }
 
@@ -610,5 +685,79 @@ mod tests {
             matches!(last, Some(SweepEvent::Finished { cancelled: true, .. })),
             "a cancelled sweep must still finish, got {last:?}"
         );
+    }
+
+    // --- LT-109: the name behind an address ---
+
+    fn ip(s: &str) -> IpAddr {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn a_real_ptr_record_is_a_name() {
+        assert_eq!(
+            usable_name("csdc.comsol.root", ip("10.10.10.24")),
+            Some("csdc.comsol.root".to_string())
+        );
+    }
+
+    #[test]
+    fn the_address_repeated_back_is_not_a_name() {
+        // The trap this exists for: getnameinfo does not fail when there is no
+        // PTR record, it hands back the numeric form. Taking that as a
+        // hostname would label every device with the number the sweep was
+        // supposed to replace, and the feature would look like it worked.
+        assert_eq!(usable_name("10.10.10.24", ip("10.10.10.24")), None);
+        assert_eq!(usable_name("192.0.2.1", ip("192.0.2.1")), None);
+    }
+
+    #[test]
+    fn a_v6_address_repeated_back_is_not_a_name_either() {
+        assert_eq!(usable_name("::1", ip("::1")), None);
+        // Case differs from the canonical form; still the same address.
+        assert_eq!(usable_name("FE80::1", ip("fe80::1")), None);
+    }
+
+    #[test]
+    fn a_trailing_root_dot_is_dropped() {
+        // Resolvers vary on whether the fully-qualified form keeps its dot.
+        assert_eq!(
+            usable_name("host.example.com.", ip("10.0.0.5")),
+            Some("host.example.com".to_string())
+        );
+    }
+
+    #[test]
+    fn nothing_at_all_is_not_a_name() {
+        assert_eq!(usable_name("", ip("10.0.0.5")), None);
+        assert_eq!(usable_name("   ", ip("10.0.0.5")), None);
+        assert_eq!(usable_name(".", ip("10.0.0.5")), None);
+    }
+
+    #[test]
+    fn a_name_that_merely_contains_the_address_is_kept() {
+        // Common on ISP and lab reverse zones. Only an exact match is the
+        // resolver giving up; this is a real name.
+        assert_eq!(
+            usable_name("10-0-0-5.static.example.net", ip("10.0.0.5")),
+            Some("10-0-0-5.static.example.net".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn a_resolver_that_never_answers_does_not_stall_the_sweep() {
+        // The documentation range has no PTR record and no route; whatever the
+        // local resolver does with it, this must come back promptly rather
+        // than holding a sweep open.
+        let started = std::time::Instant::now();
+        let name = reverse_name(ip("192.0.2.123"), 300).await;
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "reverse lookup took {:?}, which would stall a sweep",
+            started.elapsed()
+        );
+        // Either it has no name, or the environment has an unusual resolver —
+        // what must not happen is the address coming back as its own name.
+        assert_ne!(name.as_deref(), Some("192.0.2.123"));
     }
 }

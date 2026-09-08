@@ -69,6 +69,50 @@ geometry (including that it lands *on* the outline, that a non-square box
 does not distort the bearing, and that concentric shapes do not divide by
 zero) and 3 on the export.
 
+### LT-109 — The ping sweep should resolve names, like `ping -a`
+**Source:** reported 2026-09-08 — "ping sweep is not setup correctly, it needs
+ping -a to try to resolve the names as well!", with a transcript showing
+`ping -a 10.10.10.24` returning `Pinging csdc.comsol.root [10.10.10.24]`.
+**Confirmed by reading the code:** `SweepHit` is `{ ip, rtt_ms }` — the sweep
+does no name resolution at all. Worse than it first looks:
+`DiscoverPanel.tsx:95` sets `data.label = h.ip`, so adding swept hosts to the
+diagram produces a page of devices named `10.10.10.24`, which is exactly the
+labelling work the sweep was supposed to save.
+**How, and why not literally `-a`:** `-a` is a Windows `ping` flag. On Linux
+and macOS `-a` means *audible* ping, so passing it there would be wrong, and
+on Windows the name would have to be scraped out of `Pinging <name> [ip]` —
+a localized string that says something else on a non-English Windows. What
+`-a` actually does is a reverse (PTR) lookup, so the portable equivalent is
+to do that lookup directly and get a structured answer on all three
+platforms.
+**Acceptance:** a sweep shows the hostname beside each address that has one,
+and adding hosts to the diagram labels them with the name, falling back to
+the IP where there is no PTR record. A slow or missing reverse lookup must
+not stall or fail the sweep.
+**Built:** `SweepHit` gained `hostname: Option<String>`, filled by a reverse
+lookup that runs only for addresses that *answered* — a /24 is 254 PTR
+queries if you ask for everything, almost all of them for hosts that are not
+there. It runs inside the existing per-host task, under the same concurrency
+permit as the ping, so it adds no second pass. One new dependency,
+`dns-lookup` (which added no transitive crates of its own), for the
+`getnameinfo` call Rust's std does not expose. The results table gained a
+**Name** column, and `DiscoverPanel` now labels an added device
+`hostname ?? ip`, keeping the address as the probe target either way.
+**The trap, and the test for it:** `getnameinfo` does not fail when there is
+no PTR record — it hands back the numeric form. Taken at face value that
+would have set every hostname to the address, put the IP in the Name column
+and labelled every device with the number the sweep was meant to replace:
+the feature would have looked like it worked while doing nothing. The
+decision is split into a pure `usable_name()` so it could be tested without
+depending on what a given machine's resolver answers — including that a name
+which merely *contains* the address (`10-0-0-5.static.example.net`, common on
+ISP reverse zones) is kept, and only an exact match is discarded.
+**Verified live, end to end:** swept `127.0.0.1/32` in the running app, which
+has a PTR record on this machine. The Name column showed `localhost`, and
+"Add 1 to diagram" produced a device labelled **localhost** with `127.0.0.1`
+kept as its address — not a device called `127.0.0.1`. 974 tests pass, 7 of
+them new. The test device was removed from the sample afterwards.
+
 ### LT-108 — **bug** The canvas and the export disagree about `callout`
 **Source:** found while doing LT-107, not reported. `DeviceNode.tsx` and
 `diagram.ts` each keep their own copy of the "drawn as a plain shape rather

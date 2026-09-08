@@ -131,11 +131,13 @@ function snake(value: unknown): unknown {
 
 export type SubnetInfo = { network: string; broadcast: string; prefix: number; hosts: number };
 export type SweepOptions = { timeoutMs: number; concurrency: number };
-export type SweepHit = { ip: string; rttMs: number | null };
+/** `hostname` is what reverse DNS calls the address (LT-109) — null where it
+ *  has no PTR record, never the address repeated back. */
+export type SweepHit = { ip: string; rttMs: number | null; hostname: string | null };
 /** Mirrors the Rust SweepEvent enum, which is tagged with `kind`. */
 export type SweepEvent =
   | { kind: 'started'; total: number }
-  | { kind: 'alive'; ip: string; rttMs: number | null }
+  | { kind: 'alive'; ip: string; rttMs: number | null; hostname: string | null }
   | { kind: 'progress'; done: number; total: number }
   | { kind: 'finished'; alive: number; scanned: number; cancelled: boolean };
 

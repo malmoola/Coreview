@@ -105,6 +105,7 @@ more useful than a blanket "nothing leaves the machine", which would be false:
 | HTTP / HTTPS probe | Same | Only the URL you configured |
 | Any of the above, once | When you press **Test now** | That one probe's target, one check, starting nothing |
 | Ping sweep | Only when you run one, over a range you type | The range you typed |
+| Reverse DNS (PTR) | During a sweep, for addresses that answered | Your OS resolver — this is what `ping -a` does, so a swept host arrives named rather than numbered |
 | `traceroute` | Only when you click Traceroute | The target you chose |
 | SSH | Only when you start a device crawl or a config backup | Only the devices you listed |
 | SNMP (read-only) | Only during a crawl, and only if you supply SNMP credentials | Only the devices you listed |
@@ -280,7 +281,10 @@ glyph (`✓ ! ✕ ? – ⚙`) so colour is never the only signal. A global Reduc
 motion switch stops all animation. A per-device status history strip you can
 scrub for the exact time and state, and click to enlarge.
 
-**Discovery, when you ask for it.** Ping sweep over a range you type; a crawl
+**Discovery, when you ask for it.** Ping sweep over a range you type, which
+resolves each answering address back to its name the way `ping -a` does, so
+the hosts you add to the diagram arrive named rather than as a page of
+numbers; a crawl
 over SSH (or Telnet, if you choose it, or SNMP for read-only identification)
 that reads LLDP/CDP neighbours, MAC tables and etherchannel membership to
 propose a topology; config backups on demand, with diffs between captures.

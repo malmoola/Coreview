@@ -9,7 +9,7 @@ import { uid } from '../lib/id';
 import { newProbe } from '../lib/probes';
 import { activePage } from '../lib/pages';
 
-type Hit = { ip: string; rttMs: number | null; picked: boolean };
+type Hit = { ip: string; rttMs: number | null; hostname: string | null; picked: boolean };
 
 /**
  * Find what is actually on a subnet, then choose what to draw.
@@ -44,7 +44,10 @@ export function DiscoverPanel() {
           // duplicate row is worse than a missed one.
           if (seen.current.has(e.ip)) return;
           seen.current.add(e.ip);
-          setHits((prev) => [...prev, { ip: e.ip, rttMs: e.rttMs, picked: true }]);
+          setHits((prev) => [
+            ...prev,
+            { ip: e.ip, rttMs: e.rttMs, hostname: e.hostname ?? null, picked: true },
+          ]);
         } else if (e.kind === 'progress') {
           setProgress({ done: e.done, total: e.total });
         } else if (e.kind === 'finished') {
@@ -92,7 +95,12 @@ export function DiscoverPanel() {
     picked.forEach((h, i) => {
       const node = makeDeviceNode('generic', origin.x + (i % 6) * 220, origin.y + Math.floor(i / 6) * 130);
       const data = node.data as DeviceNodeData;
-      data.label = h.ip;
+      // The name where reverse DNS knew one (LT-109), the address where it did
+      // not. Twenty devices all labelled `10.10.10.24` is exactly the naming
+      // work the sweep was supposed to have saved. The address is kept either
+      // way, because that is what the probe checks.
+      data.label = h.hostname ?? h.ip;
+      if (h.hostname) data.hostname = h.hostname;
       data.addresses = [{ id: uid(), label: 'Discovered', address: h.ip, isPrimary: true }];
       store.addNode(node);
       // The sweep just proved this address answers ICMP. Drawing it as an
@@ -215,6 +223,7 @@ export function DiscoverPanel() {
               <tr>
                 <th />
                 <th>Address</th>
+                <th>Name</th>
                 <th>Round trip</th>
               </tr>
             </thead>
@@ -226,10 +235,17 @@ export function DiscoverPanel() {
                       type="checkbox"
                       checked={h.picked}
                       onChange={() => toggle(h.ip)}
-                      aria-label={`Include ${h.ip}`}
+                      aria-label={`Include ${h.hostname ?? h.ip}`}
                     />
                   </td>
                   <td className="cv-mono">{h.ip}</td>
+                  {/* Reverse DNS, where the address has a PTR record (LT-109).
+                      An em dash rather than the address again: repeating it
+                      would read as a name and is what the backend deliberately
+                      refuses to send. */}
+                  <td className="cv-mono" title={h.hostname ?? 'No reverse DNS record'}>
+                    {h.hostname ?? <span className="cv-muted">—</span>}
+                  </td>
                   <td className="cv-mono">{h.rttMs === null ? '—' : `${h.rttMs.toFixed(h.rttMs < 1 ? 2 : 1)} ms`}</td>
                 </tr>
               ))}
