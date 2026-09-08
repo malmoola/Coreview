@@ -17,21 +17,6 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
-### LT-106 — A macOS build, as a .dmg
-**Source:** asked 2026-09-08 — "but can we make a macOS version? i think dmg
-file" / "so i can run the app on my mac book pro." The goal is the app
-running on the operator's own MacBook Pro, not merely a file that exists.
-**The constraint that shapes this:** Tauri cannot cross-compile a macOS
-bundle from Linux — the same reason `build.yml`'s own header gives for
-Windows — and `.dmg` creation needs `hdiutil`, which only exists on macOS.
-So this cannot be built or run on the machine this repo is developed on;
-it has to be a `macos-latest` CI job, and the operator is the only one who
-can confirm it actually launches.
-**Acceptance:** a `.dmg` downloadable from a CI run that installs and
-opens on an Apple Silicon *or* Intel Mac, with whatever Gatekeeper step
-an unsigned build needs written down plainly rather than left to be
-discovered.
-
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".
 **Acceptance:** a standing bar rather than a task that finishes.
@@ -362,6 +347,51 @@ LT-045's converter work — the .vss route lands there.
 
 
 ## Done
+
+### LT-106 — A macOS build, as a .dmg — 2026-09-08
+**Source:** asked 2026-09-08 — "but can we make a macOS version? i think dmg
+file" / "so i can run the app on my mac book pro." The goal was the app
+running on the operator's own MacBook Pro, not merely a file that exists.
+**The constraint that shaped it:** Tauri cannot cross-compile a macOS
+bundle from Linux — the same reason `build.yml`'s own header already gave
+for Windows — and `.dmg` creation needs `hdiutil`, which exists nowhere
+else. So none of this was buildable or testable on the machine this repo
+is developed on. It had to be a `macos-latest` CI job, and verification
+from here could only ever reach "CI produced the artifact."
+**Built:** a `bundle (macOS, universal .dmg)` job, its own job rather than
+a third leg of the `bundle` matrix — the same reasoning the offline
+installer already uses, so a platform that cannot be tested from here can
+never fail the bundles that can. Universal (`--target
+universal-apple-darwin`, both Apple targets added to the toolchain) rather
+than the runner's own Apple Silicon, because an Intel Mac cannot run an
+arm64 build at all and a download does not get to ask which Mac it is
+landing on. `bundle.targets` gained `app` and `dmg`, and `bundle.icon`
+gained the `.icns` the macOS bundler needs — generated from the existing
+`icon.png` by the Tauri CLI, which does that without a Mac; the other
+icons were left alone, since they are deliberate placeholders (see
+`src-tauri/icons/README.md`) and re-cutting them was not what was asked.
+**The risk worth checking, checked:** adding macOS targets to a shared
+`targets` list could have broken the two platforms that already worked.
+Ran the full Linux release bundle locally afterwards — still exactly the
+`.deb` and the AppImage, exit 0. Tauri filters targets by host platform,
+which is also why `nsis`/`msi` had always been silently skipped on Linux.
+CI then confirmed it: every pre-existing job (both test jobs, the Linux
+bundle, both Windows bundles, the AppImage smoke test) stayed green on the
+same commit.
+**Unsigned, and that shows:** there is no Apple Developer certificate the
+way there is for Windows, so macOS quarantines the download and reports it
+as "damaged", which it is not. The `xattr -dr com.apple.quarantine` line
+that clears it is written into `docs/HANDOVER.md` §6.8 — along with why
+right-click → Open is not the instruction to give, since it works on some
+macOS versions and not others — rather than left to be discovered. Proper
+signing plus notarisation is the real fix and is noted there as the thing
+to do before anyone who did not build it gets a copy.
+**Verified:** the job went green first time (16 min), and the artifact
+upload carries `if-no-files-found: error`, so a green upload is real
+evidence a `.dmg` exists at the expected path rather than a compile that
+merely finished. **The half this machine cannot do — that it installs and
+opens — was confirmed by the operator on his own MacBook Pro** ("mac
+worked"), which is the only place that check exists.
 
 ### LT-105 — Cisco shapes as real (vector) shapes, not embedded pictures — 2026-09-07
 **Source:** asked 2026-09-07 — "can we turn all the cisco shapes to real
