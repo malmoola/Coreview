@@ -162,9 +162,61 @@ So the honest target is not "100% of any Visio file" but "100% of the
 operator's own diagrams, whose conventions can be read off real examples and
 fitted" — with anything uncertain surfaced for review rather than quietly
 drawn, the same rule `ChangeReport` already applies to a re-crawl.
-**Blocked on:** two or three real `.vsdx` files. The skeleton can be built
-blind; the field mapping cannot, and guessing at conventions is how the
-first attempt at LT-098 went wrong.
+**Sample files received 2026-09-08** (five, "not real customers so we can
+use"), and a throwaway prototype run against them. What they actually
+contain, measured rather than assumed:
+
+| File | Shapes | `<Connect>` | Shape Data | Producer |
+| --- | --- | --- | --- | --- |
+| Capital_Factory (×2, identical) | 677 | **0** | 22 | Lucidchart → Visio |
+| Design_overall_614 (18 pages) | 1382 | 178 | 45 | Visio, custom `Data_Connect` |
+| Drawing2 sample network | 228 | 122 | 0 | Visio, Cisco stencils |
+| Comal_ISD_Guest_Anchor | 67 | 19 | 0 | Visio, **UTF-16 XML** |
+
+Five findings that change the design:
+
+1. **Not all page XML is UTF-8.** Comal ISD's `page1.xml` is UTF-16, no BOM
+   assumptions safe. A reader that assumes UTF-8 sees an empty document and
+   reports "0 shapes" — which is exactly what the first pass of this
+   analysis did, silently. Encoding must be detected, not assumed.
+2. **Lucidchart exports do not glue anything.** The Capital Factory files
+   are `com.lucidchart.*` masters with `com.lucidchart.Line`, and zero
+   `<Connect>` entries — so there is no authoritative link data at all and
+   endpoints have to be inferred from line geometry. This is the hard
+   family, and it is the one the operator happened to send twice.
+3. **Where Shape Data exists it is better than any heuristic.**
+   `Design_overall` carries `Port_A_Port_Name`, `Port_B_Port_Name`,
+   `Port_A_IP_Address`, `Port_B_CableID` on the connector — that is
+   Coreview's link model already filled in. Capital Factory carries device
+   inventory: Manufacturer, Part Number, Product Description, Room.
+4. **The master name is the device type, and often the model.** `ASA 5500`,
+   `Workgroup switch`, `N9K-C93180YC-EX Front`, `WS-C4500X-16SFP+ Front`,
+   `C9500-48Y4C Front`, `L3 Switch`. That maps onto `deviceType` and fills
+   `model` for free.
+5. **The caption is usually a separate shape, not the icon's own text.** An
+   icon with no `<Text>` sits next to a text block holding
+   `_ADMIN_SWITCH 172.16.2.17`. So association is geometric — and the first
+   naive attempt grabbed the *port* label instead, because a port label is
+   often nearer. Classifying text (an interface name is not a device name)
+   before choosing fixed it.
+
+**Prototype result, one rough pass, no tuning:**
+
+| File | Links found | Both ends named | An address | A port |
+| --- | --- | --- | --- | --- |
+| Comal ISD | 7 | **100%** | 85% | 0% |
+| Drawing2 | 54 | 53% | 66% | 0% |
+| Design_overall | 77 | 46% | 37% | 16% |
+| Capital Factory | 0 | — | — | — |
+
+Real names came out clean: `_ADMIN_SWITCH 172.16.2.17`,
+`-CORE-01 10.255.1.100`, `CUBE01 10.0.1.36`, `SSDC-Anchor 10.9.70.8`.
+Ports read 0% only because port labels are separate shapes near the
+connector's ends and the prototype only looked at connector text — the same
+proximity trick that fixed captions applies, it just was not written yet.
+**Acceptance, restated honestly:** near-complete for glued Visio-native
+drawings; best-effort with everything uncertain flagged for review for
+Lucidchart exports, which carry no link data to be complete *from*.
 
 ### LT-108 — **bug** The canvas and the export disagree about `callout`
 **Source:** found while doing LT-107, not reported. `DeviceNode.tsx` and
