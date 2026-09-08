@@ -162,58 +162,50 @@ So the honest target is not "100% of any Visio file" but "100% of the
 operator's own diagrams, whose conventions can be read off real examples and
 fitted" — with anything uncertain surfaced for review rather than quietly
 drawn, the same rule `ChangeReport` already applies to a re-crawl.
-**Sample files received 2026-09-08** (five, "not real customers so we can
-use"), and a throwaway prototype run against them. What they actually
-contain, measured rather than assumed:
+**Real drawings were made available to develop against 2026-09-08**, and a
+throwaway prototype run over them. They are not kept in this repository and
+nothing identifying is recorded here — not a filename, not a device name, not
+an address. What they taught us about the *format* is what matters, and that
+is all that follows.
 
-| File | Shapes | `<Connect>` | Shape Data | Producer |
-| --- | --- | --- | --- | --- |
-| Capital_Factory (×2, identical) | 677 | **0** | 22 | Lucidchart → Visio |
-| Design_overall_614 (18 pages) | 1382 | 178 | 45 | Visio, custom `Data_Connect` |
-| Drawing2 sample network | 228 | 122 | 0 | Visio, Cisco stencils |
-| Comal_ISD_Guest_Anchor | 67 | 19 | 0 | Visio, **UTF-16 XML** |
+Four families showed up, spanning roughly 60 to 1400 shapes each: a
+Lucidchart export with **zero** `<Connect>` entries, a Visio-native drawing
+with custom connector Shape Data across eighteen pages, a Visio-native
+drawing built from Cisco stencils, and one whose page XML is UTF-16.
 
 Five findings that change the design:
 
-1. **Not all page XML is UTF-8.** Comal ISD's `page1.xml` is UTF-16, no BOM
-   assumptions safe. A reader that assumes UTF-8 sees an empty document and
-   reports "0 shapes" — which is exactly what the first pass of this
-   analysis did, silently. Encoding must be detected, not assumed.
-2. **Lucidchart exports do not glue anything.** The Capital Factory files
-   are `com.lucidchart.*` masters with `com.lucidchart.Line`, and zero
-   `<Connect>` entries — so there is no authoritative link data at all and
-   endpoints have to be inferred from line geometry. This is the hard
-   family, and it is the one the operator happened to send twice.
-3. **Where Shape Data exists it is better than any heuristic.**
-   `Design_overall` carries `Port_A_Port_Name`, `Port_B_Port_Name`,
-   `Port_A_IP_Address`, `Port_B_CableID` on the connector — that is
-   Coreview's link model already filled in. Capital Factory carries device
-   inventory: Manufacturer, Part Number, Product Description, Room.
+1. **Not all page XML is UTF-8.** One producer writes UTF-16, with no BOM
+   assumptions worth making. A reader that assumes UTF-8 sees an empty
+   document and reports "0 shapes" — which is exactly what the first pass of
+   this analysis did, silently. Encoding must be detected, not assumed.
+2. **Lucidchart exports do not glue anything.** They use `com.lucidchart.*`
+   masters with `com.lucidchart.Line`, and zero `<Connect>` entries — so
+   there is no authoritative link data at all and endpoints have to be
+   inferred from line geometry. This is the hard family.
+3. **Where Shape Data exists it is better than any heuristic.** One drawing
+   carries `Port_A_Port_Name`, `Port_B_Port_Name`, `Port_A_IP_Address` and
+   `Port_B_CableID` on the connector — that is Coreview's link model already
+   filled in. Another carries device inventory: Manufacturer, Part Number,
+   Product Description, Room.
 4. **The master name is the device type, and often the model.** `ASA 5500`,
    `Workgroup switch`, `N9K-C93180YC-EX Front`, `WS-C4500X-16SFP+ Front`,
-   `C9500-48Y4C Front`, `L3 Switch`. That maps onto `deviceType` and fills
-   `model` for free.
+   `C9500-48Y4C Front`, `L3 Switch` — Visio stencil names, not anybody's
+   equipment. That maps onto `deviceType` and fills `model` for free.
 5. **The caption is usually a separate shape, not the icon's own text.** An
-   icon with no `<Text>` sits next to a text block holding
-   `_ADMIN_SWITCH 172.16.2.17`. So association is geometric — and the first
-   naive attempt grabbed the *port* label instead, because a port label is
-   often nearer. Classifying text (an interface name is not a device name)
+   icon with no `<Text>` sits next to a text block holding something of the
+   form `_ACCESS_SW01 192.0.2.20`. So association is geometric — and the
+   first naive attempt grabbed the *port* label instead, because a port label
+   is often nearer. Classifying text (an interface name is not a device name)
    before choosing fixed it.
 
-**Prototype result, one rough pass, no tuning:**
-
-| File | Links found | Both ends named | An address | A port |
-| --- | --- | --- | --- | --- |
-| Comal ISD | 7 | **100%** | 85% | 0% |
-| Drawing2 | 54 | 53% | 66% | 0% |
-| Design_overall | 77 | 46% | 37% | 16% |
-| Capital Factory | 0 | — | — | — |
-
-Real names came out clean: `_ADMIN_SWITCH 172.16.2.17`,
-`-CORE-01 10.255.1.100`, `CUBE01 10.0.1.36`, `SSDC-Anchor 10.9.70.8`.
-Ports read 0% only because port labels are separate shapes near the
-connector's ends and the prototype only looked at connector text — the same
-proximity trick that fixed captions applies, it just was not written yet.
+**Prototype result, one rough pass, no tuning:** between 0 and 77 links per
+drawing, 46–100% of them with both ends named, 37–85% of devices with an
+address, and **0–16% with a port**. Ports read near zero only because port
+labels are separate shapes near the connector's ends and the prototype only
+looked at connector text — the same proximity trick that fixed captions
+applies, it just was not written yet. The drawing with zero links is the
+Lucidchart one, which carries no link data to find.
 **Acceptance, restated honestly:** near-complete for glued Visio-native
 drawings; best-effort with everything uncertain flagged for review for
 Lucidchart exports, which carry no link data to be complete *from*.
@@ -227,34 +219,34 @@ about. Adding puts one Coreview page per Visio page, converts Visio's
 bottom-left inches to top-left pixels, and optionally creates a check per
 addressed device. Shape Data is carried across: Manufacturer to vendor,
 Room to rack, the rest to notes.
-**Measured on the operator's own drawing, in the running app:** 34 devices
-and 54 links, 28 named, 18 with an address, **51 of 54 links with a port**
-(from 7 before the pair-label matching was written). `Main-fw01` arrives as
-a Firewall with model `ASA 5500`, read from the Visio master.
+**Measured against a real drawing, in the running app:** 34 devices and 54
+links, 28 named, 18 with an address, **51 of 54 links with a port** (from 7
+before the pair-label matching was written), and device types and models read
+straight off the Visio masters.
 **Two decisions worth keeping:**
 - *Port pairs are matched by distance to the connector's line, not to its
   midpoint.* The label belongs to the run, and a long connector can carry
   its label near one end. This one change took ports from 40/54 to 51/54.
-- *An address jammed against a name is not read.* `Main vpn0110.0.1.50` is
-  ambiguous — `vpn01`+`10.0.1.50`, `vpn0`+`110.0.1.50` and
-  `vpn011`+`0.0.1.50` are all readings, and nothing decides between them.
+- *An address jammed against a name is not read.* A caption of the form
+  `vpn01192.0.2.50` is ambiguous — `vpn01`+`192.0.2.50` and
+  `vpn011`+`92.0.2.50` are both readings, and nothing decides between them.
   An imported address becomes a monitoring target, so a wrong one is far
   worse than a missing one: it would check the wrong host and report green
   for a device that is down. A test asserts nothing is taken.
-**Rebuilt 2026-09-08 after the operator tested it on his own drawing.** His
+**Rebuilt 2026-09-08 after the operator tested it on a real drawing.** The
 verdict was blunt and correct: "the names are incorrect! and missing info /
 the diagram doesn't look the same as the visio / it needs a lot more work to
-make it useful." Five defects, each found by measuring against his file
+make it useful." Five defects, each found by measuring against a real file
 rather than by reading the code:
 
 1. **A port-pair caption was being used as a device name.** `could_be_a_name`
-   now rejects anything reading as a port or a port pair, so a router came
-   in as "Internet router lumin edge" instead of "Gi0/0/2 <> Gi1/0/13".
-2. **Connectors glued at only one end were dropped.** Two thirds of the
-   connectors in his drawing are glued at one end, four at neither. Each end
-   now resolves independently — glue where it exists, nearest device where it
-   does not — which recovered the AT&T uplinks he named specifically:
-   `Gi0/0/1`/`Gi0/0/2` on the router, `Gi2/0/24`/`Gi1/0/24` on the switch.
+   now rejects anything reading as a port or a port pair, so a router keeps
+   its own name instead of arriving called `Gi0/0/2 <> Gi1/0/13`.
+2. **Connectors glued at only one end were dropped.** In the drawing tested,
+   two thirds are glued at one end and four at neither. Each end now resolves
+   independently — glue where it exists, nearest device where it does not —
+   which recovered the carrier uplinks that had gone missing, with the
+   router's interface on the router and the switch's on the switch.
 3. **Rack-mounted equipment was being read as lines.** This was the big one.
    Cisco's rack-unit stencils are *1-D shapes* — a `N9K-C93180YC-EX Front`
    carries `BeginX`/`EndX` so it snaps into a rack frame, exactly as a
@@ -277,11 +269,11 @@ rather than by reading the code:
    distance is measured to the shape's *box* rather than its centre — a rack
    unit is two inches wide, so its own caption is nowhere near its middle.
 
-**Measured on his drawing, before → after:** 34 devices → **37** (which is
-exactly how many device shapes the file contains), 54 links → **70** (exactly
-how many `Dynamic connector` shapes it contains), 51 → **62** with a port.
-`-CORE-01`, `-Leaf201`, `-Leaf202`, `Main-dist01-vss`, `EMC` and `Rubrik` all
-arrive now and did not before.
+**Measured on the same drawing, before → after:** 34 devices → **37**, which
+is exactly how many device shapes the file contains; 54 links → **70**,
+exactly how many `Dynamic connector` shapes it contains; 51 → **62** with a
+port. The core switches, the distribution pair and the storage and compute
+nodes all arrive now and did not before.
 
 **Layout fidelity**, the other half of "doesn't look the same"
 (`src/lib/visioLayout.ts`): Visio's pin is the shape's *centre*, not its
@@ -297,7 +289,7 @@ change its type, fix which devices a link joins, correct a port, remove what
 does not belong, add what the drawing left out — because a preview you can
 only accept or reject is not much of a decision, and some of what is read out
 of a picture will be wrong however carefully it is read. **Line colours are
-imported**: his drawing uses six, and an operator who drew the carrier
+imported**: the drawing tested uses six, and an operator who drew the carrier
 circuits orange meant something by it. And the port pair is written on the
 line as a **centre label** (`Gi0/1 <> Eth1/4`) as well as being split across
 the two ends.
@@ -308,11 +300,16 @@ labels at each end and the pair on the line, and the rack at the foot of the
 drawing sitting where the drawing puts it.
 
 **Still open:** the Lucidchart/geometric path (no `<Connect>` data at all);
-eight devices still fall back to their master name because his drawing never
-captions them; and `Main vpn0110.0.1.50` keeps its run-together address for
-the reason above. The operator's own drawings are kept outside the
-repository — they are his files, so the test that reads one skips when it is
-absent.
+a device the drawing never captions still falls back to its master name (in
+the drawing tested, eight of thirty-seven); and a run-together address is
+still left unread, for the reason above. Both are correctable in the preview.
+**On test data:** no real drawing is kept in this repository and nothing
+identifying one is written down — not a filename, not a device name, not an
+address. The test that reads a real file takes a folder from
+`COREVIEW_VISIO_DIR`, asserts only what must hold for *any* drawing, prints
+counts rather than names, and skips everywhere that variable is unset,
+including CI. Everything else is synthetic XML using documentation addresses
+(RFC 5737).
 
 ### LT-108 — **bug** The canvas and the export disagree about `callout`
 **Source:** found while doing LT-107, not reported. `DeviceNode.tsx` and

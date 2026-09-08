@@ -295,9 +295,121 @@ not say — a switch that has gone, a link that now lands on a different port �
 because folding those in silently would turn change detection back into
 drawing.
 
+**Import.** A Coreview project package, a CSV of devices, or a Visio `.vsdx`
+drawing. The `.vsdx` reader turns a drawing into devices and links rather than
+into a picture — see below for exactly what it reads. All three are parsed on
+this machine; nothing is uploaded to convert anything.
+
 **Evidence.** Event timeline with filters, CSV of every state transition,
 Markdown validation report, and diagram export to SVG, PNG, native PDF and
 Visio `.vsdx`.
+
+---
+
+## What the Visio importer reads
+
+A `.vsdx` is a ZIP of XML, so it is read directly — no Visio, no converter, no
+service. The structure gives the shapes and which-connects-to-what. It does
+*not* say which piece of text is a device name, which is an address and which
+is an interface, because that is a house style rather than a standard. So the
+reader works down a list, most reliable first, and shows you everything before
+anything is drawn.
+
+**Nothing is added until you press "Add to diagram",** and the preview is
+fully editable: rename a device, correct an address, change its type, fix
+which devices a link joins, correct a port, remove what does not belong, add
+what the drawing left out. What is on screen is what lands on the canvas.
+
+### Device name
+
+1. **The shape's own text**, unless it reads as an interface (`Gi0/0/1`) or as
+   a pair of them (`Gi0/0/1 <> Gi2/0/24`). Neither is ever taken as a name — a
+   device must not end up named after the cable plugged into it.
+2. **The nearest text block that could be a name**, within 1.5 inches of the
+   shape's *edge* rather than its centre. One caption belongs to one device:
+   every candidate pairing is ordered by distance and taken shortest-first, so
+   two devices drawn close together do not both claim the same label.
+3. **The Visio master name** (`ASA 5500`, `Workgroup switch`) — the fallback
+   you see when a drawing never captions a shape.
+
+### Address
+
+Any IPv4 address in that same caption, so a caption of the form
+`EDGE-FW-01 192.0.2.10` yields both the name and the address. Where a caption
+holds several, the first becomes the device's address and the rest are kept in
+its notes.
+
+It has to be separated from the name. A run-together caption is left unread on
+purpose: `vpn01192.0.2.50` could be `vpn01` + `192.0.2.50` or `vpn011` +
+`92.0.2.50`, and nothing decides between them. An imported address becomes a
+monitoring target, so a wrong one is worse than a missing one — it would check
+the wrong host and report green for a device that is down.
+
+### Ports
+
+1. **Shape Data on the connector** — `Port_A_Port_Name` / `Port_B_Port_Name`,
+   or `Port_A` / `Port_B`. This is stated rather than inferred and beats every
+   heuristic below. If you can add it in Visio, it is the single change that
+   makes port import exact.
+2. **The connector's own label**, when it names both ends at once — split on
+   `<>`, `<->`, `--` or `->`.
+3. **A floating pair label** within 0.75 inches of the connector's *line*.
+   Distance is measured to the whole run rather than its midpoint, because a
+   long connector often carries its label near one end.
+4. **A single interface label** within 0.9 inches of each end.
+
+Both ends are written onto the link, and the pair is written along the middle
+of the line as a centre label as well.
+
+### Links
+
+**Glue is authoritative.** A connector glued to a shape in Visio produces a
+`<Connect>` entry and the link is certain. Each end is resolved on its own, so
+a line glued at one end and merely touching at the other is still imported —
+the unglued end resolves to the nearest device within 1.2 inches, and the
+preview says how many links were worked out that way, so those can be checked
+rather than trusted. An end far from anything stays unresolved: inventing a
+device for it would be worse than dropping the line.
+
+**Line colour** is carried across where the drawing states one, so a diagram
+that colours carrier circuits differently from fibre runs still does after
+importing.
+
+### Device type, model and inventory
+
+The Visio master name gives the type — router, firewall, core or access
+switch, wireless controller, access point, server, storage — and is kept
+verbatim as the model, including part numbers such as `N9K-C93180YC-EX Front`.
+Rack-mounted equipment is recognised as equipment: the rack-unit stencils are
+one-dimensional shapes carrying begin/end geometry exactly as a connector
+does, and the two are told apart by whether that geometry *is* the shape's own
+box.
+
+Any Shape Data the drawing carried is kept: `Manufacturer` becomes the
+device's vendor, `Room` becomes its rack, and the rest goes to its notes.
+
+### Layout
+
+Positions come from the drawing. Visio measures in inches from the bottom-left
+and places a shape by its centre; the canvas measures in pixels from the
+top-left. Each shape's own width and height are used where the drawing states
+them, and the scale is taken from the drawing rather than fixed, so a rack of
+switches stacked a fifth of an inch apart arrives stacked rather than piled.
+One Coreview page is created per Visio page.
+
+### What it will not do
+
+Invent. A device the drawing never named arrives under its master name; a link
+whose ports were never labelled arrives without ports; and a drawing that
+glues nothing produces its devices plus a plain statement that its connections
+cannot be read, rather than a guessed topology.
+
+### Limits
+
+`.vsdx` only. `.vsd` is the pre-2013 binary format and carries none of this
+structure — re-save it as `.vsdx` first. Exports from some tools, Lucidchart
+among them, contain no glue at all, so their links cannot be read; their
+devices still import.
 
 ---
 

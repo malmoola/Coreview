@@ -17,7 +17,7 @@
 //!   document and report "no shapes" — a silent wrong answer, the worst kind.
 //!   `decode_xml` sniffs instead.
 //! - **The caption is usually a separate shape.** A device icon frequently has
-//!   no text of its own; `_ADMIN_SWITCH 172.16.2.17` is a text block sitting
+//!   no text of its own; `_ACCESS_SW01 192.0.2.20` is a text block sitting
 //!   underneath it. So a name is found by proximity — and the first attempt
 //!   grabbed the *port* label, because `Eth1/43` is often nearer to the icon
 //!   than the caption is. Text has to be classified before it is chosen.
@@ -260,7 +260,7 @@ pub fn device_type_for(master: &str) -> &'static str {
 ///
 /// This is what stops a caption search returning `Eth1/43`: a port label often
 /// sits nearer an icon than the icon's own caption does. Deliberately strict —
-/// it must match the *whole* string, so `Main-fw01 10.1.1.42` is a name even
+/// it must match the *whole* string, so `EDGE-FW-01 192.0.2.10` is a name even
 /// though it contains digits and slashes elsewhere.
 pub fn is_port_label(text: &str) -> bool {
     let t = text.trim();
@@ -338,8 +338,8 @@ pub fn addresses_in(text: &str) -> Vec<String> {
 
 /// The device name inside a caption, with any address stripped off.
 ///
-/// Real captions run the two together: `Main-fw01 10.1.1.42`, and sometimes
-/// with no space at all — `Main vpn0110.0.1.50`. Removing the address text
+/// Real captions run the two together: `EDGE-FW-01 192.0.2.10`, and sometimes
+/// with no space at all — `Site vpn01192.0.2.50`. Removing the address text
 /// leaves the name.
 pub fn name_without_address(caption: &str) -> String {
     let mut s = caption.to_string();
@@ -532,8 +532,8 @@ fn nearest_device(
 /// A single port (`Eth1/43`) is not, and neither is a *pair* label
 /// (`Gi0/0/2 <> Gi1/0/13`) — which is the one that actually bit: a pair label
 /// is not a port label by itself, so the first version happily used one as a
-/// device name, and a router in the operator's drawing came in called
-/// "Gi0/0/2 <> Gi1/0/13" instead of "Internet router lumin edge".
+/// device name, and a router came in named after the cable plugged into it
+/// rather than after itself.
 pub fn could_be_a_name(text: &str) -> bool {
     let t = text.trim();
     !t.is_empty() && !is_port_label(t) && split_port_pair(t).is_none()
@@ -1011,10 +1011,10 @@ mod tests {
         // The reason this exists: these must NOT be mistaken for ports, or a
         // caption search returns the port label instead of the device name.
         for n in [
-            "Main-fw01 10.1.1.42",
-            "_ADMIN_SWITCH",
-            "CUBE01",
-            "SSDC-Anchor",
+            "EDGE-FW-01 192.0.2.10",
+            "_ACCESS_SW01",
+            "VOICE01",
+            "WLC-ANCHOR",
             "Poughkeepsie-RTR",
             "",
         ] {
@@ -1037,22 +1037,22 @@ mod tests {
 
     #[test]
     fn addresses_are_found_and_the_name_survives_without_them() {
-        assert_eq!(addresses_in("Main-fw01 10.1.1.42"), vec!["10.1.1.42"]);
+        assert_eq!(addresses_in("EDGE-FW-01 192.0.2.10"), vec!["192.0.2.10"]);
         assert_eq!(addresses_in("no address here"), Vec::<String>::new());
 
         // A real caption from the sample runs the two together with no space:
-        // `Main vpn0110.0.1.50`. That is genuinely ambiguous — vpn01 + 10.0.1.50,
+        // `Site vpn01192.0.2.50`. That is genuinely ambiguous — vpn01 + 10.0.1.50,
         // vpn0 + 110.0.1.50, and vpn011 + 0.0.1.50 are all readings, and
         // nothing in the string decides between them. An imported address
         // becomes a monitoring target, so a wrong one is far worse than a
         // missing one: it would have Coreview check the wrong host and report
         // green for a device that is down. So nothing is taken here, and the
         // fix is a space in the drawing.
-        assert_eq!(addresses_in("Main vpn0110.0.1.50"), Vec::<String>::new());
+        assert_eq!(addresses_in("Site vpn01192.0.2.50"), Vec::<String>::new());
         // 999 is not an octet; nothing should be invented from it.
         assert_eq!(addresses_in("999.1.1.1"), Vec::<String>::new());
-        assert_eq!(name_without_address("Main-fw01 10.1.1.42"), "Main-fw01");
-        assert_eq!(name_without_address("CUBE01 10.0.1.36"), "CUBE01");
+        assert_eq!(name_without_address("EDGE-FW-01 192.0.2.10"), "EDGE-FW-01");
+        assert_eq!(name_without_address("VOICE01 192.0.2.30"), "VOICE01");
     }
 
     #[test]
@@ -1124,14 +1124,14 @@ mod tests {
               <Cell N='BeginX' V='15.67'/><Cell N='BeginY' V='17'/>
               <Cell N='EndX' V='17.73'/><Cell N='EndY' V='17'/>
             </Shape>
-            <Shape ID='2' NameU='Plain'><Cell N='PinX' V='16.7'/><Cell N='PinY' V='16.8'/><Text>-CORE-01 10.255.1.100</Text></Shape>
+            <Shape ID='2' NameU='Plain'><Cell N='PinX' V='16.7'/><Cell N='PinY' V='16.8'/><Text>-CORE-SW01 198.51.100.10</Text></Shape>
         </Shapes></PageContents>"#;
         let (page, _) = parse_page(xml, "Page-1").unwrap();
         assert_eq!(page.links.len(), 0, "a rack unit is not a link");
         assert_eq!(page.devices.len(), 1);
         let d = &page.devices[0];
-        assert_eq!(d.label, "-CORE-01");
-        assert_eq!(d.addresses, vec!["10.255.1.100"]);
+        assert_eq!(d.label, "-CORE-SW01");
+        assert_eq!(d.addresses, vec!["198.51.100.10"]);
         assert_eq!(d.device_type, "core-switch");
         // And its real shape comes with it: wide and flat, not a square icon.
         assert!((d.width - 2.06).abs() < 1e-9);
@@ -1167,15 +1167,15 @@ mod tests {
         let xml = r#"<PageContents><Shapes>
             <Shape ID='1' NameU='Router'><Cell N='PinX' V='5'/><Cell N='PinY' V='5'/></Shape>
             <Shape ID='2' NameU='Router'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.4'/></Shape>
-            <Shape ID='3' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.9'/><Text>P2P-01 10.255.1.18</Text></Shape>
-            <Shape ID='4' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.3'/><Text>P2P-02 10.255.1.19</Text></Shape>
+            <Shape ID='3' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.9'/><Text>RTR-01 198.51.100.11</Text></Shape>
+            <Shape ID='4' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.3'/><Text>RTR-02 198.51.100.12</Text></Shape>
         </Shapes></PageContents>"#;
         let (page, _) = parse_page(xml, "Page-1").unwrap();
         let named = |id: &str| {
             page.devices.iter().find(|d| d.id == id).map(|d| d.label.clone()).unwrap_or_default()
         };
-        assert_eq!(named("1"), "P2P-01");
-        assert_eq!(named("2"), "P2P-02");
+        assert_eq!(named("1"), "RTR-01");
+        assert_eq!(named("2"), "RTR-02");
     }
 
     #[test]
@@ -1200,8 +1200,8 @@ mod tests {
     #[test]
     fn a_glued_connector_becomes_a_link_between_two_devices() {
         let xml = r#"<PageContents><Shapes>
-            <Shape ID='1' NameU='Router'><Cell N='PinX' V='1'/><Cell N='PinY' V='5'/><Text>CORE-01 10.0.0.1</Text></Shape>
-            <Shape ID='2' NameU='ASA 5500'><Cell N='PinX' V='4'/><Cell N='PinY' V='5'/><Text>FW-01 10.0.0.2</Text></Shape>
+            <Shape ID='1' NameU='Router'><Cell N='PinX' V='1'/><Cell N='PinY' V='5'/><Text>CORE-01 192.0.2.1</Text></Shape>
+            <Shape ID='2' NameU='ASA 5500'><Cell N='PinX' V='4'/><Cell N='PinY' V='5'/><Text>FW-01 192.0.2.2</Text></Shape>
             <Shape ID='3' NameU='Dynamic connector'><Cell N='BeginX' V='1'/><Cell N='BeginY' V='5'/><Cell N='EndX' V='4'/><Cell N='EndY' V='5'/></Shape>
             <Shape ID='4' NameU='Plain'><Cell N='PinX' V='2.5'/><Cell N='PinY' V='5'/><Text>Gi0/1 &lt;&gt; Eth1/2</Text></Shape>
         </Shapes>
@@ -1216,7 +1216,7 @@ mod tests {
         assert!(l.glued);
 
         let core = page.devices.iter().find(|d| d.label == "CORE-01").expect("CORE-01");
-        assert_eq!(core.addresses, vec!["10.0.0.1"]);
+        assert_eq!(core.addresses, vec!["192.0.2.1"]);
         assert_eq!(core.device_type, "router");
         let fw = page.devices.iter().find(|d| d.label == "FW-01").expect("FW-01");
         assert_eq!(fw.device_type, "firewall");
@@ -1229,7 +1229,7 @@ mod tests {
         let xml = r#"<PageContents><Shapes>
             <Shape ID='1' NameU='Router'><Cell N='PinX' V='5'/><Cell N='PinY' V='5'/></Shape>
             <Shape ID='2' NameU='Plain'><Cell N='PinX' V='5.1'/><Cell N='PinY' V='5.1'/><Text>Eth1/9</Text></Shape>
-            <Shape ID='3' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.6'/><Text>EDGE-RTR 10.9.9.9</Text></Shape>
+            <Shape ID='3' NameU='Plain'><Cell N='PinX' V='5'/><Cell N='PinY' V='4.6'/><Text>EDGE-RTR 203.0.113.9</Text></Shape>
             <Shape ID='4' NameU='Router'><Cell N='PinX' V='9'/><Cell N='PinY' V='5'/><Text>FAR-END</Text></Shape>
             <Shape ID='5' NameU='Dynamic connector'><Cell N='BeginX' V='5'/><Cell N='BeginY' V='5'/><Cell N='EndX' V='9'/><Cell N='EndY' V='5'/></Shape>
         </Shapes>
@@ -1240,106 +1240,122 @@ mod tests {
         let (page, _) = parse_page(xml, "Page-1").unwrap();
         let d = page.devices.iter().find(|d| d.id == "1").expect("the router");
         assert_eq!(d.label, "EDGE-RTR", "the port label must not become the name");
-        assert_eq!(d.addresses, vec!["10.9.9.9"]);
+        assert_eq!(d.addresses, vec!["203.0.113.9"]);
     }
 
-    /// The operator's own sample drawing, kept outside the repository (it is
-    /// his file, not ours). Absent on any other machine and in CI, so this
-    /// skips rather than fails there.
-    const SAMPLE: &str = "/home/malmoola/coreview-samples/visio/Drawing2-sample-network.vsdx";
+    #[test]
+    fn a_connector_glued_at_one_end_is_still_a_link() {
+        // The common case in a hand-drawn diagram, and the one that lost real
+        // links: the line is glued to a device at one end and merely touches
+        // the other. Reading the <Connects> table alone drops it entirely.
+        // Each end now resolves on its own — glue where there is glue, nearest
+        // shape where there is not — and the link says it was not fully glued
+        // so it can be checked rather than trusted.
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='1' NameU='Router'><Cell N='PinX' V='1'/><Cell N='PinY' V='5'/><Text>RTR-01</Text></Shape>
+            <Shape ID='2' NameU='Workgroup switch'><Cell N='PinX' V='4'/><Cell N='PinY' V='5'/><Text>SW-01</Text></Shape>
+            <Shape ID='3' NameU='Dynamic connector'><Cell N='BeginX' V='1'/><Cell N='BeginY' V='5'/><Cell N='EndX' V='4'/><Cell N='EndY' V='5'/><Cell N='Width' V='3' F='GUARD(EndX-BeginX)'/></Shape>
+            <Shape ID='4' NameU='Plain'><Cell N='PinX' V='2.5'/><Cell N='PinY' V='5'/><Text>Gi0/1 &lt;&gt; Gi1/0/24</Text></Shape>
+        </Shapes>
+        <Connects>
+            <Connect FromSheet='3' FromCell='BeginX' ToSheet='1'/>
+        </Connects></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        assert_eq!(page.links.len(), 1, "a half-glued connector is still a cable");
+        let l = &page.links[0];
+        assert_eq!((l.source.as_str(), l.target.as_str()), ("1", "2"));
+        // And the ports stay the right way round: the router's on the router.
+        assert_eq!((l.source_port.as_str(), l.target_port.as_str()), ("Gi0/1", "Gi1/0/24"));
+        assert!(!l.glued, "an end worked out from geometry is not a stated fact");
+    }
 
     #[test]
-    fn reads_the_operators_sample_drawing() {
-        let Ok(bytes) = std::fs::read(SAMPLE) else {
-            eprintln!("skipping: {SAMPLE} not present");
+    fn a_connector_glued_at_neither_end_still_joins_what_it_touches() {
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='1' NameU='Router'><Cell N='PinX' V='1'/><Cell N='PinY' V='5'/><Text>RTR-01</Text></Shape>
+            <Shape ID='2' NameU='Workgroup switch'><Cell N='PinX' V='4'/><Cell N='PinY' V='5'/><Text>SW-01</Text></Shape>
+            <Shape ID='3' NameU='Dynamic connector'><Cell N='BeginX' V='1'/><Cell N='BeginY' V='5'/><Cell N='EndX' V='4'/><Cell N='EndY' V='5'/><Cell N='Width' V='3' F='GUARD(EndX-BeginX)'/></Shape>
+        </Shapes></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        assert_eq!(page.links.len(), 1);
+        assert!(!page.links[0].glued);
+    }
+
+    #[test]
+    fn a_line_into_empty_space_is_not_turned_into_a_link() {
+        // The other half of the same rule. An unglued end far from anything
+        // stays unresolved: inventing a device for it would be worse than
+        // dropping the line.
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='1' NameU='Router'><Cell N='PinX' V='1'/><Cell N='PinY' V='5'/><Text>RTR-01</Text></Shape>
+            <Shape ID='3' NameU='Dynamic connector'><Cell N='BeginX' V='1'/><Cell N='BeginY' V='5'/><Cell N='EndX' V='40'/><Cell N='EndY' V='5'/><Cell N='Width' V='39' F='GUARD(EndX-BeginX)'/></Shape>
+        </Shapes></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        assert!(page.links.is_empty());
+    }
+
+    /// A real drawing to read, if the operator has one on this machine.
+    ///
+    /// Real drawings belong to the people who drew them, so none is kept in
+    /// this repository and nothing about one is written down here — not a
+    /// filename, not a device name, not an address. Point `COREVIEW_VISIO_DIR`
+    /// at a folder of `.vsdx` files and this reads the first one it finds; with
+    /// no such folder, as in CI and on every other machine, it skips.
+    ///
+    /// What it can still assert is everything that must hold for *any*
+    /// drawing, which is where the real regressions were anyway: that a port
+    /// label never becomes a device name, that a device is never nameless,
+    /// that glue is read, and that ports come out attached to ends.
+    fn a_drawing_to_read() -> Option<Vec<u8>> {
+        let dir = std::env::var("COREVIEW_VISIO_DIR").ok()?;
+        let mut files: Vec<_> = std::fs::read_dir(dir)
+            .ok()?
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("vsdx")))
+            .collect();
+        files.sort();
+        std::fs::read(files.first()?).ok()
+    }
+
+    #[test]
+    fn a_real_drawing_reads_without_breaking_any_of_the_rules() {
+        let Some(bytes) = a_drawing_to_read() else {
+            eprintln!("skipping: set COREVIEW_VISIO_DIR to a folder of .vsdx files to run this");
             return;
         };
-        let out = import_vsdx(&bytes).expect("the sample should import");
+        let out = import_vsdx(&bytes).expect("a .vsdx should import");
         let devices: usize = out.pages.iter().map(|p| p.devices.len()).sum();
         let links: usize = out.pages.iter().map(|p| p.links.len()).sum();
-        let named = out
-            .pages
-            .iter()
-            .flat_map(|p| &p.devices)
-            .filter(|d| !d.label.is_empty() && d.label != d.model)
-            .count();
-        let addressed = out
-            .pages
-            .iter()
-            .flat_map(|p| &p.devices)
-            .filter(|d| !d.addresses.is_empty())
-            .count();
         let ported = out
             .pages
             .iter()
             .flat_map(|p| &p.links)
             .filter(|l| !l.source_port.is_empty() || !l.target_port.is_empty())
             .count();
+        // Counts only. Naming what was in somebody's drawing, even in a test
+        // log, is how it ends up somewhere it should not be.
+        eprintln!("pages={} devices={devices} links={links} ported={ported}", out.pages.len());
+        assert!(devices > 0, "no devices read");
 
-        eprintln!("pages={} devices={devices} links={links}", out.pages.len());
-        eprintln!("  named {named}/{devices}, addressed {addressed}/{devices}, with a port {ported}/{links}");
         for p in &out.pages {
-            for d in p.devices.iter() {
-                eprintln!("  DEV {:28} {:16} {:?}", d.label, d.device_type, d.addresses);
+            let ids: Vec<&str> = p.devices.iter().map(|d| d.id.as_str()).collect();
+            for d in &p.devices {
+                // A caption naming both ends of a cable is not a device.
+                assert!(
+                    split_port_pair(&d.label).is_none(),
+                    "a port pair became a device name"
+                );
+                // Nor is a single interface.
+                assert!(!is_port_label(&d.label), "a port label became a device name");
+                assert!(!d.label.trim().is_empty(), "a device came out with no name at all");
             }
-            let name = |id: &str| {
-                p.devices.iter().find(|d| d.id == id).map(|d| d.label.clone()).unwrap_or_default()
-            };
             for l in &p.links {
-                let (a, b) = (name(&l.source), name(&l.target));
-                if a.contains("Att_router") || b.contains("Att_router") {
-                    eprintln!(
-                        "  LNK {a} [{}] --- [{}] {b}{}",
-                        l.source_port, l.target_port,
-                        if l.glued { "" } else { "   (inferred end)" }
-                    );
-                }
+                // Every link joins two devices that were actually imported,
+                // and never joins one to itself.
+                assert!(ids.contains(&l.source.as_str()), "a link starts at no device");
+                assert!(ids.contains(&l.target.as_str()), "a link ends at no device");
+                assert_ne!(l.source, l.target, "a link joins a device to itself");
             }
         }
-        for w in &out.warnings {
-            eprintln!("  WARN {w}");
-        }
-        assert!(devices > 0, "no devices read from the sample");
-        assert!(links > 0, "no links read from the sample");
-
-        // The operator checked the import against his own drawing and named
-        // three faults. Each is asserted here so it cannot come back.
-        let page = &out.pages[0];
-        let name = |id: &str| {
-            page.devices.iter().find(|d| d.id == id).map(|d| d.label.as_str()).unwrap_or("")
-        };
-
-        // 1. No device may be named after a port-pair label. A router in the
-        //    drawing came in called "Gi0/0/2 <> Gi1/0/13", because a pair label
-        //    is not a *port* label and was accepted as a caption.
-        for d in &page.devices {
-            assert!(
-                split_port_pair(&d.label).is_none(),
-                "a port pair became a device name: {:?}",
-                d.label
-            );
-        }
-
-        // 2 and 3. Both AT&T uplinks must be present, with the router's port on
-        //    the router and the switch's port on the switch. One of these was
-        //    glued at one end only and the other at neither, so reading the
-        //    <Connects> table alone lost both.
-        let uplinks: Vec<_> = page
-            .links
-            .iter()
-            .filter(|l| {
-                let (a, b) = (name(&l.source), name(&l.target));
-                a.contains("Att_router_edge01") && b.contains("INETSW-STK")
-            })
-            .map(|l| (l.source_port.as_str(), l.target_port.as_str()))
-            .collect();
-        assert!(
-            uplinks.contains(&("Gi0/0/1", "Gi2/0/24")),
-            "Gi0/0/1 <> Gi2/0/24 missing or the wrong way round: {uplinks:?}"
-        );
-        assert!(
-            uplinks.contains(&("Gi0/0/2", "Gi1/0/24")),
-            "Gi0/0/2 <> Gi1/0/24 missing or the wrong way round: {uplinks:?}"
-        );
     }
 }
