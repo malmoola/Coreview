@@ -143,6 +143,7 @@ export function VisioImportPanel() {
           (n, p) => n + p.links.filter((l) => l.sourcePort || l.targetPort).length,
           0,
         ),
+        inferred: result.pages.reduce((n, p) => n + p.links.filter((l) => !l.glued).length, 0),
       }
     : null;
 
@@ -182,6 +183,14 @@ export function VisioImportPanel() {
             {result.pages.length} page{result.pages.length === 1 ? '' : 's'} — {totals.named}{' '}
             named, {totals.addressed} with an address, {totals.ported} with a port.
           </p>
+
+          {totals.inferred > 0 && (
+            <p className="cv-warn">
+              {totals.inferred} of {totals.links} links were not glued to their shapes in the
+              drawing, so which devices they join was worked out from where the line was
+              drawn. Those are worth checking — everything else the drawing stated outright.
+            </p>
+          )}
 
           {result.warnings.map((w) => (
             <p className="cv-warn" key={w}>

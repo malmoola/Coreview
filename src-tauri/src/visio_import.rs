@@ -376,6 +376,60 @@ fn collect_shapes(node: roxmltree::Node, out: &mut Vec<RawShape>) {
 }
 
 /// The nearest text that reads like a name rather than a port.
+/// A floating text block — a caption or a port label — rather than a device.
+///
+/// These carry text and no master worth the name, and a connector's free end
+/// must never be resolved onto one: a link that lands on the words
+/// `Gi0/0/1 <> Gi2/0/24` is worse than no link.
+fn looks_like_a_text_block(s: &RawShape) -> bool {
+    if s.text.is_empty() {
+        return false;
+    }
+    let m = s.master.to_ascii_lowercase();
+    // The masters these drawings use for plain text.
+    m.is_empty() || m.starts_with("plain") || m.contains("text") || m.starts_with("base stencil")
+}
+
+/// The device shape nearest a point, for resolving a connector's free end.
+fn nearest_device(
+    x: f64,
+    y: f64,
+    candidates: &[&RawShape],
+    exclude: &str,
+) -> Option<String> {
+    let mut best: Option<(f64, String)> = None;
+    for s in candidates {
+        if s.id == exclude {
+            continue;
+        }
+        let (Some(sx), Some(sy)) = (s.x, s.y) else { continue };
+        let d = ((sx - x).powi(2) + (sy - y).powi(2)).sqrt();
+        // Close enough to be what the line was pointing at. A free end further
+        // than this from anything is a line into empty space, and inventing a
+        // device for it would be worse than dropping it.
+        let nearer = match &best {
+            Some((bd, _)) => d < *bd,
+            None => true,
+        };
+        if d < 1.2 && nearer {
+            best = Some((d, s.id.clone()));
+        }
+    }
+    best.map(|(_, id)| id)
+}
+
+/// Whether a piece of text could be a device's name.
+///
+/// A single port (`Eth1/43`) is not, and neither is a *pair* label
+/// (`Gi0/0/2 <> Gi1/0/13`) — which is the one that actually bit: a pair label
+/// is not a port label by itself, so the first version happily used one as a
+/// device name, and a router in the operator's drawing came in called
+/// "Gi0/0/2 <> Gi1/0/13" instead of "Internet router lumin edge".
+pub fn could_be_a_name(text: &str) -> bool {
+    let t = text.trim();
+    !t.is_empty() && !is_port_label(t) && split_port_pair(t).is_none()
+}
+
 fn caption_near(target: &RawShape, shapes: &[RawShape]) -> String {
     let (Some(tx), Some(ty)) = (target.x, target.y) else {
         return String::new();
@@ -384,10 +438,7 @@ fn caption_near(target: &RawShape, shapes: &[RawShape]) -> String {
     let mut best = String::new();
     let mut best_d = 1.5_f64;
     for s in shapes {
-        if s.id == target.id || s.text.is_empty() || s.has_ends {
-            continue;
-        }
-        if is_port_label(&s.text) {
+        if s.id == target.id || s.has_ends || !could_be_a_name(&s.text) {
             continue;
         }
         let (Some(sx), Some(sy)) = (s.x, s.y) else { continue };
@@ -528,14 +579,42 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
     let mut used_ports: Vec<String> = Vec::new();
     let mut endpoint_ids: Vec<String> = Vec::new();
 
-    for (conn_id, (a, b)) in &ends {
-        let (Some(a), Some(b)) = (a, b) else { continue };
+    // Shapes a connector could plausibly land on: not connectors, not the
+    // floating text blocks that hold captions and port labels.
+    let device_like: Vec<&RawShape> = shapes
+        .iter()
+        .filter(|s| !s.has_ends && s.x.is_some() && !looks_like_a_text_block(s))
+        .collect();
+
+    // Every connector *shape*, not only those listed in `<Connects>`.
+    //
+    // Glue is the authoritative answer and wins wherever it exists, but it is
+    // not always there: of 70 connectors in the operator's own drawing, 10 are
+    // glued at one end only and 4 at neither — and one of those four is a real
+    // AT&T uplink, drawn as a line that merely touches both shapes. Reading the
+    // `<Connects>` table alone loses all fourteen silently. An end with no glue
+    // is resolved to the nearest device shape and the link marked not-glued, so
+    // it can be reviewed rather than being either lost or asserted as fact.
+    let no_glue = (None, None);
+    for c in shapes.iter().filter(|s| s.has_ends) {
+        let g = ends.get(&c.id).unwrap_or(&no_glue);
+        let resolve = |glued: &Option<String>, at: Option<(f64, f64)>, other: &str| match glued {
+            Some(id) => Some((id.clone(), true)),
+            None => at
+                .and_then(|(x, y)| nearest_device(x, y, &device_like, other))
+                .map(|id| (id, false)),
+        };
+        let Some((a, a_glued)) = resolve(&g.0, c.begin, "") else { continue };
+        let Some((b, b_glued)) = resolve(&g.1, c.end, &a) else { continue };
+        let glued = a_glued && b_glued;
+
         if a == b || !by_id.contains_key(a.as_str()) || !by_id.contains_key(b.as_str()) {
             continue;
         }
-        let conn = by_id.get(conn_id.as_str());
-        let label = conn.map(|c| c.text.clone()).unwrap_or_default();
-        let props = conn.map(|c| c.props.clone()).unwrap_or_default();
+        let (a, b) = (&a, &b);
+        let conn = Some(c);
+        let label = c.text.clone();
+        let props = c.props.clone();
 
         // Shape Data first — it is stated, not inferred.
         let mut sp = props
@@ -595,7 +674,7 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
             label: if is_port_label(&label) { String::new() } else { label },
             source_port: sp,
             target_port: tp,
-            glued: true,
+            glued,
         });
     }
 
@@ -610,7 +689,7 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
         seen
     } {
         let Some(s) = by_id.get(id.as_str()) else { continue };
-        let caption = if !s.text.is_empty() && !is_port_label(&s.text) {
+        let caption = if could_be_a_name(&s.text) {
             s.text.clone()
         } else {
             caption_near(s, &shapes)
@@ -922,8 +1001,18 @@ mod tests {
             for d in p.devices.iter().take(12) {
                 eprintln!("  DEV {:28} {:16} {:?}", d.label, d.device_type, d.addresses);
             }
-            for l in p.links.iter().take(12) {
-                eprintln!("  LNK {} [{}]---[{}] {}", l.source, l.source_port, l.target_port, l.target);
+            let name = |id: &str| {
+                p.devices.iter().find(|d| d.id == id).map(|d| d.label.clone()).unwrap_or_default()
+            };
+            for l in &p.links {
+                let (a, b) = (name(&l.source), name(&l.target));
+                if a.contains("Att_router") || b.contains("Att_router") {
+                    eprintln!(
+                        "  LNK {a} [{}] --- [{}] {b}{}",
+                        l.source_port, l.target_port,
+                        if l.glued { "" } else { "   (inferred end)" }
+                    );
+                }
             }
         }
         for w in &out.warnings {
@@ -931,5 +1020,45 @@ mod tests {
         }
         assert!(devices > 0, "no devices read from the sample");
         assert!(links > 0, "no links read from the sample");
+
+        // The operator checked the import against his own drawing and named
+        // three faults. Each is asserted here so it cannot come back.
+        let page = &out.pages[0];
+        let name = |id: &str| {
+            page.devices.iter().find(|d| d.id == id).map(|d| d.label.as_str()).unwrap_or("")
+        };
+
+        // 1. No device may be named after a port-pair label. A router in the
+        //    drawing came in called "Gi0/0/2 <> Gi1/0/13", because a pair label
+        //    is not a *port* label and was accepted as a caption.
+        for d in &page.devices {
+            assert!(
+                split_port_pair(&d.label).is_none(),
+                "a port pair became a device name: {:?}",
+                d.label
+            );
+        }
+
+        // 2 and 3. Both AT&T uplinks must be present, with the router's port on
+        //    the router and the switch's port on the switch. One of these was
+        //    glued at one end only and the other at neither, so reading the
+        //    <Connects> table alone lost both.
+        let uplinks: Vec<_> = page
+            .links
+            .iter()
+            .filter(|l| {
+                let (a, b) = (name(&l.source), name(&l.target));
+                a.contains("Att_router_edge01") && b.contains("INETSW-STK")
+            })
+            .map(|l| (l.source_port.as_str(), l.target_port.as_str()))
+            .collect();
+        assert!(
+            uplinks.contains(&("Gi0/0/1", "Gi2/0/24")),
+            "Gi0/0/1 <> Gi2/0/24 missing or the wrong way round: {uplinks:?}"
+        );
+        assert!(
+            uplinks.contains(&("Gi0/0/2", "Gi1/0/24")),
+            "Gi0/0/2 <> Gi1/0/24 missing or the wrong way round: {uplinks:?}"
+        );
     }
 }
