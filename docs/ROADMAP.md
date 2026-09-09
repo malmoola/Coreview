@@ -17,6 +17,75 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-118 — **bug** Imported devices arrived as unusable shapes
+**Source:** two reports on 2026-09-09 — "some of the imported diagrams they get
+locked shaped I can't adjust their boarders", with a screenshot of a device
+drawn as a vast flat ellipse, and "for me to move the link I have to extend and
+make it long to make room to move the link".
+**One cause, three symptoms.** LT-110 gave an imported device the *drawing's*
+box. A Cisco rack unit is 2.06in by 0.185in, which at the import scale is a
+node 357px by 32px — eleven to one. From that:
+
+- A device glyph's selection ring is a circle (`border-radius: 50%`), and on an
+  eleven-to-one box that draws an enormous flat ellipse around a small icon.
+  That is the screenshot.
+- Two rack units stacked as the drawing stacks them leave a link with no
+  grabbable length between them — hence having to stretch one out first.
+- **And it did not survive being reopened.** `migrateDocument` squares any
+  device glyph whose sides differ by more than 12px, on every load (LT-053: a
+  glyph's bounds are square so its ring and resize corners sit on the drawn
+  symbol). An imported diagram therefore changed shape and moved between
+  sessions. LT-110 was fighting a rule the app already had, and losing.
+
+**Fixed.** An imported device is square, sized by the geometric mean of the
+drawing's box — which keeps what was worth keeping, a cloud still arriving
+larger than an access switch — clamped to a usable range. Positions still come
+from the drawing, which is the part that makes it look like the original.
+**Squares that would collide are pushed apart**, because they must be: a rack
+unit is drawn thinner than the gap between two of them, so as squares they
+overlap at *every* scale. Scaling cannot fix that — it moves the gap and the
+size together — which took one wrong attempt to see. Each device is settled
+against those already placed, in the drawing's own order, so a rack comes back
+stacked and in order rather than shuffled.
+
+### LT-117 — **bug** "Save this style as the default" only saved it for one page
+**Source:** reported 2026-09-09 — "save link stile as the default doesn't
+really save it."
+**Reproduced, and it does save — for the page you are looking at.** The action
+called `setCanvas`, and the canvas has been per page since LT-094. Save the
+style, add a page, and links drawn there come out in the built-in grey. Not an
+edge case: importing a multi-page Visio drawing creates a page per Visio page,
+so the style is set on the first and missing from every other.
+**Fixed.** The default look of a link is a property of the diagram, not of one
+of its canvases. `setDefaultLinkStyle` writes it to every page, and a page
+added later inherits it from the one in front of you.
+**Worth recording:** the first version of this check "failed" because my own
+harness re-seeded its fixture on every navigation, including the reload it was
+using to prove persistence — it overwrote the value it then reported missing.
+The app was briefly accused of a bug it did not have.
+
+### LT-116 — **bug** Removing a stencil pack did nothing, and said nothing
+**Source:** reported 2026-09-09 with a screenshot of the confirm dialog —
+"remove doesn't do anything, you delete this tripp-lite stencil pack and I
+don't want it."
+**Diagnosed.** The button deleted the pack's folder from the app's own
+resources. An app installed where the person running it cannot write —
+`/Applications`, `Program Files` — cannot do that, and on macOS editing a
+signed bundle would break its signature. The delete failed, and the dialog
+swallowed the error with `.catch(() => undefined)`, closed itself, and left the
+pack where it was. Reproduced by making a directory read-only and watching
+`remove_dir_all` refuse.
+**Fixed.** Removal is a decision rather than a fact about the disk: the pack is
+recorded in settings, and both the pack list and the icon scan skip it, so its
+shapes leave the palette whether or not the files can be deleted. The files are
+still deleted where that is possible, and the outcome says which happened —
+"freed the space it used", or "its files could not be deleted, so the space is
+still used". The dialog no longer swallows anything.
+**Note on the pack itself:** `stencils/` in this repository ships `cisco` only.
+The Tripp Lite pack was removed from the repo under LT-100, so an install that
+still shows it predates that; removing it now takes it out of the palette for
+good.
+
 ### LT-115 — A stack is one device with several serials
 **Source:** asked 2026-09-09 — "Address the crawl's serial when we have cluster
 of switches. There should be a comma separator."
