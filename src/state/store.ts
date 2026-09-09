@@ -294,6 +294,8 @@ interface Store {
   /** Permanent — restored only by reinstalling the app (LT-103). Refreshes
    *  the bundled shape list afterward, so the palette drops that pack's
    *  shapes without needing a restart. */
+  /** Hides the pack and deletes its files where it can. Permanent either way;
+   *  see the status message for whether the space came back. */
   removeStencilPack: (name: string) => Promise<void>;
   /** Captures a device already on the canvas as a new shape in this
    *  project's own library (LT-104), so it can be dragged onto the canvas
@@ -1462,12 +1464,21 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   async removeStencilPack(name) {
-    await ipc.removeStencilPack(name);
+    const outcome = await ipc.removeStencilPack(name);
     const [bundled, packs] = await Promise.all([
       ipc.listBundledIcons(),
       ipc.listStencilPacks(),
     ]);
     set({ bundledIcons: bundled.icons, stencilPacks: packs });
+    // The pack is gone from the palette either way. Whether the disk space
+    // came back is a separate question, and worth a straight answer: an app
+    // installed where the person running it cannot write — /Applications,
+    // Program Files — cannot delete its own resources.
+    get().setStatusMessage(
+      outcome.deleted
+        ? `Removed the ${name} stencil pack and freed the space it used.`
+        : `Removed the ${name} stencil pack from the palette. Its files could not be deleted, so the space is still used — the app is installed somewhere it cannot write to.`,
+    );
   },
 
   saveCustomShape(nodeId, name) {

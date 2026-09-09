@@ -233,6 +233,7 @@ function StencilPacksSection() {
   const removePack = useStore((s) => s.removeStencilPack);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
 
   if (packs.length === 0) return null;
 
@@ -265,9 +266,11 @@ function StencilPacksSection() {
           <div className="cv-modal" role="dialog" aria-label="Confirm remove">
             <h2>Remove the “{confirming}” stencil pack?</h2>
             <p>
-              Deletes it from disk to free the space it uses. Its shapes disappear from the
-              palette. Reinstalling the app is the only way to bring it back.
+              Its shapes disappear from the palette, and its files are deleted to free the
+              space where the app is installed somewhere it can write. Reinstalling the app is
+              the only way to bring it back.
             </p>
+            {problem && <p className="cv-warn">{problem}</p>}
             <div className="cv-modal-actions">
               <button type="button" className="cv-btn" onClick={() => setConfirming(null)} disabled={busy}>
                 Keep it
@@ -278,12 +281,17 @@ function StencilPacksSection() {
                 disabled={busy}
                 onClick={() => {
                   setBusy(true);
+                  setProblem(null);
                   void removePack(confirming)
-                    .catch(() => undefined)
-                    .finally(() => {
-                      setBusy(false);
-                      setConfirming(null);
-                    });
+                    .then(() => setConfirming(null))
+                    // Swallowing this is what made the button look dead: a
+                    // read-only install refuses the delete, the dialog closed,
+                    // and nothing appeared to happen. Whatever went wrong, the
+                    // person who pressed it is the one who needs to know.
+                    .catch((e: unknown) =>
+                      setProblem(e instanceof Error ? e.message : String(e)),
+                    )
+                    .finally(() => setBusy(false));
                 }}
               >
                 {busy ? 'Removing…' : 'Remove permanently'}

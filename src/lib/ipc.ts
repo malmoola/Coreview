@@ -160,6 +160,9 @@ export type ImportedLink = {
 export type ImportedPage = { name: string; devices: ImportedDevice[]; links: ImportedLink[] };
 export type VisioImport = { pages: ImportedPage[]; warnings: string[] };
 
+/** What happened when a stencil pack was removed. */
+export type PackRemoval = { deleted: boolean; reason: string | null };
+
 export type SubnetInfo = { network: string; broadcast: string; prefix: number; hosts: number };
 export type SweepOptions = { timeoutMs: number; concurrency: number };
 /** `hostname` is what reverse DNS calls the address (LT-109) — null where it
@@ -415,10 +418,13 @@ export const ipc = {
     return invoke<{ name: string }[]>('list_stencil_packs');
   },
 
-  /** Permanent — restored only by reinstalling the app. */
-  removeStencilPack(name: string): Promise<void> {
+  /** Permanent — restored only by reinstalling the app. `deleted` says whether
+   *  the files actually went: on a read-only install the pack is hidden and
+   *  the space stays used, and the interface has to say so rather than claim
+   *  otherwise. */
+  removeStencilPack(name: string): Promise<PackRemoval> {
     if (!isDesktop) throw new BackendUnavailable('Removing a stencil pack');
-    return invoke<void>('remove_stencil_pack', { name });
+    return invoke<PackRemoval>('remove_stencil_pack', { name });
   },
 
   listIconLibrary(dir: string) {

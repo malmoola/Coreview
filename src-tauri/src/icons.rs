@@ -112,7 +112,7 @@ struct Found {
 ///
 /// Flat-only was the bug behind "1 icon" on a library of a thousand: shape
 /// sets arrive as folders of folders, and only the top level was read.
-fn collect(dir: &Path, depth: usize, found: &mut Found) -> Result<(), String> {
+fn collect(dir: &Path, depth: usize, found: &mut Found, skip: &[String]) -> Result<(), String> {
     if depth > MAX_DEPTH || found.svgs.len() >= MAX_ICONS {
         return Ok(());
     }
@@ -126,7 +126,17 @@ fn collect(dir: &Path, depth: usize, found: &mut Found) -> Result<(), String> {
     for entry in listing.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_dir() {
-            collect(&path, depth + 1, found)?;
+            // A pack the operator removed. Skipped at the top level only: it
+            // names a pack, not any folder that happens to share the name.
+            if depth == 0
+                && path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| skip.iter().any(|s| s == n))
+            {
+                continue;
+            }
+            collect(&path, depth + 1, found, skip)?;
             continue;
         }
         match path.extension().and_then(|x| x.to_str()) {
@@ -220,7 +230,7 @@ fn expand_zips(root: &Path, found: &mut Found, skipped: &mut Vec<String>) -> Opt
             skipped.push(format!("{file_name}: nothing in it could be extracted"));
         }
     }
-    let _ = collect(&scratch, 0, found);
+    let _ = collect(&scratch, 0, found, &[]);
     Some(scratch)
 }
 
@@ -383,6 +393,16 @@ fn humanise(id: &str) -> String {
 /// Index a directory of SVGs. Optional `index.json` supplies names/categories:
 /// `{"icons":[{"id","name","category","file"}]}`.
 pub fn scan(dir: &str) -> Result<IconLibrary, String> {
+    scan_excluding(dir, &[])
+}
+
+/// The same scan, without the packs the operator has removed.
+///
+/// Removing a pack has to work on an install whose files cannot be deleted —
+/// an app under /Applications or Program Files is not writable by the person
+/// running it — so what a pack *is* to the palette is decided here rather than
+/// by whether its folder still exists.
+pub fn scan_excluding(dir: &str, skip: &[String]) -> Result<IconLibrary, String> {
     let root = PathBuf::from(dir);
     if !root.is_dir() {
         return Err(format!("{dir} is not a directory"));
@@ -407,7 +427,7 @@ pub fn scan(dir: &str) -> Result<IconLibrary, String> {
     let mut icons = Vec::new();
     let mut skipped = Vec::new();
     let mut found = Found::default();
-    collect(&root, 0, &mut found)?;
+    collect(&root, 0, &mut found, skip)?;
     // LT-081: a zip is opened and walked like a folder, not refused —
     // whatever it holds joins the same svgs/convertible/visio/lucid lists a
     // real subfolder would have filled. Its contents categorise against
@@ -626,7 +646,8 @@ pub struct StencilPack {
 /// Tripp Lite pack. Lets a pack be removed from the app itself instead
 /// (LT-103). No bundled stencils in this build (dir missing) is an empty
 /// list, not an error — the browser build has nothing here at all.
-pub fn list_packs(dir: &str) -> Result<Vec<StencilPack>, String> {
+/// The packs still installed, without the ones the operator has removed.
+pub fn list_packs_excluding(dir: &str, skip: &[String]) -> Result<Vec<StencilPack>, String> {
     let root = PathBuf::from(dir);
     if !root.is_dir() {
         return Ok(Vec::new());
@@ -636,6 +657,9 @@ pub fn list_packs(dir: &str) -> Result<Vec<StencilPack>, String> {
         let entry = entry.map_err(|e| e.to_string())?;
         if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             if let Some(name) = entry.file_name().to_str() {
+                if skip.iter().any(|s| s == name) {
+                    continue;
+                }
                 packs.push(StencilPack { name: name.to_string() });
             }
         }
@@ -644,12 +668,26 @@ pub fn list_packs(dir: &str) -> Result<Vec<StencilPack>, String> {
     Ok(packs)
 }
 
+/// What happened when a pack was removed.
+///
+/// Two outcomes, and the difference matters to what the operator is told: the
+/// files were deleted and the space is back, or the pack is hidden and the
+/// files are still there because the install is read-only. Saying "freed the
+/// space it uses" in the second case would be a lie.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PackRemoval {
+    pub deleted: bool,
+    /// Why the files could not be deleted, when they could not.
+    pub reason: Option<String>,
+}
+
 /// Removes one bundled stencil pack from disk (LT-103) — permanent, restored
 /// only by reinstalling the app. `name` must be a single path segment naming
 /// an existing immediate subdirectory of `dir`; a parent reference, a
 /// separator, or an unknown name is refused rather than resolved, so this
 /// can never be pointed outside the stencils folder.
-pub fn remove_pack(dir: &str, name: &str) -> Result<(), String> {
+pub fn remove_pack(dir: &str, name: &str) -> Result<PackRemoval, String> {
     if name.is_empty() || name.contains('/') || name.contains('\\') || name == "." || name == ".." {
         return Err(format!("'{name}' is not a valid stencil pack name"));
     }
@@ -657,13 +695,26 @@ pub fn remove_pack(dir: &str, name: &str) -> Result<(), String> {
         .canonicalize()
         .map_err(|e| e.to_string())?;
     let target = root.join(name);
+    // A name that is not there is still refused, so a typo cannot be recorded
+    // as a removal. The caller knows which packs it has already removed and
+    // does not ask again.
     let target = target
         .canonicalize()
         .map_err(|_| format!("'{name}' does not exist"))?;
     if !target.starts_with(&root) || !target.is_dir() {
         return Err(format!("'{name}' is not a stencil pack"));
     }
-    std::fs::remove_dir_all(&target).map_err(|e| e.to_string())
+    match std::fs::remove_dir_all(&target) {
+        Ok(()) => Ok(PackRemoval { deleted: true, reason: None }),
+        // The install is read-only, which is the normal case rather than an
+        // exotic one: an app in /Applications or under Program Files is not
+        // writable by the person running it, and on macOS editing a signed
+        // bundle would break its signature. Hiding the pack is still the right
+        // outcome — it is what was asked for — so this reports what happened
+        // instead of failing, and the caller says so rather than claiming
+        // space was freed.
+        Err(e) => Ok(PackRemoval { deleted: false, reason: Some(e.to_string()) }),
+    }
 }
 
 #[cfg(test)]
@@ -671,12 +722,65 @@ mod pack_tests {
     use super::*;
 
     #[test]
+    fn a_removed_pack_is_gone_from_the_palette_even_when_its_files_remain() {
+        // The case that made the button look broken: an app installed
+        // read-only cannot delete its own resources, so what counts as removed
+        // has to be a decision rather than a fact about the disk.
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(dir.path().join("cisco")).unwrap();
+        std::fs::create_dir(dir.path().join("tripp-lite")).unwrap();
+        let root = dir.path().to_str().unwrap();
+        let removed = vec!["tripp-lite".to_string()];
+        assert_eq!(
+            list_packs_excluding(root, &removed)
+                .unwrap()
+                .into_iter()
+                .map(|p| p.name)
+                .collect::<Vec<_>>(),
+            vec!["cisco"],
+        );
+    }
+
+    #[test]
+    fn a_removed_packs_shapes_leave_the_library_with_it() {
+        // Hiding the pack but still indexing its icons would take the pack out
+        // of the list and leave every one of its shapes in the palette.
+        let dir = tempfile::tempdir().expect("tempdir");
+        for pack in ["cisco", "tripp-lite"] {
+            std::fs::create_dir(dir.path().join(pack)).unwrap();
+            std::fs::write(
+                dir.path().join(pack).join("a.svg"),
+                "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'></svg>",
+            )
+            .unwrap();
+        }
+        let root = dir.path().to_str().unwrap();
+        assert_eq!(scan(root).unwrap().icons.len(), 2, "precondition");
+        let left = scan_excluding(root, &["tripp-lite".to_string()]).unwrap();
+        assert_eq!(left.icons.len(), 1);
+        assert!(left.icons.iter().all(|i| !i.id.contains("tripp")), "{:?}", left.icons);
+    }
+
+    #[test]
+    fn a_deleted_pack_reports_that_the_space_came_back() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(dir.path().join("cisco")).unwrap();
+        // Removing a pack twice is the same shape as an install where the
+        // files were never deletable: the second call finds nothing there.
+        let root = dir.path().to_str().unwrap();
+        assert!(remove_pack(root, "cisco").unwrap().deleted);
+        // And a name that is not there is still refused, so a typo cannot be
+        // recorded as a removed pack.
+        assert!(remove_pack(root, "cisco").is_err());
+    }
+
+    #[test]
     fn lists_each_immediate_subdirectory_as_a_pack() {
         let dir = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir(dir.path().join("cisco")).unwrap();
         std::fs::create_dir(dir.path().join("aruba")).unwrap();
         std::fs::write(dir.path().join("readme.txt"), "not a pack").unwrap();
-        let packs = list_packs(dir.path().to_str().unwrap()).unwrap();
+        let packs = list_packs_excluding(dir.path().to_str().unwrap(), &[]).unwrap();
         assert_eq!(
             packs.into_iter().map(|p| p.name).collect::<Vec<_>>(),
             vec!["aruba", "cisco"],
@@ -687,7 +791,7 @@ mod pack_tests {
     fn a_missing_stencils_dir_is_no_packs_not_an_error() {
         let dir = tempfile::tempdir().expect("tempdir");
         let missing = dir.path().join("does-not-exist");
-        assert_eq!(list_packs(missing.to_str().unwrap()).unwrap(), vec![]);
+        assert_eq!(list_packs_excluding(missing.to_str().unwrap(), &[]).unwrap(), vec![]);
     }
 
     #[test]

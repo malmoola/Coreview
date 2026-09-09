@@ -298,46 +298,85 @@ pub fn diagram_vsdx(drawing: crate::visio::VisioDrawing) -> CmdResult<Vec<u8>> {
     crate::visio::to_vsdx(&drawing)
 }
 
-/// The shapes that ship inside the installer (D-022): the converted vendor
-/// stencils bundled as a Tauri resource, indexed with the same scan as a
-/// user's own folder. In dev the resource dir is the repo's `stencils/`
-/// itself, resolved the same way.
-#[tauri::command]
-pub fn list_bundled_icons(app: AppHandle) -> CmdResult<crate::icons::IconLibrary> {
+/// Where the bundled stencils live. In dev that is the repo's `stencils/`.
+fn stencil_dir(app: &AppHandle) -> CmdResult<String> {
     use tauri::path::BaseDirectory;
     use tauri::Manager;
     let dir = app
         .path()
         .resolve("stencils", BaseDirectory::Resource)
         .map_err(|e| format!("no bundled stencils: {e}"))?;
-    crate::icons::scan(dir.to_str().ok_or("resource path is not unicode")?)
+    dir.to_str()
+        .map(str::to_string)
+        .ok_or_else(|| "resource path is not unicode".to_string())
+}
+
+/// The setting holding the packs the operator has removed.
+const REMOVED_PACKS: &str = "removedStencilPacks";
+
+/// Which packs to behave as though are not installed.
+///
+/// Kept in settings rather than inferred from the disk, because removing a
+/// pack has to work on an install whose files cannot be deleted. A read-only
+/// install is the normal case, not an exotic one.
+fn removed_packs(state: &State<'_, AppState>) -> Vec<String> {
+    let Ok(db) = state.db.lock() else { return Vec::new() };
+    let Ok(settings) = crate::db::all_settings(&db) else { return Vec::new() };
+    settings
+        .get(REMOVED_PACKS)
+        .and_then(|v| serde_json::from_str::<Vec<String>>(v).ok())
+        .unwrap_or_default()
+}
+
+/// The shapes that ship inside the installer (D-022): the converted vendor
+/// stencils bundled as a Tauri resource, indexed with the same scan as a
+/// user's own folder, minus any pack the operator has removed.
+#[tauri::command]
+pub fn list_bundled_icons(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CmdResult<crate::icons::IconLibrary> {
+    crate::icons::scan_excluding(&stencil_dir(&app)?, &removed_packs(&state))
 }
 
 /// The bundled stencil packs (LT-103) — Cisco today, whatever is added
 /// later — each an immediate subdirectory of the same resource
 /// `list_bundled_icons` scans.
 #[tauri::command]
-pub fn list_stencil_packs(app: AppHandle) -> CmdResult<Vec<crate::icons::StencilPack>> {
-    use tauri::path::BaseDirectory;
-    use tauri::Manager;
-    let dir = app
-        .path()
-        .resolve("stencils", BaseDirectory::Resource)
-        .map_err(|e| format!("no bundled stencils: {e}"))?;
-    crate::icons::list_packs(dir.to_str().ok_or("resource path is not unicode")?)
+pub fn list_stencil_packs(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CmdResult<Vec<crate::icons::StencilPack>> {
+    crate::icons::list_packs_excluding(&stencil_dir(&app)?, &removed_packs(&state))
 }
 
-/// Removes one bundled stencil pack from disk to free space (LT-103) —
-/// permanent; restored only by reinstalling the app.
+/// Removes one bundled stencil pack (LT-103, fixed in LT-116).
+///
+/// Two things happen, and only one of them can fail. The pack is recorded as
+/// removed, which is what makes its shapes disappear and is the part the
+/// operator actually asked for; then its files are deleted to free the space,
+/// which cannot happen on a read-only install. The result says which, so the
+/// interface can stop claiming space was freed when it was not.
 #[tauri::command]
-pub fn remove_stencil_pack(app: AppHandle, name: String) -> CmdResult<()> {
-    use tauri::path::BaseDirectory;
-    use tauri::Manager;
-    let dir = app
-        .path()
-        .resolve("stencils", BaseDirectory::Resource)
-        .map_err(|e| format!("no bundled stencils: {e}"))?;
-    crate::icons::remove_pack(dir.to_str().ok_or("resource path is not unicode")?, &name)
+pub fn remove_stencil_pack(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> CmdResult<crate::icons::PackRemoval> {
+    let mut removed = removed_packs(&state);
+    // Asked for again — the files were already deleted, or never could be.
+    // Nothing to do on disk, and not an error: it is gone either way.
+    let outcome = if removed.iter().any(|p| p == &name) {
+        crate::icons::PackRemoval { deleted: false, reason: None }
+    } else {
+        let outcome = crate::icons::remove_pack(&stencil_dir(&app)?, &name)?;
+        removed.push(name);
+        outcome
+    };
+    let json = serde_json::to_string(&removed).map_err(|e| e.to_string())?;
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    crate::db::set_setting(&db, REMOVED_PACKS, Some(&json)).map_err(|e| e.to_string())?;
+    Ok(outcome)
 }
 
 // ------------------------------------------------------------------ exports
