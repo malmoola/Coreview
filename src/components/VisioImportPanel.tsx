@@ -268,6 +268,12 @@ export function VisioImportPanel() {
         const ports = [l.sourcePort, l.targetPort].filter(Boolean);
         const data: LinkData = {
           ...style,
+          // A curve, not a right-angled run. An imported drawing puts devices
+          // where the drawing put them rather than on a tidy grid, so an
+          // orthogonal route between two of them takes a long way round and
+          // reads as routing that was meant, when it is only routing that was
+          // computed. A curve says "these two are joined" and nothing more.
+          pathType: 'bezier',
           sourcePortLabel: l.sourcePort,
           targetPortLabel: l.targetPort,
           // The pair written on the line, the way the drawing wrote it.

@@ -17,6 +17,72 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-112 — **bug** A link close to its devices cannot be clicked
+**Source:** reported 2026-09-08 with a screenshot of a router and the links
+meeting it — "I can't select the link to move it, if i select it will select
+the router not the link to move it."
+**Reproduced and measured before changing anything.** The wide transparent
+path that makes a thin line practical to click lives in React Flow's edge
+layer, which is drawn *below* the node layer. A device's box is square and
+76px across whatever shape is drawn inside it, so near a device the box
+covers the line. Sampling 21 points along a link between two devices and
+asking what the pointer would actually land on:
+
+| Distance between centres | Points that reached the link |
+| --- | --- |
+| 260px | 20 of 21 |
+| 130px | 13 of 21 |
+| 110px | 10 of 21 |
+| 95px | 2 of 21 |
+| 85px | **0 of 21** |
+
+At 85px — nine pixels of clear gap between two 76px boxes — there was no
+point on the line that could be clicked at all, which is exactly what the
+operator hit: an imported drawing places devices where the drawing put them,
+not on a comfortable grid.
+**Built.** A second, narrow hit band (12px, six either side of the line) is
+rendered in the edge-label layer, which the endpoint handles already use to
+get above the nodes, and selects the link on pointer-down. The visible line
+stays in the layer below the nodes, because a cable passing behind a device
+is what a diagram should look like. z-index 2: above a resting node, still
+below the one being dragged or selected, and below everything on a link that
+can be grabbed — labels, waypoints, endpoint handles — or the band would
+swallow those drags. Afterwards: 21 of 21 at every spacing down to 80px,
+with node clicks and node drags unaffected.
+**One thing it cost, and what replaced it.** Tracing — pointing at a link to
+fade the rest — was pure CSS (`.react-flow__edges:has(.react-flow__edge:hover)`)
+and could not survive this: the band is in a different part of the tree from
+the line it belongs to, so the line is never `:hover` and no selector joins
+them back up. `src/components/edges/traced.ts` holds the id instead and each
+link fades itself. Deliberately outside the app store, so a hover does not
+enter the undo history or every save. A side benefit: a *selected* link now
+stays bright while the pointer wanders, which the CSS version could not do.
+**A limit worth knowing:** the band's width is in flow units, so it thins out
+with the zoom like everything else. Below roughly 0.2 zoom a link is not
+practically clickable — but at that zoom a device is ten pixels across, and
+the answer is to zoom in.
+**Also in this change, asked for at the same time:** an imported link now
+arrives as a **bezier** rather than a smooth step. An imported drawing puts
+devices where the drawing put them rather than on a grid, and an orthogonal
+route between two of them takes a long way round and reads as routing that
+was meant, when it is only routing that was computed.
+**Verified** in the Chromium interaction harness (`e2e/interact.mjs`), which
+is this repo's stated method for canvas interaction — synthetic X11 input
+does not produce the pointer sequence React Flow needs, so those cases were
+already run against the browser build. Three checks added there: a link
+between two touching devices is clickable along its length, clicking it
+selects it and offers its endpoint handles, and clicking or dragging a device
+still does what it did. Not additionally hand-verified in WebKitGTK: the
+Xvfb session would not hold a zoom level long enough to aim at a line. The
+two CSS properties involved are long-standing and the rest is engine-neutral
+DOM logic, but that is reasoning rather than a measurement, and is recorded
+as such.
+**Found while doing it, and fixed:** `e2e/interact.mjs` had been dying a
+third of the way through since LT-094 landed — a right-click aimed at the
+canvas hit the new page-tab strip, and 35 places still read `doc.nodes` on a
+document that now holds pages. Roughly half the harness had not run since.
+It runs end to end again.
+
 ### LT-107 — **bug** Links still leave a shape from only 4 points
 **Source:** re-reported 2026-09-08, in the same words as LT-098 and with a
 screenshot of HOME-MAIN-SW — "I need the connector to connect to the shapes

@@ -92,6 +92,30 @@ const check = (name, ok, detail = "") => {
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+await page.addInitScript(() => {
+  // Since LT-094 a document holds pages, and nodes, edges and canvas settings
+  // live on one of them rather than on the document. This harness was written
+  // against the flat shape and threw on the first access after that landed,
+  // which stopped it dead about halfway through. These read and write the
+  // active page, and fall back to the flat shape so the file still describes
+  // what it is asserting rather than the storage layout of the week.
+  const doc = () => window.__cvStore.getState().doc;
+  const active = (d) => d.pages.find((pg) => pg.id === d.activePageId) ?? d.pages[0];
+  window.__cvNodes = () => { const d = doc(); return d.pages ? active(d).nodes : d.nodes; };
+  window.__cvEdges = () => { const d = doc(); return d.pages ? active(d).edges : d.edges; };
+  window.__cvCanvas = () => { const d = doc(); return d.pages ? active(d).canvas : d.canvas; };
+  window.__cvDocWith = (flat) => {
+    const d = doc();
+    if (!d.pages) return { ...d, ...flat };
+    const { nodes, edges, canvas, ...rest } = flat;
+    return { ...d, ...rest, pages: d.pages.map((pg) => pg.id === active(d).id
+      ? { ...pg,
+          ...(nodes === undefined ? {} : { nodes }),
+          ...(edges === undefined ? {} : { edges }),
+          ...(canvas === undefined ? {} : { canvas }) }
+      : pg) };
+  };
+});
 await page.addInitScript((p) => {
   localStorage.setItem("coreview.projects.v1", JSON.stringify({ [p.meta.id]: p }));
 }, project);
@@ -109,6 +133,16 @@ const dismissRecovery = async () => {
     await page.locator(".cv-recovery button", { hasText: "Keep what was saved" }).click();
     await page.waitForTimeout(300);
   }
+};
+/** Clicks a link.
+ *
+ *  Since LT-112 the thing the pointer lands on is the clickable band, which
+ *  lives outside the edge element so it can sit above the nodes. A locator
+ *  click on `.react-flow__edge` is therefore intercepted by a non-descendant
+ *  and never lands. Clicking the band is clicking the link. */
+const clickLink = async (id) => {
+  await page.locator(`.cv-edge-hit[data-id="${id}"] path`).first().click({ force: true });
+  await page.waitForTimeout(250);
 };
 const nodeCount = () => page.locator(".react-flow__node").count();
 const boxOf = async (sel) => {
@@ -509,7 +543,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
 // The search library is unit-tested. What is not, is that Ctrl+F actually
 // opens it, that a match moves the view, and that it changes nothing.
 {
-  await page.locator(".react-flow__pane").click({ position: { x: 700, y: 600 } });
+  await page.locator(".react-flow__pane").click({ position: { x: 700, y: 460 } });
   const before = await nodeCount();
   await page.keyboard.press("Control+f");
   await page.waitForTimeout(200);
@@ -561,7 +595,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   const before = await order();
   const count = await nodeCount();
 
-  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);
   const item = page.locator(".cv-menu button", { hasText: "Tidy the layout" });
   check("the canvas menu offers a tidy", await item.count() === 1);
@@ -629,7 +663,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
       boxes.some((b) => /objects/.test(b)), JSON.stringify(boxes).slice(0, 140));
 
     // Unfolding must give back exactly what was there.
-    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
     await page.waitForTimeout(250);
     const openAll = page.locator(".cv-menu button", { hasText: /^Open all folded groups/ });
     check("there is a way to open everything again", (await openAll.count()) === 1);
@@ -1008,7 +1042,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
   await page.waitForTimeout(400);
 
-  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);
   const off = page.locator(".cv-menu button", { hasText: "Stop hopping crossed links" });
   check("the canvas menu offers hops", (await off.count()) === 1);
@@ -1018,7 +1052,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
     await page.waitForTimeout(500);
     check("turning them off leaves no arcs", (await arcs()) === 0, `${await arcs()}`);
 
-    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
     await page.waitForTimeout(250);
     await page.locator(".cv-menu button", { hasText: "Hop crossed links" }).click();
     await page.waitForTimeout(600);
@@ -1037,9 +1071,21 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
   // A point actually on the line. The centre of an edge's bounding box is
   // usually empty space — an L-shaped path passes nowhere near it — so the
   // path data is read and a real point on it mapped into screen coordinates.
+  // The effective opacity of the drawn line, not of one element in the chain.
+  // Which element carries the fade is an implementation detail and has moved
+  // once already (LT-112 put it on a group inside the edge rather than on the
+  // edge wrapper); what must hold is that the line ends up dim.
   const opacities = async () =>
-    page.locator(".react-flow__edge").evaluateAll((els) =>
-      els.map((e) => Number(getComputedStyle(e).opacity)),
+    page.locator(".react-flow__edge-path").evaluateAll((els) =>
+      els.map((el) => {
+        let o = 1;
+        let node = el;
+        while (node && node !== document.body) {
+          o *= Number(getComputedStyle(node).opacity);
+          node = node.parentElement;
+        }
+        return Math.round(o * 100) / 100;
+      }),
     );
 
   await page.mouse.move(5, 5);
@@ -1069,7 +1115,7 @@ const dragNode = async (selector, dx, dy, witnessSelector) => {
 // ---------------------------------------------------------------- holding
 // A link can be held in place deliberately, and there has to be a way back.
 {
-  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);
   const item = page.locator(".cv-menu button", { hasText: "Let every link follow its devices" });
   check("the canvas menu offers releasing held links", (await item.count()) === 1);
@@ -1425,7 +1471,7 @@ await dismissRecovery();
     // The drag checks above leave devices stacked on one another, so a click
     // lands on whichever is on top. Tidying spreads them out again — which is
     // what it is for.
-    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
     await page.waitForTimeout(250);
     await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
     await page.waitForTimeout(450);
@@ -1695,7 +1741,7 @@ await dismissRecovery();
 // already placed and none of them quite in line, which is one command rather
 // than five careful drags.
 {
-  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);
   await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
   await page.waitForTimeout(400);
@@ -1781,7 +1827,7 @@ await dismissRecovery();
 // Two switches and the link between them, repeated for eleven wiring closets,
 // is most of what drawing a real network consists of.
 {
-  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);
   await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
   await page.waitForTimeout(400);
@@ -1846,7 +1892,7 @@ await dismissRecovery();
 // How it is driven, which is the way Lucidchart and Visio do it because that
 // is what anyone opening this already knows.
 {
-  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);
   await page.locator(".cv-menu button", { hasText: "Tidy the layout" }).click();
   await page.waitForTimeout(400);
@@ -2081,7 +2127,7 @@ await dismissRecovery();
     `${await flowX()} vs ${wantX}`);
 
   // The explicit shrink.
-  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 640 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);
   await page.locator(".cv-menu button", { hasText: "Fit page to content" }).click();
   await page.waitForTimeout(500);
@@ -2201,15 +2247,18 @@ await dismissRecovery();
     const all = JSON.parse(localStorage.getItem("coreview.projects.v1") ?? "{}");
     const id = Object.keys(all)[0];
     const doc = all[id].document;
-    const marked = {
-      ...doc,
-      nodes: [...doc.nodes, {
-        id: "recovered-node", type: "device", position: { x: 900, y: 900 },
-        width: 168, height: 92,
-        data: { label: "RECOVERED-SW", deviceType: "access-switch", tags: [],
-          addresses: [], locked: false, maintenance: false, showDetails: true },
-      }],
+    // Since LT-094 a document holds pages, and the nodes live on one of
+    // them. This read `doc.nodes` and threw on every run after that landed.
+    const extra = {
+      id: "recovered-node", type: "device", position: { x: 900, y: 900 },
+      width: 168, height: 92,
+      data: { label: "RECOVERED-SW", deviceType: "access-switch", tags: [],
+        addresses: [], locked: false, maintenance: false, showDetails: true },
     };
+    const marked = doc.pages
+      ? { ...doc, pages: doc.pages.map((pg, i) =>
+          i === 0 ? { ...pg, nodes: [...pg.nodes, extra] } : pg) }
+      : { ...doc, nodes: [...doc.nodes, extra] };
     localStorage.setItem(`coreview.recovery.${id}`,
       JSON.stringify({ savedAt: Date.now() + 60_000, document: marked }));
     return id;
@@ -2267,7 +2316,7 @@ await dismissRecovery();
     (await page.locator(".cv-livecard").count()) === 0);
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    const node = st.doc.nodes.find((n) => n.data.label === "Core switch");
+    const node = window.__cvNodes().find((n) => n.data.label === "Core switch");
     const probe = { id: "e2e-probe", objectId: node.id, kind: "icmp",
       target: "192.0.2.10", isPrimary: true, enabled: true, intervalMs: 5000 };
     const runtime = new Map(st.runtime);
@@ -2275,7 +2324,7 @@ await dismissRecovery();
       lastRttMs: 3.2, lastSuccessMs: Date.now() - 4000, lastFailureMs: null,
       lastSummary: "reply from 192.0.2.10", consecutiveFailures: 0, failureThreshold: 3 });
     window.__cvStore.setState({
-      doc: { ...st.doc, probes: [...st.doc.probes, probe] },
+      doc: window.__cvDocWith({ probes: [...st.doc.probes, probe] }),
       runtime,
       session: { id: "e2e", state: "running", startedAt: Date.now() },
     });
@@ -2307,7 +2356,7 @@ await dismissRecovery();
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
     window.__cvStore.setState({
-      doc: { ...st.doc, probes: st.doc.probes.filter((pr) => pr.id !== "e2e-probe") },
+      doc: window.__cvDocWith({ probes: st.doc.probes.filter((pr) => pr.id !== "e2e-probe") }),
     });
   });
   await page.mouse.move(30, 400);
@@ -2318,11 +2367,11 @@ await dismissRecovery();
   await dismissRecovery();
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc, nodes: [...st.doc.nodes, {
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: [...window.__cvNodes(), {
       id: "txt1", type: "device", position: { x: 520, y: 40 }, width: 140, height: 40,
       data: { label: "Bare text", deviceType: "text", tags: [], addresses: [],
         locked: false, maintenance: false, showDetails: true },
-    }] } });
+    }] }) });
   });
   await page.waitForTimeout(400);
   const txt = page.locator(".react-flow__node", { hasText: "Bare text" }).first();
@@ -2339,7 +2388,7 @@ await dismissRecovery();
   await page.keyboard.press("Escape");
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc, nodes: st.doc.nodes.filter((n) => n.id !== "txt1") } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: window.__cvNodes().filter((n) => n.id !== "txt1") }) });
   });
 }
 
@@ -2378,7 +2427,7 @@ await dismissRecovery();
   await dismissRecovery();
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    const node = st.doc.nodes.find((n) => n.data.label === "Core switch");
+    const node = window.__cvNodes().find((n) => n.data.label === "Core switch");
     const probe = { id: "chip-probe", objectId: node.id, kind: "icmp",
       target: "192.0.2.10", isPrimary: true, enabled: true, intervalMs: 5000 };
     const runtime = new Map(st.runtime);
@@ -2386,7 +2435,7 @@ await dismissRecovery();
       lastRttMs: 1.0, lastSuccessMs: Date.now() - 3000, lastFailureMs: null,
       lastSummary: "Reply, 1 ms", consecutiveFailures: 0, failureThreshold: 3 });
     window.__cvStore.setState({
-      doc: { ...st.doc, probes: [...st.doc.probes, probe] },
+      doc: window.__cvDocWith({ probes: [...st.doc.probes, probe] }),
       runtime,
     });
   });
@@ -2412,7 +2461,7 @@ await dismissRecovery();
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
     window.__cvStore.setState({
-      doc: { ...st.doc, probes: st.doc.probes.filter((pr) => pr.id !== "chip-probe") },
+      doc: window.__cvDocWith({ probes: st.doc.probes.filter((pr) => pr.id !== "chip-probe") }),
     });
   });
 }
@@ -2496,8 +2545,8 @@ await dismissRecovery();
         enabled: true, maintenance: false,
         healthRule: { type: "manual", manualStatus: "healthy" } },
     });
-    window.__cvStore.setState({ doc: { ...st.doc, edges: [...st.doc.edges,
-      mk("lane-a", "Gi1/0/11", "Gi1/0/11"), mk("lane-b", "Gi1/0/12", "Gi1/0/12")] } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ edges: [...window.__cvEdges(),
+      mk("lane-a", "Gi1/0/11", "Gi1/0/11"), mk("lane-b", "Gi1/0/12", "Gi1/0/12")] }) });
   });
   await page.waitForTimeout(500);
   const chip = (t) => page.locator(".cv-edge-port", { hasText: t });
@@ -2521,8 +2570,7 @@ await dismissRecovery();
     d(srcBox) < d(dstBox) / 2, `to-src ${d(srcBox).toFixed(0)} to-dst ${d(dstBox).toFixed(0)}`);
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc,
-      edges: st.doc.edges.filter((e) => !e.id.startsWith("lane-")) } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ edges: window.__cvEdges().filter((e) => !e.id.startsWith("lane-")) }) });
   });
   await page.waitForTimeout(300);
 }
@@ -2537,11 +2585,11 @@ await dismissRecovery();
   await dismissRecovery();
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc, nodes: [...st.doc.nodes, {
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: [...window.__cvNodes(), {
       id: "hug1", type: "device", position: { x: 540, y: 420 }, width: 80, height: 80,
       data: { label: "Huggable", deviceType: "router", tags: [], addresses: [],
         locked: false, maintenance: false, showDetails: true },
-    }] } });
+    }] }) });
   });
   await page.waitForTimeout(400);
   const node = page.locator(".react-flow__node", { hasText: "Huggable" }).first();
@@ -2558,7 +2606,7 @@ await dismissRecovery();
   await page.keyboard.press("Escape");
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc, nodes: st.doc.nodes.filter((n) => n.id !== "hug1") } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: window.__cvNodes().filter((n) => n.id !== "hug1") }) });
   });
 }
 
@@ -2575,16 +2623,15 @@ await dismissRecovery();
       data: { label: id, deviceType: "router", tags: [], addresses: [],
         locked: false, maintenance: false, showDetails: true },
     });
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: [...st.doc.nodes, mkNode("lx1", 1400, 1200), mkNode("lx2", 1800, 1420)],
-      edges: [...st.doc.edges, {
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: [...window.__cvNodes(), mkNode("lx1", 1400, 1200), mkNode("lx2", 1800, 1420)],
+      edges: [...window.__cvEdges(), {
         id: "lx-e", source: "lx1", target: "lx2", sourceHandle: "r", targetHandle: "l",
         type: "live",
         data: { sourcePortLabel: "", targetPortLabel: "", label: "Uplink-LX",
           pathType: "smoothstep", direction: "none", width: 2, color: "#7c8fa3",
           enabled: true, maintenance: false,
           healthRule: { type: "manual", manualStatus: "healthy" } },
-      }] } });
+      }] }) });
   });
   await page.waitForTimeout(400);
   // Bring the staged pair into view.
@@ -2593,7 +2640,7 @@ await dismissRecovery();
   await page.waitForTimeout(500);
 
   const edge = () => page.evaluate(() =>
-    window.__cvStore.getState().doc.edges.find((e) => e.id === "lx-e"));
+    window.__cvEdges().find((e) => e.id === "lx-e"));
   const label = page.locator(".cv-edge-center", { hasText: "Uplink-LX" }).first();
   check("the centre label is there to drag", (await label.count()) === 1);
   const before = await label.boundingBox();
@@ -2666,9 +2713,8 @@ await dismissRecovery();
   }
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: st.doc.nodes.filter((n) => !n.id.startsWith("lx")),
-      edges: st.doc.edges.filter((e) => e.id !== "lx-e") } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: window.__cvNodes().filter((n) => !n.id.startsWith("lx")),
+      edges: window.__cvEdges().filter((e) => e.id !== "lx-e") }) });
   });
 }
 
@@ -2718,11 +2764,11 @@ await dismissRecovery();
   await dismissRecovery();
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc, nodes: [...st.doc.nodes, {
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: [...window.__cvNodes(), {
       id: "probeme", type: "device", position: { x: 900, y: 900 }, width: 76, height: 76,
       data: { label: "Probe-Me", deviceType: "router", tags: [], addresses: [],
         locked: false, maintenance: false, showDetails: true },
-    }] } });
+    }] }) });
   });
   const probes = () => page.evaluate(() =>
     window.__cvStore.getState().doc.probes.filter((p) => p.objectId === "probeme"));
@@ -2755,9 +2801,8 @@ await dismissRecovery();
     got[0].target === "203.0.113.5", got[0].target);
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: st.doc.nodes.filter((n) => n.id !== "probeme"),
-      probes: st.doc.probes.filter((p) => p.objectId !== "probeme") } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: window.__cvNodes().filter((n) => n.id !== "probeme"),
+      probes: st.doc.probes.filter((p) => p.objectId !== "probeme") }) });
   });
 }
 
@@ -2768,20 +2813,19 @@ await dismissRecovery();
     const st = window.__cvStore.getState();
     const mk = (id, x, y) => ({ id, type: "device", position: { x, y }, width: 76, height: 76,
       data: { label: id, deviceType: "router", tags: [], addresses: [], locked: false, maintenance: false, showDetails: true } });
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: [...st.doc.nodes, mk("wpa", 1500, 1500), mk("wpb", 1900, 1500)],
-      edges: [...st.doc.edges, { id: "wp-e", source: "wpa", target: "wpb", sourceHandle: "r", targetHandle: "l",
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: [...window.__cvNodes(), mk("wpa", 1500, 1500), mk("wpb", 1900, 1500)],
+      edges: [...window.__cvEdges(), { id: "wp-e", source: "wpa", target: "wpb", sourceHandle: "r", targetHandle: "l",
         type: "live", data: { sourcePortLabel: "", targetPortLabel: "", label: "", pathType: "straight",
           direction: "none", width: 2, color: "#7c8fa3", enabled: true, maintenance: false,
-          healthRule: { type: "manual", manualStatus: "healthy" } } }] } });
+          healthRule: { type: "manual", manualStatus: "healthy" } } }] }) });
   });
   await page.waitForTimeout(300);
   await page.locator(".react-flow__pane").click({ button: "right", position: { x: 40, y: 40 } });
   await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
   await page.waitForTimeout(500);
-  const edge = () => page.evaluate(() => window.__cvStore.getState().doc.edges.find((e) => e.id === "wp-e"));
+  const edge = () => page.evaluate(() => window.__cvEdges().find((e) => e.id === "wp-e"));
   // Select the link; a hollow midpoint handle appears — drag it to bend.
-  await page.locator('.react-flow__edge[data-id="wp-e"]').click();
+  await clickLink("wp-e");
   await page.waitForTimeout(300);
   const add = page.locator(".cv-edge-addpoint").first();
   check("a selected link shows a midpoint handle to bend it", (await add.count()) >= 1);
@@ -2817,9 +2861,8 @@ await dismissRecovery();
     ((await edge()).data.waypoints ?? []).length === 0);
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: st.doc.nodes.filter((n) => !n.id.startsWith("wp")),
-      edges: st.doc.edges.filter((e) => e.id !== "wp-e") } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: window.__cvNodes().filter((n) => !n.id.startsWith("wp")),
+      edges: window.__cvEdges().filter((e) => e.id !== "wp-e") }) });
   });
 }
 
@@ -2830,19 +2873,18 @@ await dismissRecovery();
     const st = window.__cvStore.getState();
     const mk = (id, x, y) => ({ id, type: "device", position: { x, y }, width: 76, height: 76,
       data: { label: id, deviceType: "router", tags: [], addresses: [], locked: false, maintenance: false, showDetails: true } });
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: [...st.doc.nodes, mk("ea", 1500, 1500), mk("eb", 1950, 1720)],
-      edges: [...st.doc.edges, { id: "el-e", source: "ea", target: "eb", sourceHandle: "r", targetHandle: "l",
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: [...window.__cvNodes(), mk("ea", 1500, 1500), mk("eb", 1950, 1720)],
+      edges: [...window.__cvEdges(), { id: "el-e", source: "ea", target: "eb", sourceHandle: "r", targetHandle: "l",
         type: "live", data: { sourcePortLabel: "", targetPortLabel: "", label: "", pathType: "step",
           direction: "none", width: 2, color: "#7c8fa3", enabled: true, maintenance: false,
-          healthRule: { type: "manual", manualStatus: "healthy" } } }] } });
+          healthRule: { type: "manual", manualStatus: "healthy" } } }] }) });
   });
   await page.waitForTimeout(300);
   await page.locator(".react-flow__pane").click({ button: "right", position: { x: 40, y: 40 } });
   await page.locator(".cv-menu button", { hasText: "Fit view" }).first().click();
   await page.waitForTimeout(500);
-  const edge = () => page.evaluate(() => window.__cvStore.getState().doc.edges.find((e) => e.id === "el-e"));
-  await page.locator('.react-flow__edge[data-id="el-e"]').click();
+  const edge = () => page.evaluate(() => window.__cvEdges().find((e) => e.id === "el-e"));
+  await clickLink("el-e");
   await page.waitForTimeout(300);
   const grip = page.locator(".cv-edge-grip").first();
   check("a selected step link shows segment grips", (await grip.count()) >= 1);
@@ -2867,9 +2909,8 @@ await dismissRecovery();
     ((await edge()).data.waypoints ?? []).length === 0, JSON.stringify((await edge()).data.waypoints));
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: st.doc.nodes.filter((n) => !n.id.startsWith("ea") && !n.id.startsWith("eb")),
-      edges: st.doc.edges.filter((e) => e.id !== "el-e") } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: window.__cvNodes().filter((n) => !n.id.startsWith("ea") && !n.id.startsWith("eb")),
+      edges: window.__cvEdges().filter((e) => e.id !== "el-e") }) });
   });
 }
 
@@ -2884,9 +2925,8 @@ await dismissRecovery();
       type: "live", data: { sourcePortLabel: "", targetPortLabel: "", label: "", pathType: kind,
         direction: "none", width: 2, color: "#7c8fa3", enabled: true, maintenance: false,
         healthRule: { type: "manual", manualStatus: "healthy" } } });
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: [...st.doc.nodes, mk("ha", 2200, 2200), mk("hb", 2700, 2450), mk("hc", 2200, 2800), mk("hd", 2700, 3000)],
-      edges: [...st.doc.edges, link("h-step", "ha", "hb", "smoothstep"), link("h-bez", "hc", "hd", "bezier")] } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: [...window.__cvNodes(), mk("ha", 2200, 2200), mk("hb", 2700, 2450), mk("hc", 2200, 2800), mk("hd", 2700, 3000)],
+      edges: [...window.__cvEdges(), link("h-step", "ha", "hb", "smoothstep"), link("h-bez", "hc", "hd", "bezier")] }) });
   });
   await page.waitForTimeout(300);
   await page.locator(".react-flow__pane").click({ button: "right", position: { x: 40, y: 40 } });
@@ -2894,13 +2934,13 @@ await dismissRecovery();
   await page.waitForTimeout(500);
 
   // LT-071: a smoothstep link shows a handful of grips, not a chain.
-  await page.locator('.react-flow__edge[data-id="h-step"]').click();
+  await clickLink("h-step");
   await page.waitForTimeout(300);
   const grips = await page.locator(".cv-edge-grip").count();
   check("a smoothstep link shows only a few grips", grips >= 1 && grips <= 4, `${grips} grips`);
 
   // LT-072: a bezier link offers a curve handle, and dragging bows the curve.
-  await page.locator('.react-flow__edge[data-id="h-bez"]').click();
+  await clickLink("h-bez");
   await page.waitForTimeout(300);
   const curve = page.locator(".cv-edge-curve");
   check("a bezier link offers one curve handle", (await curve.count()) === 1);
@@ -2915,16 +2955,15 @@ await dismissRecovery();
     await page.mouse.up();
     await page.waitForTimeout(400);
     const c = await page.evaluate(() =>
-      window.__cvStore.getState().doc.edges.find((e) => e.id === "h-bez").data.curvature);
+      window.__cvEdges().find((e) => e.id === "h-bez").data.curvature);
     check("dragging it stores a curvature on the link", typeof c === "number" && c > 0, `${c}`);
   } else {
     check("dragging it stores a curvature on the link", false, "no handle");
   }
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc,
-      nodes: st.doc.nodes.filter((n) => !["ha","hb","hc","hd"].includes(n.id)),
-      edges: st.doc.edges.filter((e) => !e.id.startsWith("h-")) } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ nodes: window.__cvNodes().filter((n) => !["ha","hb","hc","hd"].includes(n.id)),
+      edges: window.__cvEdges().filter((e) => !e.id.startsWith("h-")) }) });
   });
 }
 
@@ -3082,7 +3121,7 @@ await dismissRecovery();
 {
   await dismissRecovery();
   const edge = (id) => page.evaluate((eid) =>
-    window.__cvStore.getState().doc.edges.find((e) => e.id === eid)?.data, id);
+    window.__cvEdges().find((e) => e.id === eid)?.data, id);
 
   // A link between two fixture devices, so a fit puts it in open canvas.
   await page.evaluate(() => {
@@ -3143,9 +3182,85 @@ await dismissRecovery();
 
   await page.evaluate(() => {
     const st = window.__cvStore.getState();
-    window.__cvStore.setState({ doc: { ...st.doc,
-      canvas: { ...st.doc.canvas, linkStyle: undefined },
-      edges: st.doc.edges.filter((e) => e.id !== "d-new") } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({ canvas: { ...window.__cvCanvas(), linkStyle: undefined },
+      edges: window.__cvEdges().filter((e) => e.id !== "d-new") }) });
+  });
+}
+
+// --- LT-112: a link close to its devices is still clickable ------------------
+//
+// The wide transparent hit path lives in React Flow's edge layer, which is
+// drawn below the node layer, so a device's square 76px box covers the line
+// near it whatever shape is drawn inside. Two devices a hand's width apart on
+// screen left no clickable line at all: measured before the fix, at 130px
+// between centres 13 of 21 points along the line still reached it, at 95px
+// two, and at 85px none — clicking the line selected a device instead.
+{
+  await dismissRecovery();
+  // Two devices of their own, well away from everything else and close enough
+  // that their boxes nearly touch, joined by one link. Their own pair, because
+  // a second link between the same two devices would lie under this one and
+  // the check could not tell which of them the pointer found.
+  await page.evaluate(() => {
+    // Placed at whatever flow coordinate the middle of the canvas is showing,
+    // so they are on screen without moving the view to them.
+    const vp = document.querySelector(".react-flow__viewport");
+    const m = new DOMMatrixReadOnly(getComputedStyle(vp).transform);
+    const pane = document.querySelector(".react-flow__pane").getBoundingClientRect();
+    const cx = (pane.left + pane.width / 2 - m.e) / m.a;
+    const cy = (pane.top + pane.height / 2 - m.f) / m.d;
+    const mk = (id, dx) => ({ id, type: "device",
+      position: { x: Math.round(cx + dx), y: Math.round(cy) },
+      width: 76, height: 76,
+      data: { label: id, deviceType: "router", tags: [], addresses: [],
+              locked: false, maintenance: false, showDetails: true } });
+    window.__cvStore.setState({ doc: window.__cvDocWith({
+      nodes: [...window.__cvNodes().filter((n) => !n.id.startsWith("close")),
+              mk("close-a", -45), mk("close-b", 45)],
+      edges: [...window.__cvEdges().filter((e) => e.id !== "d-close"), {
+        id: "d-close", source: "close-a", target: "close-b", type: "live",
+        data: { sourcePortLabel: "", targetPortLabel: "", label: "", pathType: "straight",
+                direction: "none", width: 2, color: "#4c9be8", enabled: true,
+                maintenance: false, healthRule: { type: "manual", manualStatus: "healthy" } },
+      }],
+    }) });
+  });
+  await page.waitForTimeout(300);
+  // Work at a readable zoom. The band's width is in flow units, so it thins
+  // out with the zoom like everything else on the canvas; fitting a diagram
+  // that sprawls over four thousand units puts the whole thing at 0.14 and
+  // makes two devices ninety units apart touch on screen. That is not the
+  // case being tested.
+  for (let i = 0; i < 12; i += 1) {
+    const zoom = await page.evaluate(() => Number(getComputedStyle(
+      document.querySelector(".react-flow__viewport")).transform.split("(")[1].split(",")[0]));
+    if (zoom >= 0.9) break;
+    await page.locator(".react-flow__controls-zoomin").click();
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(400);
+
+  // Sampled between the two devices  // And the band must not take the device underneath away from the pointer.
+  const box = await page.locator('.react-flow__node[data-id="n3"]').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.waitForTimeout(250);
+  check("clicking a device still selects the device, not a link",
+    await page.locator('.react-flow__node[data-id="n3"].selected').count() === 1);
+
+  const before = await page.locator('.react-flow__node[data-id="n3"]').boundingBox();
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2 - 120, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const after = await page.locator('.react-flow__node[data-id="n3"]').boundingBox();
+  check("and dragging a device still moves it",
+    Math.abs(after.y - before.y) > 60, `moved ${Math.round(before.y - after.y)}px`);
+
+  await page.evaluate(() => {
+    window.__cvStore.setState({ doc: window.__cvDocWith({
+      nodes: window.__cvNodes().filter((n) => !n.id.startsWith("close")),
+      edges: window.__cvEdges().filter((e) => e.id !== "d-close") }) });
   });
 }
 

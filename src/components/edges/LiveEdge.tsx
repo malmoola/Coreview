@@ -39,6 +39,7 @@ import {
   registerPath,
   subscribePaths,
 } from './pathRegistry';
+import { setTraced, subscribeTraced, tracedEdge } from './traced';
 
 /** Kept as a named export because the diagram exporter and several panels
  *  import it. The canvas uses the ground-aware set instead. */
@@ -314,6 +315,11 @@ function LiveEdgeInner(props: EdgeProps) {
   // hop over the links it crosses.
   const isLeader = data.kind === 'leader';
   const jumpsEnabled = useStore((s) => activePage(s.doc).canvas.lineJumps ?? true);
+  // Which link the pointer is on, if any. A selected link never fades: it is
+  // the one being worked on, and losing sight of it while reaching for
+  // something else would be the opposite of helpful.
+  const traced = useSyncExternalStore(subscribeTraced, tracedEdge, tracedEdge);
+  const faded = traced !== null && traced !== id && !selected;
   const color = statusColors(ground)[status];
   // The line can be given a colour of its own — a fibre run, a carrier
   // circuit, a VLAN — without the link ceasing to be a live one. Everything
@@ -342,6 +348,11 @@ function LiveEdgeInner(props: EdgeProps) {
     registerPath(id, edgePath);
   }, [id, edgePath]);
   useEffect(() => () => forgetPath(id), [id]);
+  // A link deleted while the pointer was on it would otherwise leave every
+  // other link faded with nothing traced.
+  useEffect(() => () => {
+    if (tracedEdge() === id) setTraced(null);
+  }, [id]);
 
   // Re-ranked when the registry settles, or a chip keeps a stale rank after
   // its parallel neighbour appears.
@@ -709,6 +720,12 @@ function LiveEdgeInner(props: EdgeProps) {
           {endShape && capMarker('end', endShape)}
         </defs>
       )}
+      {/* Pointing at a link fades the rest of them. On a meshed diagram the
+          links necessarily cross, and no amount of routing removes that — but
+          only one of them has to be readable at a time. Only the drawn line
+          fades; the labels live outside this group and are left alone, so the
+          diagram never stops being legible while the pointer is near it. */}
+      <g opacity={faded ? 0.2 : 1} style={{ transition: 'opacity 120ms ease' }}>
       {/* Halo. A wider, translucent copy of the line reads as a glow without an
           SVG filter — a per-edge drop-shadow is the expensive way to do this. */}
       {animate && (
@@ -768,7 +785,43 @@ function LiveEdgeInner(props: EdgeProps) {
         <circle cx={labelX} cy={labelY} r={4} fill={STATUS_COLOR.down} opacity={0.9} />
       )}
 
+      </g>
+
       <EdgeLabelRenderer>
+        {/* LT-112: the band that makes a link clickable where it matters.
+
+            The wide transparent path above lives in React Flow's edge layer,
+            which is drawn *below* the node layer. So a click only reaches a
+            link where no device box covers it — and a device's box is square
+            and 76px across whatever shape is drawn inside it. Two devices a
+            hand's width apart on screen leave no clickable line at all: every
+            point on it is inside one box or the other, and clicking the line
+            selects a device instead. Measured before fixing: at 130px between
+            centres 13 of 21 sample points along the line still reached it, at
+            95px two, and at 85px none.
+
+            This copy sits in the label layer, which the endpoint handles
+            already use to get above the nodes. It is narrow — 12px, six
+            either side of the line — so it catches a deliberate click on a
+            visible line without taking the device underneath it away from the
+            pointer. */}
+        <svg className="cv-edge-hit" data-id={id} width="0" height="0" overflow="visible" aria-hidden>
+          <path
+            d={drawnPath}
+            className="nodrag nopan"
+            onPointerEnter={() => setTraced(id)}
+            onPointerLeave={() => setTraced(null)}
+            onPointerDown={(e) => {
+              // Ahead of the pane's own handler, which would clear the
+              // selection this is making.
+              e.stopPropagation();
+              useStore.getState().select(null, id);
+            }}
+          >
+            <title>{tooltip}</title>
+          </path>
+        </svg>
+
         {data.sourcePortLabel ? (
           <div
             className="cv-edge-label cv-edge-port nodrag nopan"

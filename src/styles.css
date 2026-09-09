@@ -1254,17 +1254,15 @@ select.cv-input option { background: var(--page); color: var(--ink); }
 /* ------------------------------------------------------- tracing one link */
 /* Pointing at a link fades the rest of them. On a meshed diagram the links
    necessarily cross, and no amount of routing removes that — but only one of
-   them has to be readable at a time, and this is the cheapest way to make
-   that one readable. Nodes and labels are untouched, so the diagram never
-   stops being legible while the pointer is anywhere near it. */
-.react-flow__edges:has(.react-flow__edge:hover) .react-flow__edge {
-  opacity: 0.2;
-  transition: opacity 120ms ease;
-}
-.react-flow__edges:has(.react-flow__edge:hover) .react-flow__edge:hover,
-.react-flow__edges:has(.react-flow__edge:hover) .react-flow__edge.selected {
-  opacity: 1;
-}
+   them has to be readable at a time. Nodes and labels are untouched, so the
+   diagram never stops being legible while the pointer is anywhere near it.
+
+   This was `.react-flow__edges:has(.react-flow__edge:hover)` until LT-112,
+   and can no longer be: the band the pointer actually lands on has to sit
+   above the node layer to be clickable at all, which puts it in a different
+   part of the tree from the line it belongs to, and no selector joins the two
+   back up. `edges/traced.ts` holds the id instead and each link fades itself,
+   which is also what lets a *selected* link stay bright. */
 .react-flow__edge { transition: opacity 160ms ease; }
 
 /* A shape whose outline a border cannot draw. Sits behind the label and takes
@@ -1611,12 +1609,14 @@ details[open] > .cv-palette-sub::before { transform: rotate(90deg); }
    costs the hover-the-link trick underneath them and is worth it. Flat text
    is written straight on the line: no box, no border, just ink with the
    canvas halo. --- */
-.cv-edge-center, .cv-edge-port { pointer-events: auto; cursor: grab; }
+/* Above the clickable band (LT-112), which covers the line these sit on. */
+.cv-edge-center, .cv-edge-port { pointer-events: auto; cursor: grab; z-index: 3; }
 .cv-edge-center:active, .cv-edge-port:active { cursor: grabbing; }
 .cv-edge-flat {
   position: absolute;
   pointer-events: auto;
   cursor: grab;
+  z-index: 3;
   background: none;
   border: none;
   font-family: var(--mono);
@@ -1697,6 +1697,24 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
 }
 .cv-edge-endpoint:hover { opacity: 1; background: var(--page); }
 .cv-edge-endpoint:active { cursor: grabbing; }
+
+/* --- LT-112: the clickable band along a link.
+   Drawn in the label layer so it sits above the nodes; the line itself stays
+   in the edge layer below them, because a cable passing behind a device is
+   what a diagram should look like. Only the stroke takes the pointer, and
+   only 12px of it, so this catches a deliberate click on a line without
+   taking the device under it away from the pointer. Below the endpoint and
+   waypoint handles, which must still win where they overlap. --- */
+/* Just above a node and no further. React Flow gives every node z-index 1 and
+   raises that for the one being dragged or selected, so 2 clears a resting
+   device while still letting the one actually being worked on come forward.
+   Everything on a link that can be grabbed — its labels, its waypoints, its
+   endpoint handles — sits above this, or the band swallows the drag. */
+.cv-edge-hit { position: absolute; left: 0; top: 0; overflow: visible; z-index: 2; }
+.cv-edge-hit path {
+  fill: none; stroke: transparent; stroke-width: 12;
+  pointer-events: stroke; cursor: pointer;
+}
 
 /* --- LT-073: what a broken panel looks like, instead of an empty window. --- */
 .cv-boundary {
