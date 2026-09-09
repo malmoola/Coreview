@@ -254,6 +254,16 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
         onMouseLeave={cardLeave}
       >
         {card}
+        {/* What the pointer actually lands on (LT-120).
+            A glyph is a symbol drawn inside a square box, and the box used to
+            capture the pointer across the whole of it — corners and margins
+            included, where nothing is drawn. A link running behind a device
+            was unreachable there, which is why one crossing a device could not
+            be selected. This is the device's hit area, and it is round,
+            matching the ring that marks it as selected: what you can click is
+            what looks like the device. The corners fall through to whatever is
+            underneath, which is the link. */}
+        <div className="cv-glyph-hit" />
         <NodeResizer
           isVisible={Boolean(selected) && !d.locked}
           keepAspectRatio

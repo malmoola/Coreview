@@ -3271,6 +3271,28 @@ await dismissRecovery();
     zoomedOut.total > 0 && zoomedOut.hit === zoomedOut.total,
     `${zoomedOut.hit}/${zoomedOut.total}`);
 
+  // LT-120: a device is a symbol drawn inside a square box, and the box used to
+  // take the pointer across all of it — so a link running behind a device was
+  // unreachable there. The hit area is now round, matching the ring that marks
+  // a device as selected, and the corners fall through to what is underneath.
+  const corners = await page.evaluate(() => {
+    const n = document.querySelector('.react-flow__node[data-id="close-a"]');
+    const r = n.getBoundingClientRect();
+    const at = (fx, fy) => document.elementFromPoint(r.x + r.width * fx, r.y + r.height * fy);
+    const mine = (el) => !!el?.closest?.('.react-flow__node[data-id="close-a"]');
+    return {
+      centre: !!at(0.5, 0.5)?.closest?.(".cv-glyph-hit"),
+      // Top-right is the status badge, which is meant to be there and is meant
+      // to be clickable. The other three are empty.
+      badge: !!at(0.96, 0.04)?.closest?.(".cv-glyph-badge"),
+      fellThrough: [[0.04, 0.04], [0.04, 0.96], [0.96, 0.96]].filter(([x, y]) => !mine(at(x, y))).length,
+    };
+  });
+  check("a device is clicked where its ring is", corners.centre);
+  check("and its empty corners fall through to whatever is behind it",
+    corners.fellThrough === 3, `${corners.fellThrough}/3`);
+  check("while the status badge keeps the corner it is drawn in", corners.badge);
+
   // And the band must not take the device underneath away from the pointer.
   const box = await page.locator('.react-flow__node[data-id="n3"]').boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);

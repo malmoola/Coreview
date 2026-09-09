@@ -17,7 +17,7 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
-### LT-120 — **bug, open** A selected device blocks the links around it
+### LT-120 — **bug, fixed** A device blocked the links around it
 **Source:** reported three times on 2026-09-09, most clearly with a screenshot
 of a device ringed by its selection circle and links running under it — "I
 still can't move all the lines / do you see this big circular its blocking me."
@@ -45,9 +45,43 @@ follows what is drawn would let a link pass behind a device and stay clickable
 without taking anything from the device's own handles. That is a change to how
 every device is hit-tested and wants its own careful pass rather than being
 squeezed in behind a link fix.
-**Not shipped rather than shipped broken.** The escalation is reverted; the
-comment on `.cv-edge-hit` records the limit so the next attempt does not start
-by rediscovering it.
+**Fixed 2026-09-09, in the hit area rather than the z-index.** A glyph device
+is a symbol drawn inside a square box, and an HTML element is a hit target
+across the whole of its box whether or not anything is painted there. So the
+square took every link that passed behind it. The device's hit area is now
+round — `.cv-glyph-hit`, matching the ring that marks it as selected, so what
+can be clicked is what looks like the device — and the empty corners fall
+through to whatever is underneath, which is the link.
+
+Two things this needed that were not obvious:
+
+- **React Flow writes `pointer-events` inline on every node** from its own
+  selectable/draggable state, and nothing but `!important` beats an inline
+  style. Scoped with `:has(> .cv-glyph-node)` so it reaches glyph devices only:
+  a note, a zone or a card-style device is a box, and a box should be clickable
+  everywhere.
+- **Events still reach the node.** Hit testing skips the wrapper, but an event
+  that starts on the hit area inside it bubbles through, which is what keeps
+  dragging, selecting and resizing working.
+
+**Measured, with a device selected**, on a dense diagram of the shape an import
+produces — thirty devices on a tight grid with links running across it, so
+plenty of links pass behind devices they are not attached to: **73% → 82%** of
+every link reachable. On a sparse six-device diagram the difference is 2
+points, because there the links barely cross anything; the dense case is the
+one that was reported.
+
+The first measurement of this said 25/78, which was wrong: it counted a link's
+own port and centre labels as blocking it, when those *are* that link and are
+draggable. Corrected, it is 65/78 → 67/78 sparse.
+
+**What still wins over a link, and should:** the circle where the device is
+drawn, and a device's own name. A link passing exactly under an icon leaves the
+icon clickable, which is the right way round.
+**What was tried first and backed out** — raising the band above the nodes —
+is described above; it made those links clickable and cost the ability to draw
+a new one, because above the nodes the band also covers their connection
+handles.
 
 ### LT-119 — Port labels take the full ink of the ground
 **Source:** asked 2026-09-09 — "need the ports to be bright light please when

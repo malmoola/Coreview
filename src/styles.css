@@ -986,11 +986,41 @@ select.cv-input option { background: var(--page); color: var(--ink); }
    resizing changed nothing visible. Now the art fills the node (so resizing
    scales the icon), and the text hangs below without counting toward the
    bounds. */
+/* React Flow's wrapper is the outer square, and it is a hit target across all
+   of it as well — so making the node inside transparent is not enough on its
+   own. Scoped by `:has` to glyph devices: a note, a zone or a card-style
+   device is a box, and a box should be clickable everywhere.
+
+   `!important` because React Flow writes `pointer-events` inline on every node
+   from its own selectable/draggable state, and nothing but this beats an
+   inline style. Events still reach it: hit testing skips this element, but an
+   event that starts on `.cv-glyph-hit` inside it still bubbles through, which
+   is what keeps dragging and selecting working. */
+.react-flow__node:has(> .cv-glyph-node) { pointer-events: none !important; }
+
 .cv-glyph-node {
   width: 100%; height: 100%;
   background: none; border: none; padding: 0;
   position: relative;
+  /* The node's own box takes no pointer events (LT-120). An HTML element is a
+     hit target across the whole of its box whether or not anything is painted
+     there, so a square node swallowed every link that passed behind it — for
+     a device with links converging on it from several angles, that was most of
+     them. What the pointer lands on is `.cv-glyph-hit` below, plus the things
+     that have always needed it: the handles, the badge, the name. */
+  pointer-events: none;
 }
+/* Round, matching the ring that marks a device as selected, so what can be
+   clicked is what looks like the device. Rounding an element's corners takes
+   them out of hit testing too, which is the whole point: a link crossing a
+   corner reaches the link. */
+.cv-glyph-hit {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+.cv-glyph-node .react-flow__handle,
+.cv-glyph-node .react-flow__resize-control { pointer-events: auto; }
 .cv-glyph-art {
   position: relative;
   width: 100%; height: 100%;
