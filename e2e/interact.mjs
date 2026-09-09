@@ -3412,6 +3412,40 @@ await dismissRecovery();
   }
 }
 
+// --- LT-119: a port label takes the full ink of the ground it is drawn on ---
+//
+// Muted grey was legible enough on neither ground. The ground is switched
+// through the store rather than the toolbar: by this point in the run the
+// toolbar has been clicked through a good deal, and this is a test about
+// colour, not about finding a button.
+{
+  await dismissRecovery();
+  const lum = (css) => {
+    const m = css.match(/\d+(\.\d+)?/g);
+    if (!m) return null;
+    const [r, g, b] = m.slice(0, 3).map(Number);
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  };
+  const setGround = async (ground) => {
+    await page.evaluate((g) => window.__cvStore.getState().setSettings({ ground: g }), ground);
+    await page.waitForTimeout(400);
+  };
+  const portInk = async () => {
+    const el = page.locator(".cv-edge-port").first();
+    return (await el.count()) ? lum(await el.evaluate((e) => getComputedStyle(e).color)) : null;
+  };
+
+  await setGround("dark");
+  const onDark = await portInk();
+  check("a port label is bright on the dark canvas", (onDark ?? 0) > 0.7, String(onDark));
+
+  await setGround("light");
+  const onWhite = await portInk();
+  check("and near-black on the white one", (onWhite ?? 1) < 0.3, String(onWhite));
+
+  await setGround("dark");
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

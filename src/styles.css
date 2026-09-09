@@ -504,7 +504,16 @@ select.cv-input option { background: var(--page); color: var(--ink); }
   border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--ink);
   font-family: var(--mono); white-space: nowrap;
 }
-.cv-edge-port { color: var(--ink-muted); background: var(--label-bg, rgba(10, 14, 19, 0.92)); }
+/* A port label is the thing on a link that is read most and is written
+   smallest, so it takes the full ink of whatever it is drawn on rather than
+   the muted tone: bright on the dark canvas, black on the white one. `--ink`
+   is remapped by the white-background ground, so this follows it without
+   knowing which is in use. Muted grey was legible enough on neither. */
+.cv-edge-port {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--label-bg, rgba(10, 14, 19, 0.92));
+}
 .cv-edge-center { font-family: var(--sans); display: inline-flex; gap: 5px; align-items: center; }
 .cv-edge-glyph { font-weight: 700; }
 
@@ -1705,11 +1714,15 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
    only 12px of it, so this catches a deliberate click on a line without
    taking the device under it away from the pointer. Below the endpoint and
    waypoint handles, which must still win where they overlap. --- */
-/* Just above a node and no further. React Flow gives every node z-index 1 and
-   raises that for the one being dragged or selected, so 2 clears a resting
-   device while still letting the one actually being worked on come forward.
-   Everything on a link that can be grabbed — its labels, its waypoints, its
-   endpoint handles — sits above this, or the band swallows the drag. */
+/* Just above a resting node, and no further.
+   Known limit (LT-120): React Flow raises a *selected* node to z-index 1004,
+   so a link crossing the device you have selected still cannot be clicked.
+   Raising this band over that was tried and backed out — above the nodes it
+   also covers their connection handles, and a new link could no longer be
+   drawn from, or dropped onto, a device. Trimming the band's ends mitigates
+   that for ordinary links but not for short ones, where there is nothing left
+   to trim. The fix needs the node's own hit area to stop being a full square,
+   not a bigger number here. */
 .cv-edge-hit { position: absolute; left: 0; top: 0; overflow: visible; z-index: 2; }
 .cv-edge-hit path {
   fill: none; stroke: transparent; stroke-width: 12;

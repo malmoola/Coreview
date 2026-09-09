@@ -17,6 +17,50 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-120 — **bug, open** A selected device blocks the links around it
+**Source:** reported three times on 2026-09-09, most clearly with a screenshot
+of a device ringed by its selection circle and links running under it — "I
+still can't move all the lines / do you see this big circular its blocking me."
+**Diagnosed, not fixed.** The circle is the glyph selection ring, and it is not
+what intercepts: it takes no pointer events. What intercepts is the device's
+own square node box. LT-112's clickable band sits at z-index 2, chosen from a
+two-node fixture where React Flow gave each node z-index 1. Measured on a real
+diagram it gives a resting node **4** and a selected node **1004**, so the band
+loses in both cases and a link crossing the device you are working on cannot be
+clicked at all.
+**What was tried and backed out.** Raising the band above the nodes (1100) does
+make those links clickable — measured, every sampled point, including while a
+neighbour is selected. But above the nodes it also covers their *connection
+handles*, and the harness caught the consequence immediately: a new link could
+no longer be drawn from a callout, because neither the handle it starts at nor
+the device it is dropped on could receive the pointer. Trimming the band's ends
+so the last pixels belong to the device fixes that for links of ordinary
+length, and cannot for short ones — there is nothing left to trim. Stepping the
+band aside while a connection is in progress does not help either, because the
+drag never starts.
+**Where the fix actually is:** the node's hit area, not this z-index. A device
+glyph is a symbol drawn inside a square box, and the box captures the pointer
+across its whole area including the parts that are empty. A hit area that
+follows what is drawn would let a link pass behind a device and stay clickable
+without taking anything from the device's own handles. That is a change to how
+every device is hit-tested and wants its own careful pass rather than being
+squeezed in behind a link fix.
+**Not shipped rather than shipped broken.** The escalation is reverted; the
+comment on `.cv-edge-hit` records the limit so the next attempt does not start
+by rediscovering it.
+
+### LT-119 — Port labels take the full ink of the ground
+**Source:** asked 2026-09-09 — "need the ports to be bright light please when
+the background is dark, and black text when the backgroud is white."
+**Built.** `.cv-edge-port` used `--ink-muted`, which is a mid grey on both
+grounds — legible enough on neither, and these are the smallest and most-read
+text on a diagram. It now uses `--ink`, which the white-background ground
+remaps, so the label follows whichever is in use without knowing which it is,
+and carries a little more weight at 10px. Measured: luminance 0.90 on the dark
+canvas, 0.10 on the white one. Both are checked in `e2e/interact.mjs`, which
+switches the ground through the store rather than hunting for the toolbar
+button.
+
 ### LT-118 — **bug** Imported devices arrived as unusable shapes
 **Source:** two reports on 2026-09-09 — "some of the imported diagrams they get
 locked shaped I can't adjust their boarders", with a screenshot of a device
