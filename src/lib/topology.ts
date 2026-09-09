@@ -17,6 +17,7 @@ import { chooseHandles } from './routeLinks';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type { DeviceNodeData, DeviceType, LinkData } from '../types/domain';
 import { uid } from './id';
+import { mergeSerials } from './serials';
 
 /** The glyph each discovered class is drawn with. */
 export const CLASS_GLYPH: Record<DeviceClassName, DeviceType> = {
@@ -204,7 +205,11 @@ export function buildTopology(
       if (seen.klass === 'unknown' && e.klass !== 'unknown') seen.klass = e.klass;
       if (!seen.platform && e.platform) seen.platform = e.platform;
       if (!seen.vendor && e.vendor) seen.vendor = e.vendor;
-      if (!seen.serial && e.serial) seen.serial = e.serial;
+      // Union, not first-wins. The same stack can arrive twice from two
+      // different neighbours, each advertising a different member's serial,
+      // and both are true — keeping the first would name one switch in a
+      // stack of four and look complete doing it.
+      seen.serial = mergeSerials(seen.serial, e.serial) ?? null;
       seen.depth = Math.min(seen.depth, e.depth);
     }
   };
@@ -216,6 +221,7 @@ export function buildTopology(
       address: d.probeTarget || d.address,
       klass: d.class,
       platform: d.platform,
+      serial: d.serial,
       reached: true,
       depth: d.hops,
     });
@@ -335,9 +341,15 @@ export function buildTopology(
   // A device already on the diagram is the same device found again. It keeps
   // its node and its position; only what the crawl newly knows is written.
   const alreadyDrawn = new Map<string, string>();
+  /** What that node already carries, for the fields that merge rather than
+   *  overwrite — a serial list being the one that must. */
+  const alreadyDrawnData = new Map<string, DeviceNodeData>();
   for (const n of opts.existingNodes ?? []) {
     const key = identityOfNode(n);
-    if (key) alreadyDrawn.set(key, n.id);
+    if (key) {
+      alreadyDrawn.set(key, n.id);
+      alreadyDrawnData.set(key, n.data as DeviceNodeData);
+    }
   }
 
   // Layered by how far each device is from the seed, which is the shape a
@@ -375,7 +387,13 @@ export function buildTopology(
           ];
         }
         if (e.platform) patch.model = e.platform;
-        if (e.serial) patch.serial = e.serial;
+        // Merged with whatever is already on the node, so a re-crawl that
+        // reaches a stack through a different neighbour adds a member rather
+        // than replacing the one already recorded.
+        if (e.serial) {
+          const already = alreadyDrawnData.get(e.key)?.serial;
+          patch.serial = mergeSerials(already, e.serial);
+        }
         if (Object.keys(patch).length > 0) updated.push({ id: seen, data: patch });
         return;
       }

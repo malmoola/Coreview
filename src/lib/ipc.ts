@@ -232,6 +232,9 @@ export type CrawledDevice = {
   probeTarget: string;
   class: DeviceClassName;
   platform: string | null;
+  /** Every chassis serial the device reported, comma-separated. A list rather
+   *  than a value because a stack is one device with several boxes in it. */
+  serial: string | null;
   version: string | null;
   neighbors: Neighbor[];
   hops: number;

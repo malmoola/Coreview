@@ -33,6 +33,7 @@ const device = (
   over: Partial<CrawledDevice> = {},
 ): CrawledDevice => ({
   hostname,
+  serial: null,
   address,
   addresses: [{ ip: address, interface: null, isManagement: true }],
   probeTarget: address,

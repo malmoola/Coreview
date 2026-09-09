@@ -49,6 +49,7 @@ const device = (hostname: string, address: string, neighbors: Neighbor[] = []): 
     hostname,
     address,
     addresses: [],
+    serial: null,
     probeTarget: address,
     class: 'switch',
     platform: null,

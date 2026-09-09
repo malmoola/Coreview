@@ -128,6 +128,13 @@ pub struct CrawledDevice {
     pub probe_target: String,
     pub class: DeviceClass,
     pub platform: Option<String>,
+    /// Every chassis serial this device reports, comma-separated.
+    ///
+    /// A list rather than one value because a stack is one device with several
+    /// boxes in it: one hostname, one management address, one node on a
+    /// diagram, and four switches that can each be RMA'd separately.
+    #[serde(default)]
+    pub serial: Option<String>,
     pub version: Option<String>,
     pub neighbors: Vec<Neighbor>,
     pub hops: usize,
@@ -527,6 +534,9 @@ async fn identify_over_snmp(
         probe_target: address.to_string(),
         class,
         platform: identity.description.clone(),
+        // SNMP's sysDescr is not a serial, and inventing one would be worse
+        // than leaving the field for the operator.
+        serial: None,
         version: identity.description,
         // SNMP told us what this is, not what it is connected to. Leaving this
         // empty is the honest answer.
@@ -894,6 +904,7 @@ async fn visit(
             probe_target,
             class,
             platform,
+            serial: serial_field(&serials_in_version(&version)),
             version: first_line(&version).map(str::to_string),
             neighbors: neighbors.clone(),
             hops,
@@ -977,6 +988,8 @@ fn reported_access_points(aps: &[crate::fortios::AccessPoint]) -> Vec<CrawledDev
                     .as_deref()
                     .and_then(|v| v.split('-').next())
                     .map(str::to_string),
+                // Reported by its controller, never logged into.
+                serial: None,
                 version: ap.software_version.clone(),
                 neighbors: ap.uplink.clone().into_iter().collect(),
                 hops: 0,
@@ -1139,6 +1152,81 @@ fn first_line(text: &str) -> Option<&str> {
     text.lines().map(str::trim).find(|l| !l.is_empty())
 }
 
+/// Every chassis serial in a `show version`, in the order the device lists
+/// them.
+///
+/// **A stack is one device with several serials**, and that is the ordinary
+/// case in a wiring closet, not an exotic one: a StackWise stack of four
+/// switches has one hostname, one management address and one entry on a
+/// diagram, but four boxes that can each be RMA'd. Returning only the first
+/// would name one member and quietly lose the rest, which is worse than
+/// useless on the one field a support case is raised against.
+///
+/// Read from `show version`, which the crawl already runs. `show inventory` is
+/// the fuller answer — it reaches line cards and optics too — but it is
+/// another round trip per device, and on a stack `show version` prints a
+/// `System Serial Number` per member, which is the question being asked here.
+///
+/// Deduplicated, because the first member's serial appears both in the summary
+/// at the top and again in its own block further down.
+pub fn serials_in_version(version: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut push = |candidate: &str| {
+        let v = candidate.trim().trim_matches('"').to_ascii_uppercase();
+        if looks_like_a_serial(&v) && !out.contains(&v) {
+            out.push(v);
+        }
+    };
+    for line in version.lines() {
+        let t = line.trim();
+        if let Some((label, value)) = t.split_once(':') {
+            let l = label.trim().to_ascii_lowercase();
+            // "System Serial Number     : FOC1932X0AB", once per stack member.
+            // The motherboard's own serial is a different part and is not what
+            // a support contract is keyed on, so it is skipped deliberately.
+            if l.contains("serial number") && !l.contains("motherboard") {
+                push(value);
+                continue;
+            }
+        }
+        // IOS and NX-OS single units, which print no "serial number" line at
+        // all: "Processor board ID FOC1932X0AB".
+        let lower = t.to_ascii_lowercase();
+        if let Some(rest) = lower
+            .strip_prefix("processor board id")
+            .or_else(|| lower.strip_prefix("processor board id:"))
+        {
+            let offset = t.len() - rest.len();
+            if let Some(word) = t[offset..].split_whitespace().next() {
+                push(word);
+            }
+        }
+    }
+    out
+}
+
+/// Whether a token could be a chassis serial.
+///
+/// Deliberately strict. A wrong serial is worse than a missing one, and a
+/// `show version` is full of things that sit next to a colon.
+fn looks_like_a_serial(v: &str) -> bool {
+    v.len() >= 8
+        && v.len() <= 20
+        && v.chars().all(|c| c.is_ascii_alphanumeric())
+        && v.chars().any(|c| c.is_ascii_digit())
+        && v.chars().any(|c| c.is_ascii_alphabetic())
+}
+
+/// The serials of a device as one field: `FOC1932X0AB, FOC1932X0CD`.
+///
+/// A comma and a space, because that is how a person writes a list and the
+/// field is read by people. Nothing else in the app splits on it — the CSV
+/// writer quotes a cell containing commas, so this survives a round trip
+/// through a spreadsheet.
+pub fn serial_field(serials: &[String]) -> Option<String> {
+    (!serials.is_empty()).then(|| serials.join(", "))
+}
+
 /// Pulls a model out of a `show version` banner, for classification.
 fn platform_from_version(version: &str) -> Option<String> {
     // A `show version` on a Catalyst runs to sixty lines and puts "Model
@@ -1169,6 +1257,87 @@ fn platform_from_version(version: &str) -> Option<String> {
     }
     // NX-OS puts the family in the banner rather than a model line.
     first_line(version).map(str::to_string)
+}
+
+#[cfg(test)]
+mod serial_tests {
+    use super::{serial_field, serials_in_version};
+
+    /// A four-member StackWise stack, in the shape IOS prints it: a summary
+    /// serial at the top and a block per switch below.
+    const STACK: &str = "\
+Cisco IOS Software, IOS-XE Software, Catalyst L3 Switch Software
+Technology Package License Information:
+
+System Serial Number            : FOC1932X0AA
+Motherboard Serial Number       : FOC1932MOTH
+
+Switch 02
+---------
+Switch uptime                   : 40 weeks, 2 days
+Base Ethernet MAC Address       : 00:11:22:33:44:55
+System Serial Number            : FOC1932X0BB
+
+Switch 03
+---------
+System Serial Number            : FOC1932X0CC
+
+Switch 04
+---------
+System Serial Number            : FOC1932X0DD
+";
+
+    #[test]
+    fn a_stack_yields_every_members_serial_in_order() {
+        // The case this exists for. One hostname, one address, one node on the
+        // diagram — four boxes that can each be RMA'd.
+        assert_eq!(
+            serials_in_version(STACK),
+            vec!["FOC1932X0AA", "FOC1932X0BB", "FOC1932X0CC", "FOC1932X0DD"]
+        );
+    }
+
+    #[test]
+    fn the_motherboard_serial_is_not_the_chassis_serial() {
+        // A different part, and not what a support contract is keyed on.
+        assert!(!serials_in_version(STACK).contains(&"FOC1932MOTH".to_string()));
+    }
+
+    #[test]
+    fn the_same_serial_printed_twice_is_listed_once() {
+        let twice = "System Serial Number : FOC1932X0AA\n\
+                     Switch 01\n\
+                     System Serial Number : FOC1932X0AA\n";
+        assert_eq!(serials_in_version(twice), vec!["FOC1932X0AA"]);
+    }
+
+    #[test]
+    fn a_single_switch_that_prints_no_serial_line_still_gives_one_up() {
+        // IOS and NX-OS on a lone unit: no "serial number" label anywhere.
+        let ios = "cisco WS-C2960X-24TS-L (PowerPC405) processor (revision H0)\n\
+                   Processor board ID FOC1932X0AB\n";
+        assert_eq!(serials_in_version(ios), vec!["FOC1932X0AB"]);
+    }
+
+    #[test]
+    fn nothing_that_merely_sits_next_to_a_colon_is_taken_for_a_serial() {
+        let noise = "\
+Technology Package License Information: none
+System Serial Number            :
+Uptime                          : 40 weeks
+Configuration register is 0x2102
+";
+        assert_eq!(serials_in_version(noise), Vec::<String>::new());
+    }
+
+    #[test]
+    fn the_field_reads_as_a_list_a_person_would_write() {
+        assert_eq!(
+            serial_field(&serials_in_version(STACK)).as_deref(),
+            Some("FOC1932X0AA, FOC1932X0BB, FOC1932X0CC, FOC1932X0DD")
+        );
+        assert_eq!(serial_field(&[]), None);
+    }
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ import { DEFAULTS, deviceColor } from '../../theme';
 
 import { useStore } from '../../state/store';
 import { uid } from '../../lib/id';
+import { serialCount } from '../../lib/serials';
 import { newProbe } from '../../lib/probes';
 import { spanOf } from '../../lib/dtg';
 import { formatTime, isLocalFormat, zoneLabel } from '../../lib/timeFormat';
@@ -922,11 +923,22 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           worked out from anything else on the diagram. A crawl fills it in
           where the device will say it. */}
       <div className="cv-row">
-        <Field label="Serial number">
+        <Field
+          label="Serial number"
+          // A stack is one device with several boxes in it, so this is a list.
+          // The count is shown rather than assumed: an operator who expects
+          // four members and sees three has found something.
+          hint={
+            serialCount(d.serial) > 1
+              ? `${serialCount(d.serial)} chassis — a stack or a pair`
+              : 'Several, comma-separated, for a stack'
+          }
+        >
           <input
             className="cv-input cv-mono"
             value={d.serial ?? ''}
             spellCheck={false}
+            placeholder="FOC1932X0AA, FOC1932X0BB"
             onChange={(e) => update(nodeId, { serial: e.target.value })}
           />
         </Field>

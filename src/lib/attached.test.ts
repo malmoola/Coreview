@@ -19,6 +19,7 @@ const host = (name: string, attached: AttachedDevice[]): CrawledDevice =>
     hostname: name,
     address: '10.0.0.1',
     addresses: [],
+    serial: null,
     probeTarget: '10.0.0.1',
     class: 'switch',
     platform: null,

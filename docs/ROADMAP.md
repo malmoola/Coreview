@@ -17,6 +17,50 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-115 — A stack is one device with several serials
+**Source:** asked 2026-09-09 — "Address the crawl's serial when we have cluster
+of switches. There should be a comma separator."
+**Correct, and it was a real hole.** LT-114 shipped `serial` as a single value
+and took the first one it found. A StackWise stack, a VSS pair or a chassis
+with two supervisors is one hostname, one management address and one node on a
+diagram — and four boxes that can each be RMA'd separately. Naming one of them
+and dropping the rest is worse than useless on the one field a support case is
+raised against, because it looks complete while being wrong.
+**Built.**
+
+- **`serials_in_version`** reads every chassis serial out of `show version`,
+  which the crawl already runs — so no extra round trip per device, which
+  matters on a large crawl. IOS prints a `System Serial Number` per stack
+  member; a lone unit that prints no serial line at all is caught by
+  `Processor board ID`. The motherboard serial is skipped deliberately: it is a
+  different part and not what a support contract is keyed on. Deduplicated,
+  because the first member appears both in the summary and in its own block.
+  `show inventory` is the fuller answer — it reaches line cards and optics —
+  but that is another round trip, and optics serials are not what was asked
+  for.
+- **Merging is a union, not first-wins.** This is the subtle half. The same
+  stack can reach the crawl twice from two different neighbours, each
+  advertising a *different* member's serial in its CDP device id, and both are
+  true. `src/lib/serials.ts` merges them, keeping discovery order so the member
+  reported first — the master — stays first. A re-crawl adds a member rather
+  than replacing the one already recorded.
+- **The field is edited by hand**, so it reads commas, semicolons, slashes and
+  runs of spaces, normalises case, and drops repeats. It says how many chassis
+  it names: an operator expecting four members and seeing three has found
+  something.
+- **The comma survives the CSV**, which is the one thing that format is worst
+  at. The writer already quoted a cell containing one; a test now pins the
+  round trip rather than trusting it.
+
+**Verified:** eight parser tests against the real `show version` shapes, eleven
+on merging, three on the CSV round trip, and live in the harness — a three-
+serial stack is kept whole on one device and described as a stack, and a single
+switch is not.
+**Still honest about the limit:** no device here to crawl, so the parsing is
+tested against captured output shapes rather than live hardware, and VSS pairs
+and Nexus chassis that report their members through `show module` rather than
+`show version` will still give one serial until that is read too.
+
 ### LT-114 — The serial on the device, and a diagram that runs top to bottom
 **Source:** asked 2026-09-08 — "some engineer asked on reddit if anyone knows a
 tool to fully digram a network and map it with real links and real data flow

@@ -3319,6 +3319,20 @@ await dismissRecovery();
   check("and an asset tag beside it, which is the organisation's own number",
     (await page.getByText("Asset tag", { exact: true }).count()) === 1);
 
+  // A stack is one device with several boxes in it. The field holds the list,
+  // and says how many, because an operator expecting four members and seeing
+  // three has found something.
+  await serial.fill("FOC1932X0AA, FOC1932X0BB, FOC1932X0CC");
+  await page.waitForTimeout(400);
+  check("a stack's serials are all kept on the one device",
+    (await serial.inputValue()) === "FOC1932X0AA, FOC1932X0BB, FOC1932X0CC");
+  check("and the field says how many chassis that is",
+    (await page.getByText("3 chassis — a stack or a pair").count()) === 1);
+  await serial.fill("EXA1000A001");
+  await page.waitForTimeout(300);
+  check("a single switch is not described as a stack",
+    (await page.getByText(/chassis — a stack/).count()) === 0);
+
   await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
   await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
   await page.waitForTimeout(250);

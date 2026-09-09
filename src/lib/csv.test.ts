@@ -129,3 +129,39 @@ describe('writing the diagram back out', () => {
     expect(errors).toEqual([]);
   });
 });
+
+describe("a stack's serials through the CSV", () => {
+  it('survives the comma inside the cell', () => {
+    // The field holds a list, and the separator is the one thing CSV is worst
+    // at. The writer quotes the cell; this proves the reader gets it back.
+    const csv = nodesToCsv([{
+      label: 'ACC-STACK-01', type: 'access-switch', address: '192.0.2.31',
+      probeType: 'icmp', tags: [], serial: 'FOC1932X0AA, FOC1932X0BB, FOC1932X0CC',
+    }]);
+    expect(csv).toContain('"FOC1932X0AA, FOC1932X0BB, FOC1932X0CC"');
+    const { rows, errors } = parseNodeCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows[0]?.serial).toBe('FOC1932X0AA, FOC1932X0BB, FOC1932X0CC');
+    expect(rows[0]?.name).toBe('ACC-STACK-01');
+  });
+
+  it('carries vendor, model and asset tag with it', () => {
+    const csv = nodesToCsv([{
+      label: 'CORE-SW-01', type: 'core-switch', address: '192.0.2.20',
+      probeType: 'icmp', tags: [], vendor: 'Example', model: 'Model 9000',
+      serial: 'EXA9000A001', assetTag: 'ASSET-4471',
+    }]);
+    const { rows } = parseNodeCsv(csv);
+    expect(rows[0]).toMatchObject({
+      vendor: 'Example', model: 'Model 9000',
+      serial: 'EXA9000A001', assetTag: 'ASSET-4471',
+    });
+  });
+
+  it('still reads a sheet written before those columns existed', () => {
+    const { rows, errors } = parseNodeCsv('Name,Type,IP\r\nSW-01,access-switch,192.0.2.31');
+    expect(errors).toEqual([]);
+    expect(rows[0]?.name).toBe('SW-01');
+    expect(rows[0]?.serial).toBeUndefined();
+  });
+});
