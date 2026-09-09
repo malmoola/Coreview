@@ -319,6 +319,10 @@ export function TopBar({ onExit }: { onExit: () => void }) {
         port: probe?.kind === 'tcp' ? (probe.tcpPort ?? undefined) : undefined,
         notes: d.notes ?? '',
         tags: d.tags ?? [],
+        vendor: d.vendor,
+        model: d.model,
+        serial: d.serial,
+        assetTag: d.assetTag,
       };
     });
     void runExport(`${slug(meta.name)}-devices.csv`, () => nodesToCsv(rows), 'text/csv');

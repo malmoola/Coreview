@@ -6,9 +6,9 @@
 //
 //   node e2e/dnd.mjs
 import { chromium } from "playwright";
-import { readFileSync } from "node:fs";
+import { packageFromArgv } from "./fixture.mjs";
 
-const pkg = JSON.parse(readFileSync(process.argv[2], "utf8"));
+const pkg = packageFromArgv();
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];

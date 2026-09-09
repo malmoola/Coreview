@@ -31,7 +31,7 @@ import type { DeviceNodeData, DeviceType } from '../types/domain';
 import type { TopoEdge } from '../state/store';
 import { linkStyleDefaults } from '../lib/linkDefaults';
 import { activePage } from '../lib/pages';
-import { importedAddresses, importedLinkData } from '../lib/visioImportModel';
+import { importedAddresses, importedLinkData, shapeProperty } from '../lib/visioImportModel';
 import { placeDevices } from '../lib/visioLayout';
 
 /** A device as it stands in the preview, after any correction. */
@@ -244,10 +244,19 @@ export function VisioImportPanel() {
         const props = Object.entries(d.properties ?? {});
         if (props.length) {
           data.notes = props.map(([k, v]) => `${k}: ${v}`).join('\n');
-          const vendor = d.properties.Manufacturer ?? d.properties.manufacturer;
+          // The fields Visio's own network stencils carry, under any of the
+          // spellings a drawing uses for them. An inventory somebody already
+          // typed into a diagram should not have to be typed again.
+          const vendor = shapeProperty(d.properties, 'Manufacturer', 'Vendor', 'Make');
           if (vendor) data.vendor = vendor;
-          const room = d.properties.Room ?? d.properties.room;
+          const room = shapeProperty(d.properties, 'Room', 'Rack', 'Location');
           if (room) data.rack = room;
+          const model = shapeProperty(d.properties, 'Product Number', 'Part Number', 'Model');
+          if (model) data.model = model;
+          const serial = shapeProperty(d.properties, 'Serial Number', 'Serial', 'Serial No');
+          if (serial) data.serial = serial;
+          const asset = shapeProperty(d.properties, 'Asset Number', 'Asset Tag', 'Asset ID');
+          if (asset) data.assetTag = asset;
         }
         store.addNode(node);
         idToNode.set(d.id, node.id);

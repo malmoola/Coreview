@@ -64,3 +64,24 @@ export function importedAddresses(addresses: string[]): NodeAddress[] {
     isPrimary: i === 0,
   }));
 }
+
+/**
+ * A Shape Data value by any of the names a drawing might use for it.
+ *
+ * Visio's own network shapes ship with `Manufacturer`, `Product Number`,
+ * `Serial Number`, `Asset Number`, `Room`; a drawing built by hand uses
+ * whatever the person typed. Keys are compared with spaces, dashes and
+ * underscores removed and case ignored, so `Serial Number`, `serial_number`
+ * and `SerialNo` are one field.
+ */
+export function shapeProperty(
+  properties: Record<string, string>,
+  ...names: string[]
+): string | undefined {
+  const norm = (k: string) => k.toLowerCase().replace(/[\s_-]/g, '');
+  const wanted = names.map(norm);
+  for (const [key, value] of Object.entries(properties)) {
+    if (value && wanted.includes(norm(key))) return value;
+  }
+  return undefined;
+}

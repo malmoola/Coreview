@@ -1178,6 +1178,7 @@ mod tests {
 
     fn neighbor(name: &str, local: &str, protocol: Protocol) -> Neighbor {
         Neighbor {
+            serial: None,
             device_id: name.into(),
             short_name: name.into(),
             addresses: vec![],

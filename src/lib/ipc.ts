@@ -193,6 +193,9 @@ export type Neighbor = {
   localInterface: string | null;
   remoteInterface: string | null;
   platform: string | null;
+  /** The chassis serial, where the neighbour advertised one. CDP carries it
+   *  in brackets after the device id; LLDP and FortiLink do not. */
+  serial: string | null;
   capabilities: string[];
   version: string | null;
   class: DeviceClassName;

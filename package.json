@@ -17,7 +17,11 @@
     "e2e:responsive": "node e2e/responsive.mjs",
     "e2e:change": "node e2e/change.mjs",
     "e2e:library": "node e2e/library.mjs",
-    "test:stencils": "vitest run scripts/import-pptx-stencils.test.mjs"
+    "test:stencils": "vitest run scripts/import-pptx-stencils.test.mjs",
+    "e2e:brand": "node e2e/brand.mjs",
+    "e2e:dnd": "node e2e/dnd.mjs",
+    "e2e:drive": "node e2e/drive.mjs",
+    "e2e": "node e2e/interact.mjs && node e2e/change.mjs && node e2e/library.mjs && node e2e/responsive.mjs && node e2e/brand.mjs && node e2e/dnd.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",

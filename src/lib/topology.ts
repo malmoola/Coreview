@@ -162,6 +162,10 @@ interface Entry {
   address: string;
   klass: DeviceClassName;
   platform: string | null;
+  /** The chassis serial, where a device gave one away — CDP carries it in
+   *  brackets after the device id. The number an RMA and a support contract
+   *  are keyed on, so it is worth landing on the diagram. */
+  serial?: string | null;
   reached: boolean;
   depth: number;
 }
@@ -200,6 +204,7 @@ export function buildTopology(
       if (seen.klass === 'unknown' && e.klass !== 'unknown') seen.klass = e.klass;
       if (!seen.platform && e.platform) seen.platform = e.platform;
       if (!seen.vendor && e.vendor) seen.vendor = e.vendor;
+      if (!seen.serial && e.serial) seen.serial = e.serial;
       seen.depth = Math.min(seen.depth, e.depth);
     }
   };
@@ -224,6 +229,7 @@ export function buildTopology(
     address: n.addresses[0]?.ip ?? '',
     klass: n.class,
     platform: n.platform,
+    serial: n.serial,
     reached: false,
     depth,
   });
@@ -369,6 +375,7 @@ export function buildTopology(
           ];
         }
         if (e.platform) patch.model = e.platform;
+        if (e.serial) patch.serial = e.serial;
         if (Object.keys(patch).length > 0) updated.push({ id: seen, data: patch });
         return;
       }
@@ -389,6 +396,7 @@ export function buildTopology(
         maintenance: false,
         showDetails: true,
         ...(e.platform ? { model: e.platform } : e.vendor ? { model: e.vendor } : {}),
+        ...(e.serial ? { serial: e.serial } : {}),
       };
       nodes.push({
         id,

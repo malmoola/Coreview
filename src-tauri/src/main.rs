@@ -64,6 +64,16 @@ fn fit_to_screen(app: &tauri::App) {
 fn main() {
     let db_path = db::data_dir().join("coreview.db");
     let conn = db::open(&db_path).expect("could not open the local Coreview database");
+    // Sweep up anything a project deleted before the cascade existed left
+    // behind — its event timeline carries device names and the addresses they
+    // were checked at, which is exactly what deleting a project is for.
+    match db::purge_orphans(&conn) {
+        Ok(0) => {}
+        Ok(n) => eprintln!("removed {n} rows belonging to projects that no longer exist"),
+        // Not fatal: a start that refuses to happen is worse than one that
+        // leaves the sweeping until next time.
+        Err(e) => eprintln!("could not sweep up after deleted projects: {e}"),
+    }
     let (engine, rx) = Engine::new(DEFAULT_MAX_CONCURRENCY);
     let engine_for_exit = Arc::clone(&engine);
 

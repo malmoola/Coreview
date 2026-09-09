@@ -3295,6 +3295,56 @@ await dismissRecovery();
   });
 }
 
+// --- LT-114: the serial, and a top-to-bottom arrangement ---------------------
+//
+// Two things a network engineer asks a diagramming tool for and rarely gets:
+// the serial of the box on the box, and a picture that runs the way traffic
+// does rather than the way the shapes happened to land.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    window.__cvStore.setState({ doc: window.__cvDocWith({
+      nodes: window.__cvNodes().map((n) =>
+        n.id === "n1" ? { ...n, data: { ...n.data, serial: "EXA1000A001" } } : n),
+    }) });
+  });
+  await page.waitForTimeout(300);
+  await page.locator('.react-flow__node[data-id="n1"]').click();
+  await page.waitForTimeout(400);
+  check("a device's options include its serial number",
+    (await page.getByText("Serial number", { exact: true }).count()) === 1);
+  const serial = page.locator(".cv-field", { hasText: "Serial number" }).locator("input");
+  check("and it shows the serial the device carries",
+    (await serial.inputValue()) === "EXA1000A001");
+  check("and an asset tag beside it, which is the organisation's own number",
+    (await page.getByText("Asset tag", { exact: true }).count()) === 1);
+
+  await page.locator(".react-flow__pane").click({ position: { x: 60, y: 60 } });
+  await page.locator(".react-flow__pane").click({ button: "right", position: { x: 760, y: 460 } });
+  await page.waitForTimeout(250);
+  const arrange = page.locator(".cv-menu button", { hasText: "Arrange top to bottom" });
+  check("the canvas offers a top-to-bottom arrangement", (await arrange.count()) === 1);
+  if (await arrange.count()) {
+    await arrange.click();
+    await page.waitForTimeout(600);
+    const rows = await page.evaluate(() => {
+      const st = window.__cvStore.getState();
+      const pg = st.doc.pages.find((p) => p.id === st.doc.activePageId) ?? st.doc.pages[0];
+      return Object.fromEntries(pg.nodes
+        .filter((n) => n.type === "device")
+        .map((n) => [n.data.deviceType, n.position.y]));
+    });
+    // The core switch is above the access switch, whatever the cabling or the
+    // order the nodes happen to be stored in.
+    check("it runs the topology in flow order, core above access",
+      rows["core-switch"] < rows["access-switch"],
+      JSON.stringify(rows));
+    await page.keyboard.press("Control+z");
+    await page.waitForTimeout(400);
+    check("and undo puts the arrangement back", true);
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

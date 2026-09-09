@@ -917,6 +917,28 @@ function NodeInspector({ nodeId }: { nodeId: string }) {
           />
         </Field>
       </div>
+      {/* The serial is the number an RMA, a support contract and a licence
+          are all keyed on, and the one piece of inventory that cannot be
+          worked out from anything else on the diagram. A crawl fills it in
+          where the device will say it. */}
+      <div className="cv-row">
+        <Field label="Serial number">
+          <input
+            className="cv-input cv-mono"
+            value={d.serial ?? ''}
+            spellCheck={false}
+            onChange={(e) => update(nodeId, { serial: e.target.value })}
+          />
+        </Field>
+        <Field label="Asset tag">
+          <input
+            className="cv-input cv-mono"
+            value={d.assetTag ?? ''}
+            spellCheck={false}
+            onChange={(e) => update(nodeId, { assetTag: e.target.value })}
+          />
+        </Field>
+      </div>
       <div className="cv-row">
         <ColorField label="Icon" value={d.style?.iconColor ?? auto} isSet={!!d.style?.iconColor}
           onChange={(v) => setColor('iconColor', v)} onReset={() => resetColor('iconColor')} />

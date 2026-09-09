@@ -17,6 +17,66 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-114 — The serial on the device, and a diagram that runs top to bottom
+**Source:** asked 2026-09-08 — "some engineer asked on reddit if anyone knows a
+tool to fully digram a network and map it with real links and real data flow
+plus note the devices serial numbers on the devices options. We have most of it
+but when i click the device to show its options i don't see the the SN its
+useful plus real flow digram and top to bottom is something helpful."
+**Built.**
+
+**The serial, everywhere it should be.** `serial` and `assetTag` on a device —
+two fields, not one, because the serial is the vendor's number and the asset
+tag is the organisation's, and reconciling them is the job. The serial is what
+an RMA, a support contract and a licence are all keyed on, and the one piece of
+inventory that cannot be worked out from anything else on the diagram. It is
+typed in the inspector, exported to and imported from the device CSV (added at
+the end of the columns, and the importer is header-driven, so an older sheet
+still lines up), read from a Visio drawing's Shape Data under any of the names
+a drawing uses for it, and **filled in by a crawl**: CDP advertises it in
+brackets after the device id — `N9K-2(FDO12345678)` — where the name parser had
+always had to strip it to avoid duplicate devices and simply threw it away.
+Only a plausible serial is taken, since a wrong one is worse than none: it is
+the field a support case is raised against.
+
+**A top-to-bottom flow layout** (`src/lib/hierarchyLayout.ts`), offered on the
+canvas menu beside Tidy. The two are opposites and both are wanted: Tidy fixes
+the spacing of an arrangement somebody made by hand and must not move anything
+else; this replaces the arrangement, which is what a crawled or imported
+topology needs and a hand-drawn one does not. Tiers come from **what the device
+is** first — a firewall sits above a core switch and below the internet
+whatever the cabling says, and that is the part a generic graph layout cannot
+know and most of why those produce diagrams nobody recognises. A device whose
+type says nothing takes a tier below the highest thing it is plugged into,
+repeatedly, so a chain of unknowns resolves; an isolated unknown goes to the
+bottom rather than somewhere arbitrary in the middle. Empty bands are closed
+up, so a topology with no firewalls has no gap where the firewalls would have
+been. Within a tier, order is the median of each node's neighbours in the tier
+above — the standard cure for crossings — over two sweeps, because a layout
+that keeps shuffling is one an operator cannot predict. Locked devices are left
+where they are and reported.
+
+**Also found and fixed while doing this: deleting a project left its history.**
+A project's event timeline carries each device's *name* and the address it was
+checked at. `ON DELETE CASCADE` and the `foreign_keys` pragma already handled
+new deletions correctly — but nothing pinned that, and a database written
+before those constraints existed still held the rows. This machine's had six.
+`purge_orphans` now sweeps them at startup, and two tests hold the behaviour:
+one that a delete really does take the history, so a dropped pragma cannot
+break it silently, and one that a pre-constraint database is swept clean.
+
+**And the e2e suite can now be run as a suite.** Three of the seven harnesses
+took a project package as `argv[2]` and threw an unhandled `TypeError` with no
+explanation when run without one, so "run the e2e tests" required knowing each
+script's arguments. They fall back to `e2e/fixture.mjs` — a small invented
+topology on documentation addresses — and `npm run e2e` runs the lot. All seven
+pass.
+
+**Verified live** in the browser harness: the serial appears on a device's
+options and shows what the device carries, the canvas offers the arrangement,
+and it puts the core above the access layer. Both are permanent checks in
+`e2e/interact.mjs` now.
+
 ### LT-113 — Import: the enhancements that were being carried as "still open"
 **Source:** asked 2026-09-08 — "all the enhancement you're talking about and
 thinking of make them any other enhancements that you can think of make it",

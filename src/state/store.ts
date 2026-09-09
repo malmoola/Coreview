@@ -10,6 +10,7 @@ import type { TimeFormat } from '../lib/timeFormat';
 import { linkStyleDefaults, type LinkStyleDefaults } from '../lib/linkDefaults';
 import { groupBySubnet as bucketBySubnet } from '../lib/subnetGroups';
 import { tidyLayout as evenOutSpacing } from '../lib/tidyLayout';
+import { hierarchicalLayout } from '../lib/hierarchyLayout';
 import { routeLinks as chooseLinkSides } from '../lib/routeLinks';
 import { zoneDeltas } from '../lib/zones';
 import { alignTo, distribute } from '../lib/alignment';
@@ -218,6 +219,10 @@ interface Store {
   /** Binds each subnet's devices together. Returns how many groups were made. */
   groupBySubnet: () => { groups: number; ungrouped: number };
   tidyLayout: () => { moved: number; rows: number; locked: number };
+  /** Rearranges the page as a top-to-bottom flow. Unlike `tidyLayout`, this
+   *  deliberately moves things: it is for a topology that arrived without an
+   *  arrangement worth keeping. */
+  flowLayout: () => { moved: number; tiers: number; locked: number };
   routeLinks: () => number;
   addLayer: (name: string) => void;
   removeLayer: (id: string) => void;
@@ -789,6 +794,37 @@ export const useStore = create<Store>((set, get) => ({
       dirty: true,
     }));
     return { moved: moved.size, rows, locked };
+  },
+
+  flowLayout() {
+    const page = activePage(get().doc);
+    // Devices only. A note is an annotation about a place on the diagram, and
+    // sweeping notes into the hierarchy would file each one under a tier it
+    // has no business being in.
+    const devices = page.nodes.filter((n) => n.type === 'device');
+    const { moved, tiers, locked } = hierarchicalLayout(
+      devices.map((n) => ({
+        id: n.id,
+        deviceType: (n.data as DeviceNodeData).deviceType,
+        width: n.width ?? 76,
+        height: n.height ?? 76,
+        locked: (n.data as DeviceNodeData).locked,
+      })),
+      page.edges.map((e) => ({ source: e.source, target: e.target })),
+      { originX: 80, originY: 80 },
+    );
+    if (moved.size === 0) return { moved: 0, tiers, locked };
+    get().commit('Arrange top to bottom');
+    set((state) => ({
+      doc: withPage(state.doc, {
+        nodes: activePage(state.doc).nodes.map((n) => {
+          const at = moved.get(n.id);
+          return at ? ({ ...n, position: at } as TopoNode) : n;
+        }),
+      }),
+      dirty: true,
+    }));
+    return { moved: moved.size, tiers, locked };
   },
 
   routeLinks() {

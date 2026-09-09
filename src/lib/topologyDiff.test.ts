@@ -30,6 +30,7 @@ const edge = (id: string, source: string, target: string, sp: string, tp: string
 
 const neighbor = (name: string, local: string, remote: string, ip = ''): Neighbor => ({
   deviceId: name,
+  serial: null,
   shortName: name,
   addresses: ip ? [{ ip, interface: null, isManagement: true }] : [],
   localInterface: local,

@@ -441,6 +441,25 @@ export function Canvas() {
           );
         },
       },
+      {
+        // The other half of the pair. Tidy keeps the arrangement and fixes the
+        // spacing; this replaces the arrangement, which is what a crawled or
+        // imported topology usually needs and a hand-drawn one usually does
+        // not. Named for what it produces rather than for the algorithm.
+        label: 'Arrange top to bottom',
+        onSelect: () => {
+          const { moved, tiers, locked } = store.flowLayout();
+          store.setStatusMessage(
+            moved === 0
+              ? 'Nothing to arrange on this page.'
+              : `Arranged ${moved} device${moved === 1 ? '' : 's'} into ${tiers} layer${
+                  tiers === 1 ? '' : 's'
+                }, internet at the top.` +
+                (locked ? ` ${locked} locked device${locked === 1 ? '' : 's'} left alone.` : '') +
+                ' Undo puts it back.',
+          );
+        },
+      },
       ...(['health', 'role', 'subnet', 'tag', 'vlan'] as const)
         .filter((by) => by !== (pg.canvas.colourBy ?? 'health'))
         .map((by) => ({

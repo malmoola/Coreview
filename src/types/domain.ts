@@ -116,6 +116,14 @@ export interface DeviceNodeData extends Record<string, unknown> {
   hostname?: string;
   vendor?: string;
   model?: string;
+  /** The chassis serial. The number an RMA, a support contract and a licence
+   *  are all keyed on, so it is the one piece of inventory an engineer needs
+   *  off the diagram and cannot derive from anything else on it. Discovery
+   *  fills it in where a device will say it; otherwise it is typed. */
+  serial?: string;
+  /** Whatever the asset register calls this box. Not the serial: one is the
+   *  vendor's and one is the organisation's, and reconciling them is the job. */
+  assetTag?: string;
   role?: string;
   site?: string;
   rack?: string;

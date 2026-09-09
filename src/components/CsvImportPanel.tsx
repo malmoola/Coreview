@@ -75,6 +75,10 @@ export function CsvImportPanel() {
       d.label = r.name;
       d.tags = r.tags;
       if (r.notes) d.notes = r.notes;
+      if (r.vendor) d.vendor = r.vendor;
+      if (r.model) d.model = r.model;
+      if (r.serial) d.serial = r.serial;
+      if (r.assetTag) d.assetTag = r.assetTag;
       if (r.address) {
         d.addresses = [{ id: uid(), label: 'Imported', address: r.address, isPrimary: true }];
       }
@@ -169,8 +173,9 @@ export function CsvImportPanel() {
         </button>
         <span className="cv-help">
           A device list needs a <code>name</code> column; <code>type</code>, <code>ip</code>,
-          <code> probe type</code>, <code>port</code>, <code>tags</code> and <code>notes</code> are
-          used when present. A link list needs <code>source</code> and <code>target</code>, matched
+          <code> probe type</code>, <code>port</code>, <code>tags</code>, <code>notes</code>,
+          <code> vendor</code>, <code>model</code>, <code>serial number</code> and
+          <code> asset tag</code> are used when present. A link list needs <code>source</code> and <code>target</code>, matched
           against the names already on the diagram.
         </span>
       </div>

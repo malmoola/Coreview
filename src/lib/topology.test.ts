@@ -11,6 +11,7 @@ const neighbor = (
   over: Partial<Neighbor> = {},
 ): Neighbor => ({
   deviceId: name,
+  serial: null,
   shortName: name.split('.')[0] ?? name,
   addresses: over.addresses ?? [{ ip: '', interface: null, isManagement: false }],
   localInterface: local,

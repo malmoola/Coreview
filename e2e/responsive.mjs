@@ -4,9 +4,9 @@
 // tested is CSS, so this drives a real browser at real viewport sizes and
 // measures what the layout actually does rather than what the rules say.
 import { chromium } from "playwright";
-import { readFileSync } from "node:fs";
+import { packageFromArgv } from "./fixture.mjs";
 
-const pkg = JSON.parse(readFileSync(process.argv[2], "utf8"));
+const pkg = packageFromArgv();
 const out = process.argv[3];
 
 const SIZES = [

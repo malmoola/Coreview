@@ -17,6 +17,27 @@ use std::collections::BTreeSet;
 use crate::classify::classify;
 use crate::types::{DeviceAddress, Neighbor, Protocol};
 
+/// The chassis serial a device id gives away, where it has one.
+///
+/// NX-OS advertises `N9K-2(FDO12345678)`. `short_name` has always had to strip
+/// that to keep the same device from appearing twice under two names; it used
+/// to drop it on the floor. It is the number an RMA, a support contract and a
+/// licence are keyed on, so it is worth carrying instead.
+///
+/// Only a plausible serial is taken. Brackets after a device id hold other
+/// things too, and a wrong serial on a device is worse than none: it is the
+/// field somebody raises a case against.
+pub fn serial_in_device_id(device_id: &str) -> Option<String> {
+    let (_, rest) = device_id.trim().split_once('(')?;
+    let inner = rest.strip_suffix(')')?.trim();
+    let plausible = inner.len() >= 8
+        && inner.len() <= 20
+        && inner.chars().all(|c| c.is_ascii_alphanumeric())
+        && inner.chars().any(|c| c.is_ascii_digit())
+        && inner.chars().any(|c| c.is_ascii_alphabetic());
+    plausible.then(|| inner.to_ascii_uppercase())
+}
+
 /// Reduces a CDP device ID to a diagram label.
 ///
 /// CDP reports whatever the neighbour calls itself, which may be a bare
@@ -38,6 +59,31 @@ pub fn short_name(device_id: &str) -> String {
     match id.split_once('.') {
         Some((first, _)) if !first.is_empty() => first.to_string(),
         _ => id.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod serial_tests {
+    use super::serial_in_device_id;
+
+    #[test]
+    fn takes_the_serial_nx_os_puts_after_the_name() {
+        assert_eq!(serial_in_device_id("N9K-2(FDO12345678)"), Some("FDO12345678".into()));
+        assert_eq!(serial_in_device_id("sw1.example.com(FOC1848X0AB)"), Some("FOC1848X0AB".into()));
+        // Normalised, because the same box can be advertised either way and a
+        // serial that differs only in case is the same serial.
+        assert_eq!(serial_in_device_id("SW(fdo12345678)"), Some("FDO12345678".into()));
+    }
+
+    #[test]
+    fn refuses_brackets_that_are_not_a_serial() {
+        // A wrong serial is worse than none: it is the field a support case
+        // is raised against.
+        assert_eq!(serial_in_device_id("core-sw-01"), None);
+        assert_eq!(serial_in_device_id("switch (spare)"), None, "a word is not a serial");
+        assert_eq!(serial_in_device_id("sw(12345678)"), None, "digits alone are not");
+        assert_eq!(serial_in_device_id("sw(AB12)"), None, "too short");
+        assert_eq!(serial_in_device_id("sw(unterminated"), None);
     }
 }
 
@@ -189,6 +235,7 @@ fn parse_entry(block: &str) -> Option<Neighbor> {
     }
     let class = classify(platform.as_deref(), &capabilities, version.as_deref());
     Some(Neighbor {
+        serial: serial_in_device_id(&device_id),
         device_id,
         short_name: short,
         addresses,

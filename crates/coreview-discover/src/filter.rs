@@ -165,6 +165,7 @@ mod tests {
 
     fn device(name: &str, ip: &str, class: DeviceClass) -> Neighbor {
         Neighbor {
+            serial: None,
             device_id: format!("{name}.lab.example.com"),
             short_name: name.to_string(),
             addresses: if ip.is_empty() {

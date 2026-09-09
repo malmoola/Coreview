@@ -245,6 +245,14 @@ pub struct Neighbor {
     pub version: Option<String>,
     pub class: DeviceClass,
     pub discovered_by: Protocol,
+    /// The chassis serial, where the neighbour gave one away.
+    ///
+    /// NX-OS puts it in brackets after the device id — `N9K-2(FDO12345678)` —
+    /// and the name parser has always had to strip it to avoid duplicate
+    /// devices. It was thrown away there; it is the number an RMA and a
+    /// support contract are keyed on, so it is worth keeping instead.
+    #[serde(default)]
+    pub serial: Option<String>,
     /// The LLDP chassis id, when there was one. Usually a MAC, which is what
     /// lets a neighbour that advertises no address be looked up in the ARP
     /// table of the device that saw it. CDP has no equivalent.

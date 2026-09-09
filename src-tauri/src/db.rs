@@ -368,9 +368,43 @@ pub fn load_project(conn: &Connection, id: &str) -> rusqlite::Result<Option<Proj
     Ok(pkg)
 }
 
+/// Deletes a project.
+///
+/// Its validation sessions and event timeline go too, and the probe samples
+/// under those — `ON DELETE CASCADE` on the schema does it, and `open` turns
+/// `foreign_keys` on for every connection, which is what makes the constraint
+/// more than decoration. That matters more than it looks: an event carries the
+/// device's *name* and the address it was checked at, so a project that left
+/// its history behind would leave exactly the details someone deletes a
+/// project to be rid of. `deleting_a_project_takes_its_history_with_it` pins
+/// it, because a dropped pragma would break it silently.
 pub fn delete_project(conn: &Connection, id: &str) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM projects WHERE id = ?1", params![id])?;
     Ok(())
+}
+
+/// Removes anything left behind by a project that is already gone.
+///
+/// Deleting a project used to leave its sessions, events and samples in place,
+/// so any database written before that was fixed still holds them. Run once at
+/// startup: it is cheap, it is idempotent, and it is the only way those rows
+/// ever go away.
+pub fn purge_orphans(conn: &Connection) -> rusqlite::Result<usize> {
+    let tx = conn.unchecked_transaction()?;
+    let mut removed = tx.execute(
+        "DELETE FROM probe_samples WHERE session_id NOT IN (SELECT id FROM validation_sessions)",
+        [],
+    )?;
+    removed += tx.execute(
+        "DELETE FROM events WHERE project_id NOT IN (SELECT id FROM projects)",
+        [],
+    )?;
+    removed += tx.execute(
+        "DELETE FROM validation_sessions WHERE project_id NOT IN (SELECT id FROM projects)",
+        [],
+    )?;
+    tx.commit()?;
+    Ok(removed)
 }
 
 pub fn set_archived(conn: &Connection, id: &str, archived: bool) -> rusqlite::Result<()> {
@@ -883,6 +917,81 @@ mod tests {
             document_version: DOCUMENT_VERSION,
             document: serde_json::json!({ "nodes": [{"id": "n1"}], "links": [] }),
         }
+    }
+
+    /// The event a deleted project must not leave behind.
+    fn event(project: &str, session: &str, name: &str, target: &str) -> EventRow {
+        EventRow {
+            id: format!("{project}-{name}"),
+            project_id: project.into(),
+            session_id: Some(session.into()),
+            timestamp_ms: 1,
+            object_type: "node".into(),
+            object_id: "n1".into(),
+            object_name: name.into(),
+            event_type: "status".into(),
+            previous_status: None,
+            current_status: Some("down".into()),
+            probe_type: Some("icmp".into()),
+            target: Some(target.into()),
+            rtt_ms: None,
+            message: String::new(),
+        }
+    }
+
+    #[test]
+    fn deleting_a_project_takes_its_history_with_it() {
+        // An event carries the device's name and the address it was checked
+        // at. Deleting the project row alone left exactly the details someone
+        // deletes a project to be rid of, in a table nothing would ever show
+        // them again.
+        let c = mem();
+        upsert_project(&c, &pkg("p1", "Going")).unwrap();
+        upsert_project(&c, &pkg("p2", "Staying")).unwrap();
+        open_session(&c, "s1", "p1", "Operator").unwrap();
+        open_session(&c, "s2", "p2", "Operator").unwrap();
+        insert_event(&c, &event("p1", "s1", "EDGE-FW-01", "192.0.2.10")).unwrap();
+        insert_event(&c, &event("p2", "s2", "CORE-SW-01", "192.0.2.20")).unwrap();
+
+        delete_project(&c, "p1").unwrap();
+
+        let count = |sql: &str| -> i64 { c.query_row(sql, [], |r| r.get(0)).unwrap() };
+        assert_eq!(count("SELECT COUNT(*) FROM events WHERE project_id = 'p1'"), 0);
+        assert_eq!(
+            count("SELECT COUNT(*) FROM validation_sessions WHERE project_id = 'p1'"),
+            0
+        );
+        // And the project that was not deleted is untouched.
+        assert_eq!(count("SELECT COUNT(*) FROM events WHERE project_id = 'p2'"), 1);
+        assert_eq!(
+            count("SELECT COUNT(*) FROM validation_sessions WHERE project_id = 'p2'"),
+            1
+        );
+    }
+
+    #[test]
+    fn a_database_written_before_the_cascade_is_swept_clean() {
+        // Every database written before that fix still holds the rows, and
+        // nothing else will ever remove them.
+        let c = mem();
+        upsert_project(&c, &pkg("p1", "Going")).unwrap();
+        open_session(&c, "s1", "p1", "Operator").unwrap();
+        insert_event(&c, &event("p1", "s1", "EDGE-FW-01", "192.0.2.10")).unwrap();
+        // A database written before the constraints existed: with the pragma
+        // off, the project row goes and its history stays, which is exactly
+        // the state the real one was found in.
+        c.pragma_update(None, "foreign_keys", "OFF").unwrap();
+        c.execute("DELETE FROM projects WHERE id = 'p1'", []).unwrap();
+        c.pragma_update(None, "foreign_keys", "ON").unwrap();
+
+        let count = |sql: &str| -> i64 { c.query_row(sql, [], |r| r.get(0)).unwrap() };
+        assert_eq!(count("SELECT COUNT(*) FROM events"), 1, "precondition");
+
+        assert!(purge_orphans(&c).unwrap() >= 2);
+        assert_eq!(count("SELECT COUNT(*) FROM events"), 0);
+        assert_eq!(count("SELECT COUNT(*) FROM validation_sessions"), 0);
+        // Idempotent, since it runs at every start.
+        assert_eq!(purge_orphans(&c).unwrap(), 0);
     }
 
     /// Test case 17: a saved project reloads with its diagram intact.

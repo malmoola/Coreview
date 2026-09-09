@@ -84,6 +84,14 @@ export interface NodeCsvRow {
   port?: number;
   notes?: string;
   tags: string[];
+  /** Inventory. A diagram that knows the serial of every box on it is an
+   *  asset register that happens to be drawn, and the serial is what an RMA,
+   *  a support contract and a licence are all keyed on. Optional throughout:
+   *  a file written before these columns existed still imports. */
+  vendor?: string;
+  model?: string;
+  serial?: string;
+  assetTag?: string;
 }
 
 export interface LinkCsvRow {
@@ -130,6 +138,12 @@ export function parseNodeCsv(text: string): { rows: NodeCsvRow[]; errors: string
         .split(/[;|]/)
         .map((t) => t.trim())
         .filter(Boolean),
+      vendor: get(r, 'vendor') || undefined,
+      model: get(r, 'model') || undefined,
+      // `indexHeader` strips spaces, dashes and underscores, so "Serial
+      // number", "serial_number" and "SerialNumber" are the same column.
+      serial: get(r, 'serialnumber') || get(r, 'serial') || undefined,
+      assetTag: get(r, 'assettag') || get(r, 'asset') || undefined,
     });
   });
   return { rows, errors };
@@ -188,10 +202,17 @@ export function parseLinkCsv(text: string): { rows: LinkCsvRow[]; errors: string
  * A project package is the format that keeps a layout.
  */
 export function nodesToCsv(
-  nodes: { label: string; type: string; address: string; probeType: string; port?: number; notes?: string; tags: string[] }[],
+  nodes: {
+    label: string; type: string; address: string; probeType: string; port?: number;
+    notes?: string; tags: string[];
+    vendor?: string; model?: string; serial?: string; assetTag?: string;
+  }[],
 ): string {
+  // Inventory goes on the end, so a spreadsheet built against the old columns
+  // still lines up and the header-driven importer reads either.
   return toCsv([
-    ['Name', 'Type', 'IP', 'Probe type', 'Port', 'Notes', 'Tags'],
+    ['Name', 'Type', 'IP', 'Probe type', 'Port', 'Notes', 'Tags',
+     'Vendor', 'Model', 'Serial number', 'Asset tag'],
     ...nodes.map((n) => [
       n.label,
       n.type,
@@ -202,6 +223,10 @@ export function nodesToCsv(
       // Semicolons, because a comma inside a cell is the thing this format is
       // worst at and the importer splits on these.
       n.tags.join('; '),
+      n.vendor ?? '',
+      n.model ?? '',
+      n.serial ?? '',
+      n.assetTag ?? '',
     ]),
   ]);
 }

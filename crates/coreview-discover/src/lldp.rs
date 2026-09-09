@@ -124,6 +124,8 @@ fn parse_entry(block: &str) -> Option<Neighbor> {
     let class = classify(platform.as_deref(), &capabilities, description.as_deref());
 
     Some(Neighbor {
+        // FortiOS and LLDP do not advertise one.
+        serial: None,
         device_id,
         short_name,
         addresses,

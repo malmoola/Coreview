@@ -147,6 +147,8 @@ pub fn parse_lldp_summary(out: &str) -> Vec<Neighbor> {
         let remote = cut("Port-ID");
 
         neighbors.push(Neighbor {
+            // FortiOS and LLDP do not advertise one.
+            serial: None,
             device_id: name.clone(),
             short_name: name.split('.').next().unwrap_or(&name).to_string(),
             addresses: Vec::new(),
@@ -495,6 +497,7 @@ fn uplink_from(fields: &[(String, String)]) -> Option<Neighbor> {
         .and_then(|v| v.split_whitespace().last())
         .and_then(crate::arp::normalise_mac);
     Some(Neighbor {
+        serial: None,
         device_id: name.to_string(),
         short_name: name.split('.').next().unwrap_or(name).to_string(),
         addresses: Vec::new(),
@@ -570,6 +573,7 @@ pub fn parse_managed_switches(out: &str) -> Vec<Neighbor> {
             continue;
         }
         found.push(Neighbor {
+            serial: None,
             device_id: serial.to_string(),
             short_name: serial.to_string(),
             addresses: Vec::new(),

@@ -1,9 +1,11 @@
 // Screenshot the launcher and an open project after the rename, and check that
 // no element still carries an old lt- class (which would be an unstyled leak).
 import { chromium } from "playwright";
-import { readFileSync } from "node:fs";
-const pkg = JSON.parse(readFileSync(process.argv[2], "utf8"));
-const out = process.argv[3];
+import { packageFromArgv } from "./fixture.mjs";
+const pkg = packageFromArgv();
+// Screenshots only when a directory is asked for. Without this the template
+// wrote to a folder literally named "undefined".
+const out = process.argv[3] ?? null;
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errors = [];
@@ -13,11 +15,11 @@ await page.addInitScript((p) => {
 }, pkg);
 await page.goto("http://localhost:5173/", { waitUntil: "networkidle" });
 await page.waitForTimeout(800);
-await page.screenshot({ path: `${out}/brand-launcher.png` });
+if (out) await page.screenshot({ path: `${out}/brand-launcher.png` });
 await page.locator(".cv-project-open").first().click();
 await page.waitForSelector(".react-flow__node", { timeout: 15000 });
 await page.waitForTimeout(1200);
-await page.screenshot({ path: `${out}/brand-project.png` });
+if (out) await page.screenshot({ path: `${out}/brand-project.png` });
 const stale = await page.evaluate(() =>
   [...document.querySelectorAll("*")]
     .flatMap((e) => [...e.classList])
