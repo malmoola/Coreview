@@ -1713,6 +1713,11 @@ details[open] > .cv-palette-lib::before { content: '▾'; }
 .cv-edge-hit { position: absolute; left: 0; top: 0; overflow: visible; z-index: 2; }
 .cv-edge-hit path {
   fill: none; stroke: transparent; stroke-width: 12;
+  /* Twelve *screen* pixels, not twelve canvas units. Without this the band
+     shrinks with the zoom like everything else on the canvas, and a link
+     stops being clickable long before it stops being visible — measured at
+     0.14 zoom, where the band is under two pixels wide. */
+  vector-effect: non-scaling-stroke;
   pointer-events: stroke; cursor: pointer;
 }
 

@@ -3240,7 +3240,38 @@ await dismissRecovery();
   }
   await page.waitForTimeout(400);
 
-  // Sampled between the two devices  // And the band must not take the device underneath away from the pointer.
+  // Sampled between the two devices  // Zoomed well out, the link must still be clickable. The band's width is a
+  // stroke, so without `vector-effect: non-scaling-stroke` it shrinks with the
+  // canvas and a link stops being clickable long before it stops being
+  // visible — under two pixels wide at 0.14 zoom, measured.
+  for (let i = 0; i < 10; i += 1) {
+    const zoom = await page.evaluate(() => Number(getComputedStyle(
+      document.querySelector(".react-flow__viewport")).transform.split("(")[1].split(",")[0]));
+    if (zoom <= 0.3) break;
+    await page.locator(".react-flow__controls-zoomout").click();
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(400);
+  const zoomedOut = await page.evaluate(() => {
+    const band = document.querySelector('.cv-edge-hit[data-id="d-close"] path');
+    if (!band) return { total: 0, hit: 0 };
+    let hit = 0;
+    let total = 0;
+    for (let i = 6; i <= 14; i += 1) {
+      const pt = band.getPointAtLength((band.getTotalLength() * i) / 20);
+      const m = band.getScreenCTM();
+      const el = document.elementFromPoint(m.a * pt.x + m.c * pt.y + m.e,
+                                           m.b * pt.x + m.d * pt.y + m.f);
+      total += 1;
+      if (el?.closest?.('[data-id="d-close"]')) hit += 1;
+    }
+    return { total, hit };
+  });
+  check("and stays clickable zoomed well out, where the line is still visible",
+    zoomedOut.total > 0 && zoomedOut.hit === zoomedOut.total,
+    `${zoomedOut.hit}/${zoomedOut.total}`);
+
+  // And the band must not take the device underneath away from the pointer.
   const box = await page.locator('.react-flow__node[data-id="n3"]').boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(250);

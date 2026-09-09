@@ -17,6 +17,46 @@ bar rather than a piece of work, and does not count against that.*
 already finished, some literally titled "resolved". Flagged to the operator
 2026-09-06; not reorganised without being asked.)*
 
+### LT-113 — Import: the enhancements that were being carried as "still open"
+**Source:** asked 2026-09-08 — "all the enhancement you're talking about and
+thinking of make them any other enhancements that you can think of make it",
+alongside a repeat of the bezier request.
+**Built, each with the check that would have caught it going wrong:**
+
+1. **The bezier default is now a test, not a claim.** It shipped under LT-112
+   but nothing asserted it, which is why it was reasonable to ask twice. Link
+   and address construction moved out of the panel into
+   `src/lib/visioImportModel.ts`, where `importedLinkData` states both of its
+   departures from the diagram's own style — a curve rather than a smooth
+   step, and a colour the drawing stated winning over the default — and ten
+   tests hold them.
+2. **A drawing that glues nothing now yields its links.** The Lucidchart
+   family, and the failure was worse than "no links": a `com.lucidchart.Line`
+   was not recognised as a connector at all, so every cable was imported as a
+   *device*. A master is now read as a cable when its **last word** is
+   connector/line/link — the last word, because `Catalyst 6500 Line Card` and
+   `Inline power injector` are equipment that merely mention one, and
+   matching any word turned the line card into a cable. The ends resolve by
+   geometry and the links are marked not-glued, so they are flagged for
+   review rather than asserted.
+3. **Every address a caption carried is kept as an address.** The second and
+   later ones used to be flattened into the notes as text, which is where an
+   address goes to be forgotten. They are real addresses, the model already
+   holds as many as you like, and a check can be aimed at one later.
+4. **A `.vsd` is named rather than merely refused.** The pre-2013 binary
+   format is an OLE compound file with a fixed signature, so it is recognised
+   and the error says what to do about it, instead of "this does not look
+   like a .vsdx file" when the fix is one Save As away.
+5. **LT-108 fixed** — see that entry. One list, used by both canvas and
+   export.
+6. **The zoom limit under LT-112 removed** — see that entry.
+
+**Not done, and why:** the Lucidchart drawings are no longer on this machine,
+so item 2 is covered by a synthetic fixture and by reasoning about the
+format, not by a measurement against a real file. Said plainly rather than
+implied. The drawing that *is* available still reads 37 devices, 70 links and
+62 with a port — unchanged, which is the point of re-measuring it.
+
 ### LT-112 — **bug** A link close to its devices cannot be clicked
 **Source:** reported 2026-09-08 with a screenshot of a router and the links
 meeting it — "I can't select the link to move it, if i select it will select
@@ -57,10 +97,14 @@ them back up. `src/components/edges/traced.ts` holds the id instead and each
 link fades itself. Deliberately outside the app store, so a hover does not
 enter the undo history or every save. A side benefit: a *selected* link now
 stays bright while the pointer wanders, which the CSS version could not do.
-**A limit worth knowing:** the band's width is in flow units, so it thins out
-with the zoom like everything else. Below roughly 0.2 zoom a link is not
-practically clickable — but at that zoom a device is ten pixels across, and
-the answer is to zoom in.
+**A limit that was there and is now not (LT-113).** The band's width is a
+stroke, so it first shrank with the zoom like everything else on the canvas —
+under two pixels wide at 0.14 zoom, measured, so a link stopped being
+clickable well before it stopped being visible. `vector-effect:
+non-scaling-stroke` makes those twelve pixels *screen* pixels, and hit
+testing follows the rendered stroke, so it holds all the way down: every
+sampled point on a link still reaches it at 0.06 zoom. The harness checks the
+zoomed-out case alongside the ordinary one.
 **Also in this change, asked for at the same time:** an imported link now
 arrives as a **bezier** rather than a smooth step. An imported drawing puts
 devices where the drawing put them rather than on a grid, and an orthogonal
@@ -392,6 +436,11 @@ that wants its own before-and-after check rather than being smuggled in
 under a link-routing fix.
 **Acceptance:** one list, used by both, and a callout exports as the shape
 it is drawn as.
+**Done 2026-09-08 (under LT-113).** Both copies deleted; `diagram.ts` and
+`DeviceNode.tsx` now read `SHAPE_DEVICE_TYPES`. A test renders a callout and
+an access switch in glyph mode and asserts the callout keeps its node-sized
+box while the switch does not — not just "contains a rect", since the switch
+symbol is itself drawn out of them.
 
 ### LT-029 — No known bugs
 **Source:** asked 2026-08-30 — "I don't want any bugs".

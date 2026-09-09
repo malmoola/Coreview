@@ -9,7 +9,7 @@ import { timeAgo } from '../../lib/timeAgo';
 import { ipc } from '../../lib/ipc';
 import { activePage } from '../../lib/pages';
 import type { DeviceNodeData, HealthStatus, ProbeRuntime } from '../../types/domain';
-import { STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
+import { SHAPE_DEVICE_TYPES, STATUS_GLYPH, STATUS_LABEL } from '../../types/domain';
 
 /** The monitored-objects table, brought to the cursor. While validation is
  *  running, the row for this device's primary probe — last result, round-trip
@@ -48,9 +48,7 @@ function LiveCard({ label, status, ink, live }: {
   );
 }
 
-const SHAPE_TYPES = new Set([
-  'rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'zone', 'callout',
-]);
+
 
 /** Shapes a border and a border-radius cannot draw.
  *
@@ -241,7 +239,7 @@ function DeviceNodeInner({ id, data, selected }: NodeProps) {
   const failing = missed > 0 && status !== 'down' && status !== 'disabled';
   const missedLabel = failing ? `${missed} of ${live?.failureThreshold ?? '?'} missed` : null;
 
-  const isShape = SHAPE_TYPES.has(d.deviceType);
+  const isShape = SHAPE_DEVICE_TYPES.has(d.deviceType);
   const isText = d.deviceType === 'text';
   // The annotation shapes are boxes by definition — a rectangle drawn as a
   // glyph is not a rectangle — so they keep the drawn form either way.

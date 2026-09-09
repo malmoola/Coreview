@@ -52,7 +52,7 @@ const NODE_W = 176;
 const NODE_H = 96;
 const PAD = 48;
 const HEADER_H = 86;
-const SHAPE_TYPES = new Set(['rectangle', 'rounded', 'circle', 'diamond', 'cloud', 'text', 'zone']);
+
 
 /**
  * What the exported sheet is painted on.
@@ -235,7 +235,7 @@ function nodeMarkup(
   const statusInk = status === 'unknown' ? sheet.inkDim : statusColors(sheet.ground)[status];
   const border = d.style?.border ?? color;
   const bg = d.style?.background ?? sheet.surface;
-  const isShape = SHAPE_TYPES.has(d.deviceType);
+  const isShape = SHAPE_DEVICE_TYPES.has(d.deviceType);
   const isText = d.deviceType === 'text';
   const primary =
     d.addresses?.find((a) => a.isPrimary)?.address ?? d.addresses?.[0]?.address ?? '';

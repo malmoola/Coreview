@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { fit, renderDiagramSvg } from './diagram';
 import type { TopoEdge, TopoNode } from '../state/store';
 import type { HealthStatus, ProjectMeta } from '../types/domain';
+import { SHAPE_DEVICE_TYPES } from '../types/domain';
 
 const meta: ProjectMeta = {
   id: 'p1', name: 'Branch cutover', customer: 'Acme', site: 'HQ', ticket: 'CHG-1',
@@ -43,6 +44,36 @@ const render = (
     nodeStyle,
     now: new Date(0),
   });
+
+describe('what counts as a plain shape rather than a device', () => {
+  it('is one list, so the export draws a callout the way the canvas does', () => {
+    // LT-108: the canvas and the export each kept their own copy and the
+    // copies differed — the canvas treated `callout` as a shape, the export
+    // did not, so a callout was a box on screen and a device glyph in the
+    // exported file. An export that does not show what the canvas shows is
+    // the one thing an export must never do (D-001).
+    for (const type of ['callout', 'zone', 'text', 'cloud', 'rectangle']) {
+      expect(SHAPE_DEVICE_TYPES.has(type)).toBe(true);
+    }
+    // In glyph mode a device is drawn as its symbol with the name beneath and
+    // no box; a plain shape keeps its box. So the box is the tell.
+    // No title block, so the only boxes in the file are the node's own.
+    const only = (deviceType: string) =>
+      renderDiagramSvg({
+        meta, edges: [], nodes: [device('n1', 0, 0, { deviceType, label: 'Note this' })],
+        nodeStatus: () => 'healthy' as HealthStatus,
+        linkStatus: () => 'healthy' as HealthStatus,
+        includeTitleBlock: false, nodeStyle: 'glyph', now: new Date(0),
+      });
+    // A plain shape is drawn as a box the size of the node. A device glyph is
+    // drawn as its symbol with the name beneath and no box at all — so the
+    // node-sized box is the tell. (Not just any `<rect>`: the switch symbol
+    // is itself drawn out of them.)
+    const nodeBox = 'width="176" height="96"';
+    expect(only('callout')).toContain(nodeBox);
+    expect(only('access-switch')).not.toContain(nodeBox);
+  });
+});
 
 describe('renderDiagramSvg', () => {
   it('draws every node, not just what a DOM scrape would find', () => {

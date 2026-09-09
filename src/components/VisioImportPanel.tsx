@@ -27,17 +27,22 @@ import { useStore } from '../state/store';
 import { uid } from '../lib/id';
 import { newProbe } from '../lib/probes';
 import { makeDeviceNode } from './Canvas';
-import type { DeviceNodeData, DeviceType, LinkData } from '../types/domain';
+import type { DeviceNodeData, DeviceType } from '../types/domain';
 import type { TopoEdge } from '../state/store';
 import { linkStyleDefaults } from '../lib/linkDefaults';
 import { activePage } from '../lib/pages';
+import { importedAddresses, importedLinkData } from '../lib/visioImportModel';
 import { placeDevices } from '../lib/visioLayout';
 
 /** A device as it stands in the preview, after any correction. */
 interface DraftDevice {
   id: string;
   label: string;
+  /** The address checks are aimed at, and the one the preview lets you edit. */
   address: string;
+  /** Anything else the caption carried. Kept as addresses rather than flattened
+   *  into the notes, which is where an address goes to be forgotten. */
+  extraAddresses: string[];
   deviceType: string;
   model: string;
   properties: Record<string, string>;
@@ -87,15 +92,12 @@ function toDraft(pages: ImportedPage[]): DraftPage[] {
     devices: p.devices.map((d) => ({
       id: d.id,
       label: d.label,
-      // One address is what a check needs. The rest, if a caption carried
-      // more than one, stay in the notes rather than being dropped.
+      // One address is what a check needs; the rest come too, as addresses.
       address: d.addresses[0] ?? '',
+      extraAddresses: d.addresses.slice(1),
       deviceType: d.deviceType || 'generic',
       model: d.model,
-      properties:
-        d.addresses.length > 1
-          ? { ...d.properties, 'Other addresses': d.addresses.slice(1).join(', ') }
-          : d.properties,
+      properties: d.properties,
       x: d.x,
       y: d.y,
       width: d.width,
@@ -173,6 +175,7 @@ export function VisioImportPanel() {
             id: `added-${uid()}`,
             label: 'New device',
             address: '',
+            extraAddresses: [],
             deviceType: 'generic',
             model: '',
             properties: {},
@@ -235,9 +238,7 @@ export function VisioImportPanel() {
         const data = node.data as DeviceNodeData;
         data.label = d.label;
         if (d.model) data.model = d.model;
-        data.addresses = d.address
-          ? [{ id: uid(), label: 'Management', address: d.address, isPrimary: true }]
-          : [];
+        data.addresses = importedAddresses([d.address, ...d.extraAddresses].filter(Boolean));
         // Shape Data the drawing carried — vendor, part number, room. Kept as
         // notes rather than dropped, since it is the operator's own data.
         const props = Object.entries(d.properties ?? {});
@@ -261,28 +262,10 @@ export function VisioImportPanel() {
         const a = idToNode.get(l.source);
         const b = idToNode.get(l.target);
         if (!a || !b) continue;
-        // Imported links take this diagram's own link style, except where the
-        // drawing stated a colour of its own — an operator who drew the
-        // carrier circuits orange meant something by it.
+        // Imported links take this diagram's own link style, with the two
+        // departures `importedLinkData` explains.
         const style = linkStyleDefaults(activePage(store.doc).canvas.linkStyle);
-        const ports = [l.sourcePort, l.targetPort].filter(Boolean);
-        const data: LinkData = {
-          ...style,
-          // A curve, not a right-angled run. An imported drawing puts devices
-          // where the drawing put them rather than on a tidy grid, so an
-          // orthogonal route between two of them takes a long way round and
-          // reads as routing that was meant, when it is only routing that was
-          // computed. A curve says "these two are joined" and nothing more.
-          pathType: 'bezier',
-          sourcePortLabel: l.sourcePort,
-          targetPortLabel: l.targetPort,
-          // The pair written on the line, the way the drawing wrote it.
-          label: ports.length === 2 ? `${l.sourcePort} <> ${l.targetPort}` : (ports[0] ?? ''),
-          ...(l.color ? { color: l.color, colorMode: 'fixed' as const } : {}),
-          enabled: true,
-          maintenance: false,
-          healthRule: { type: 'both-endpoints' },
-        };
+        const data = importedLinkData(style, l);
         store.addEdge({ id: uid(), source: a, target: b, data } as TopoEdge);
         links += 1;
       }

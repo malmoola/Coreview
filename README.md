@@ -336,8 +336,8 @@ what the drawing left out. What is on screen is what lands on the canvas.
 
 Any IPv4 address in that same caption, so a caption of the form
 `EDGE-FW-01 192.0.2.10` yields both the name and the address. Where a caption
-holds several, the first becomes the device's address and the rest are kept in
-its notes.
+holds several, they all arrive as addresses on the device — the first as the
+primary, which is the one a check is aimed at.
 
 It has to be separated from the name. A run-together caption is left unread on
 purpose: `vpn01192.0.2.50` could be `vpn01` + `192.0.2.50` or `vpn011` +
@@ -407,9 +407,13 @@ cannot be read, rather than a guessed topology.
 ### Limits
 
 `.vsdx` only. `.vsd` is the pre-2013 binary format and carries none of this
-structure — re-save it as `.vsdx` first. Exports from some tools, Lucidchart
-among them, contain no glue at all, so their links cannot be read; their
-devices still import.
+structure — the importer recognises one and says so, and the fix is to open it
+in Visio and Save As `.vsdx`.
+
+Exports from some tools, Lucidchart among them, glue nothing at all. Their
+cables are still read as links, but every endpoint is worked out from where
+the line was drawn rather than stated by the file, so the whole drawing
+arrives flagged for review.
 
 ---
 

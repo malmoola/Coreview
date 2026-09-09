@@ -478,10 +478,31 @@ fn collect_shapes(node: roxmltree::Node, out: &mut Vec<RawShape>) {
 /// `<Connects>` is not on its own a sign of being a connector. Only glue that
 /// joins two *different* shapes counts.
 fn is_connector(s: &RawShape, joins_two_shapes: bool) -> bool {
-    s.has_ends
-        && (s.spans_its_ends
-            || s.master.to_ascii_lowercase().contains("connector")
-            || joins_two_shapes)
+    s.has_ends && (s.spans_its_ends || master_says_connector(&s.master) || joins_two_shapes)
+}
+
+/// Whether a master name says outright that the shape is a line between things.
+///
+/// Matched as whole words, not as substrings. "Connector" and "Line" are
+/// common enough as parts of equipment names — a line card, an inline power
+/// injector — that `contains` would quietly turn a device into a cable.
+/// `com.lucidchart.Line` splits to `com`, `lucidchart`, `line`, which is the
+/// one that matters: a Lucidchart export names every cable that way and glues
+/// none of them, so without this its lines are not links at all — and worse,
+/// each one is imported as a *device*, because a shape that is not a connector
+/// and has a master is taken for equipment.
+fn master_says_connector(master: &str) -> bool {
+    // The *last* word, not any word. A master names a kind of thing, and the
+    // kind is the noun it ends on: `com.lucidchart.Line` and `Dynamic
+    // connector` are cables, while `Catalyst 6500 Line Card 48-port` and
+    // `Inline power injector` are equipment that merely mention one. Matching
+    // any word turned the line card into a cable.
+    let lower = master.to_ascii_lowercase();
+    let Some(last) = lower.rsplit(|c: char| !c.is_ascii_alphanumeric()).find(|w| !w.is_empty())
+    else {
+        return false;
+    };
+    last.starts_with("connector") || last.starts_with("line") || last.starts_with("link")
 }
 
 /// The nearest text that reads like a name rather than a port.
@@ -900,6 +921,15 @@ pub fn parse_page(xml: &str, page_name: &str) -> Result<(ImportedPage, Vec<Strin
 
 /// Reads a whole `.vsdx`.
 pub fn import_vsdx(bytes: &[u8]) -> Result<VisioImport, String> {
+    // The pre-2013 binary format is an OLE compound file, and it starts with a
+    // fixed signature. It is worth naming, because "this does not look like a
+    // .vsdx file" is true but useless when the fix is one Save As away.
+    if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) {
+        return Err("This is a .vsd — the pre-2013 binary format, which carries \
+none of the shape data an import needs. Open it in Visio and Save As .vsdx, \
+then import that."
+            .into());
+    }
     let reader = std::io::Cursor::new(bytes);
     let mut zip = zip::ZipArchive::new(reader)
         .map_err(|e| format!("This does not look like a .vsdx file: {e}"))?;
@@ -1279,6 +1309,46 @@ mod tests {
         let (page, _) = parse_page(xml, "Page-1").unwrap();
         assert_eq!(page.links.len(), 1);
         assert!(!page.links[0].glued);
+    }
+
+    #[test]
+    fn a_drawing_that_glues_nothing_still_yields_its_links() {
+        // The Lucidchart family: every cable is a `com.lucidchart.Line` and
+        // there is no <Connects> section at all. Before, none of these was
+        // recognised as a connector, so the drawing came in with no links --
+        // and each line was imported as a *device*, since a shape with a
+        // master that is not a connector is taken for equipment.
+        let xml = r#"<PageContents><Shapes>
+            <Shape ID='1' NameU='com.lucidchart.NET_Switch'><Cell N='PinX' V='1'/><Cell N='PinY' V='5'/><Text>SW-01</Text></Shape>
+            <Shape ID='2' NameU='com.lucidchart.NET_Router'><Cell N='PinX' V='4'/><Cell N='PinY' V='5'/><Text>RTR-01</Text></Shape>
+            <Shape ID='3' NameU='com.lucidchart.Line'><Cell N='PinX' V='2.5'/><Cell N='PinY' V='5'/><Cell N='BeginX' V='1'/><Cell N='BeginY' V='5'/><Cell N='EndX' V='4'/><Cell N='EndY' V='5'/></Shape>
+        </Shapes></PageContents>"#;
+        let (page, _) = parse_page(xml, "Page-1").unwrap();
+        let mut labels: Vec<&str> = page.devices.iter().map(|d| d.label.as_str()).collect();
+        labels.sort_unstable();
+        assert_eq!(labels, vec!["RTR-01", "SW-01"], "a line is not a device");
+        assert_eq!(page.links.len(), 1);
+        assert!(!page.links[0].glued, "worked out from geometry, so flagged");
+    }
+
+    #[test]
+    fn a_line_card_is_not_mistaken_for_a_cable() {
+        // "Line" and "connector" turn up inside equipment names, so the master
+        // is matched a word at a time rather than as a substring.
+        assert!(master_says_connector("com.lucidchart.Line"));
+        assert!(master_says_connector("Dynamic connector"));
+        assert!(master_says_connector("com.lucidchart.LineElbow"), "a bent line is still a line");
+        assert!(!master_says_connector("Catalyst 6500 Line Card 48-port"), "a line card is equipment");
+        assert!(!master_says_connector("Inline power injector"));
+        assert!(!master_says_connector("N9K-C93180YC-EX Front"));
+    }
+
+    #[test]
+    fn the_old_binary_format_is_named_rather_than_just_refused() {
+        let ole = [0xD0u8, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, 0, 0, 0, 0];
+        let err = import_vsdx(&ole).unwrap_err();
+        assert!(err.contains(".vsd"), "{err}");
+        assert!(err.contains("Save As"), "should say what to do about it: {err}");
     }
 
     #[test]
