@@ -3359,6 +3359,59 @@ await dismissRecovery();
   }
 }
 
+// --- LT-117: "save this style as the default" applies to the diagram --------
+//
+// It was written to the active page's canvas, and the canvas is per page. Save
+// it, add a page — which is what importing a multi-page drawing does for you —
+// and links there came out in the built-in grey, so the setting looked as
+// though it had not saved at all.
+{
+  await dismissRecovery();
+  await page.evaluate(() => {
+    window.__cvStore.setState({ doc: window.__cvDocWith({
+      // Every link, because two of them join the same pair of devices and
+      // their clickable bands overlap: which one the right-click lands on is
+      // not the thing being tested here.
+      edges: window.__cvEdges().map((e) => ({
+        ...e, data: { ...e.data, color: "#ff00aa", width: 6 },
+      })),
+    }) });
+  });
+  await page.waitForTimeout(300);
+  await clickLink("e-healthy");
+  await page.locator('.cv-edge-hit[data-id="e-healthy"] path')
+    .first().click({ force: true, button: "right" });
+  await page.waitForTimeout(300);
+  const save = page.locator(".cv-menu button", { hasText: "Save this style as the default" });
+  check("a link offers saving its style as the default", (await save.count()) === 1);
+  if (await save.count()) {
+    await save.click();
+    await page.waitForTimeout(400);
+    const everywhere = await page.evaluate(() => {
+      const st = window.__cvStore.getState();
+      return st.doc.pages.every((p) => p.canvas.linkStyle?.color === "#ff00aa");
+    });
+    check("and it becomes the default on every page, not just the one in front of you",
+      everywhere);
+
+    await page.evaluate(() => window.__cvStore.getState().addPage("Style check"));
+    await page.waitForTimeout(400);
+    const inherited = await page.evaluate(() => {
+      const st = window.__cvStore.getState();
+      const pg = st.doc.pages.find((p) => p.id === st.doc.activePageId);
+      return pg.canvas.linkStyle?.color ?? null;
+    });
+    check("and a page added afterwards inherits it", inherited === "#ff00aa", String(inherited));
+
+    await page.evaluate(() => {
+      const st = window.__cvStore.getState();
+      const id = st.doc.activePageId;
+      st.removePage(id);
+    });
+    await page.waitForTimeout(300);
+  }
+}
+
 if (out) await page.screenshot({ path: `${out}/interact-final.png` });
 await browser.close();
 console.log(failures === 0 ? "\nall interaction checks passed" : `\n${failures} failed`);

@@ -67,6 +67,13 @@ function uniqueName(pages: ProjectPage[], name: string): string {
  *  just added is the one you meant to start drawing on. */
 export function withNewPage(doc: ProjectDocument, name: string, id: string): ProjectDocument {
   const page = newPage(uniqueName(doc.pages, name), id);
+  // A new page inherits how this diagram draws links. The style is per page
+  // because the canvas is, but "the default look of a link" is a property of
+  // the diagram: saving it and then adding a page — which is what an import of
+  // a multi-page drawing does for you — left the new page drawing links in the
+  // built-in grey, and the setting looked as though it had not saved.
+  const style = activePage(doc).canvas.linkStyle;
+  if (style) page.canvas = { ...page.canvas, linkStyle: { ...style } };
   return { ...doc, pages: [...doc.pages, page], activePageId: id };
 }
 

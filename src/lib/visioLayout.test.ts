@@ -18,16 +18,14 @@ const device = (id: string, over: Partial<ImportedDevice> = {}): ImportedDevice 
 });
 
 describe('scaleFor', () => {
-  it('leaves a drawing of ordinary icons at one inch to 96 pixels', () => {
-    expect(scaleFor([device('a', { width: 0.69, height: 0.34 })])).toBe(BASE_SCALE);
+  it('never draws a drawing smaller than one inch to 96 pixels', () => {
+    expect(scaleFor([device('a', { width: 2, height: 2 })])).toBe(BASE_SCALE);
   });
 
-  it('opens a drawing out until its flattest shape is still legible', () => {
-    // A rack unit is a fifth of an inch tall. At 96px to the inch it is 18px
-    // high and four of them stacked are a pile, whatever size they are drawn.
-    const scale = scaleFor([device('a', { width: 2.06, height: 0.185 })]);
+  it('opens a drawing out until its smallest device is legible', () => {
+    const scale = scaleFor([device('a', { width: 0.2, height: 0.2 })]);
     expect(scale).toBeGreaterThan(BASE_SCALE);
-    expect(0.185 * scale).toBeGreaterThanOrEqual(32);
+    expect(0.2 * scale).toBeGreaterThanOrEqual(48);
   });
 
   it('does not blow the page up to fit one hairline', () => {
@@ -56,7 +54,7 @@ describe('placeDevices', () => {
     expect(out.get('bottom')!.y).toBe(6 * BASE_SCALE);
   });
 
-  it('keeps a rack of stacked units stacked rather than piled', () => {
+  it('keeps a rack of stacked units stacked, and clear of one another', () => {
     // Four switches a fifth of an inch apart in the drawing. They must come
     // out one above the other and not on top of each other.
     const rack = [0, 1, 2, 3].map((i) =>
@@ -69,14 +67,43 @@ describe('placeDevices', () => {
     for (let i = 1; i < ys.length; i += 1) {
       expect((ys[i] ?? 0) - (ys[i - 1] ?? 0)).toBeGreaterThanOrEqual(unit);
     }
-    // And they stay the shape the drawing made them: wide, not square.
-    expect(out.get('u0')!.width).toBeGreaterThan(out.get('u0')!.height * 5);
+  });
+
+  it('draws every device square, because a glyph is square', () => {
+    // Taking the drawing's own proportions gave a rack unit an eleven-to-one
+    // node: an enormous flat ellipse for a selection ring, no grabbable length
+    // on its links, and a silent resize on the next open when the document
+    // migration squared it again.
+    const out = placeDevices([
+      device('rack', { x: 0, y: 0, width: 2.06, height: 0.185 }),
+      device('icon', { x: 5, y: 0 }),
+    ]);
+    for (const [, p] of out) expect(p.width).toBe(p.height);
+  });
+
+  it('still draws a bigger shape bigger', () => {
+    // What was worth keeping from the drawing's sizes: a cloud is drawn
+    // larger than an access switch, and should arrive larger.
+    const out = placeDevices([
+      device('cloud', { x: 0, y: 0, width: 1.24, height: 0.72 }),
+      device('switch', { x: 4, y: 0, width: 0.69, height: 0.34 }),
+    ]);
+    expect(out.get('cloud')!.width).toBeGreaterThan(out.get('switch')!.width);
   });
 
   it('gives a shape with no stated size a sensible one rather than nothing', () => {
     const at = placeDevices([device('a', { x: 2, y: 2 })]).get('a')!;
     expect(at.width).toBe(Math.round(0.6 * BASE_SCALE));
     expect(at.height).toBe(at.width);
+  });
+
+  it('never draws a device too small to use or large enough to dwarf the page', () => {
+    const out = placeDevices([
+      device('tiny', { x: 0, y: 0, width: 0.02, height: 0.02 }),
+      device('huge', { x: 9, y: 0, width: 40, height: 40 }),
+    ]);
+    expect(out.get('tiny')!.width).toBeGreaterThanOrEqual(48);
+    expect(out.get('huge')!.width).toBeLessThanOrEqual(140);
   });
 
   it('starts the drawing at the origin so nothing lands off-canvas', () => {

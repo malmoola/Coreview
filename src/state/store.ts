@@ -305,6 +305,9 @@ interface Store {
    *  stencil pack, since nothing was deleted from disk. */
   removeCustomShape: (id: string) => void;
   setCanvas: (patch: Partial<ProjectPage['canvas']>) => void;
+  /** How links on this diagram are drawn by default — every page, since a
+   *  diagram whose pages disagree about it is nobody's intent. */
+  setDefaultLinkStyle: (style: LinkStyleDefaults) => void;
   setPanelOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
   setInspectorOpen: (open: boolean) => void;
@@ -1573,6 +1576,21 @@ export const useStore = create<Store>((set, get) => ({
     } catch {
       /* cleared for this session even where forgetting it failed */
     }
+  },
+
+  setDefaultLinkStyle(style) {
+    // Written to every page, not just the one in front of you. The canvas is
+    // per page and that is right for a grid or a set of views, but the default
+    // look of a link belongs to the diagram — a project whose second page
+    // draws links differently from its first is not something anyone asked
+    // for, and is what made this setting look as though it did nothing.
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        pages: s.doc.pages.map((p) => ({ ...p, canvas: { ...p.canvas, linkStyle: style } })),
+      },
+      dirty: true,
+    }));
   },
 
   setCanvas(patch) {

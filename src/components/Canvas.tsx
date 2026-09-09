@@ -368,8 +368,8 @@ export function Canvas() {
         label: 'Save this style as the default',
         onSelect: () => {
           if (!data) return;
-          store.setCanvas({ linkStyle: styleOf(data) });
-          store.setStatusMessage('New links will look like this one.');
+          store.setDefaultLinkStyle(styleOf(data));
+          store.setStatusMessage('New links will look like this one, on every page.');
         },
       },
       {
